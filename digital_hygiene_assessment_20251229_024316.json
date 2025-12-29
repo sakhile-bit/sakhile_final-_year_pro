@@ -1,0 +1,49 @@
+{
+  "business_info": {
+    "name": "lotusnet",
+    "id": "20200",
+    "assessment_date": "2025-12-29T02:42:37.262372",
+    "system": "Windows",
+    "system_version": "10.0.26200"
+  },
+  "controls": {
+    "os_updates": {
+      "score": 0,
+      "status": "FAIL",
+      "details": "Cannot determine last update time",
+      "weight": 10
+    },
+    "antivirus": {
+      "score": 0,
+      "status": "ERROR",
+      "details": "Error checking antivirus: 'NoneType' object has no attribute 'lower'",
+      "weight": 15
+    },
+    "firewall": {
+      "score": 10,
+      "status": "PASS",
+      "details": "Firewall enabled for profiles: State, State, State",
+      "weight": 10
+    },
+    "password_policy": {
+      "score": 4,
+      "status": "FAIL",
+      "details": "Password length too short: 0 chars; Passwords never expire (NOT RECOMMENDED); Account lockout after 10 failures",
+      "weight": 10
+    },
+    "backup_system": {
+      "score": 0,
+      "status": "FAIL",
+      "details": "No backup system detected",
+      "weight": 5
+    }
+  },
+  "score": 14,
+  "total_possible": 50,
+  "certification_level": "NOT CERTIFIED",
+  "recommendations": [
+    "Enable Windows Automatic Updates and ensure updates are installed regularly",
+    "Strengthen password policy: Minimum 8 characters, expiry every 90 days, account lockout after 5 failures",
+    "Implement regular backup system with off-site storage"
+  ]
+}
