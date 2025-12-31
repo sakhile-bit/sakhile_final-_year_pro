@@ -12,11 +12,11 @@ from rich.table import Table
 from rich.panel import Panel
 from rich.text import Text
 
-from ..assessment.assessor import DigitalHygieneAssessor, BusinessInfo
-from ..reporting.generator import ReportGenerator
-from ..database.connection import DatabaseManager
-from ..utils.logging_config import get_logger
-from ..utils.config import config
+from assessment.assessor import DigitalHygieneAssessor, BusinessInfo
+from reporting.generator import ReportGenerator
+from database.connection import DatabaseManager
+from utils.logging_config import get_logger
+from utils.config import config
 
 console = Console()
 logger = get_logger(__name__)
@@ -126,7 +126,7 @@ def assess(business_name: str, business_id: str, output_dir: str,
 @cli.command()
 def manual():
     """Generate manual assessment guide"""
-    from ..manual_assessment_guide import generate_manual_checklist
+    from manual_assessment_guide import generate_manual_checklist
 
     try:
         filename = generate_manual_checklist()
