@@ -1,0 +1,18 @@
+{% extends 'base.html' %} {% block content %}
+<div class="container mt-4">
+  <h2>Schedule Automated Scan</h2>
+  <form method="post">
+    <div class="form-group">
+      <label for="interval">Scan Interval (hours)</label>
+      <input
+        type="number"
+        name="interval"
+        class="form-control"
+        value="24"
+        min="1"
+      />
+    </div>
+    <button type="submit" class="btn btn-primary">Schedule Scan</button>
+  </form>
+</div>
+{% endblock %}

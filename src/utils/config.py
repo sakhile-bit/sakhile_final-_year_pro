@@ -8,6 +8,23 @@ from typing import Dict, Any
 import yaml
 
 
+def load_env_file(env_file: str = '.env') -> None:
+    """Load environment variables from .env file"""
+    if os.path.exists(env_file):
+        with open(env_file) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    os.environ[key.strip()] = value.strip()
+
+
+# Load .env file on import (look for it in the project root)
+_env_file = Path(__file__).parent.parent.parent / '.env'
+if _env_file.exists():
+    load_env_file(str(_env_file))
+
+
 class Config:
     """Application configuration management"""
 
@@ -15,29 +32,29 @@ class Config:
         self._config = self._load_default_config()
 
     def _load_default_config(self) -> Dict[str, Any]:
-        """Load default configuration"""
+        """Load default configuration from environment variables"""
         return {
             'app': {
                 'name': 'Zambia Digital Hygiene Assessment Tool',
                 'version': '2.0.0',
-                'log_level': 'INFO',
-                'log_file': 'logs/app.log',
-                'debug': False
+                'log_level': os.getenv('LOG_LEVEL', 'INFO'),
+                'log_file': os.getenv('LOG_FILE', 'logs/app.log'),
+                'debug': os.getenv('DEBUG', 'false').lower() == 'true'
             },
             'database': {
-                'host': 'localhost',
-                'port': 3306,
-                'name': 'digital_hygiene',
-                'user': 'root',
-                'password': '',
-                'pool_size': 10,
-                'max_overflow': 20
+                'host': os.getenv('DB_HOST', 'localhost'),
+                'port': int(os.getenv('DB_PORT', '3306')),
+                'name': os.getenv('DB_NAME', 'digital_hygiene'),
+                'user': os.getenv('DB_USER', 'root'),
+                'password': os.getenv('DB_PASSWORD', ''),
+                'pool_size': int(os.getenv('DB_POOL_SIZE', '10')),
+                'max_overflow': int(os.getenv('DB_MAX_OVERFLOW', '20'))
             },
             'web': {
-                'host': 'localhost',
-                'port': 5000,
-                'debug': True,
-                'secret_key': 'dev-secret-key-change-in-production'
+                'host': os.getenv('WEB_HOST', '127.0.0.1'),
+                'port': int(os.getenv('WEB_PORT', '5000')),
+                'debug': os.getenv('DEBUG', 'false').lower() == 'true',
+                'secret_key': os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
             },
             'reports': {
                 'output_dir': 'reports',
@@ -100,6 +117,25 @@ class Config:
     def assessment(self):
         """Assessment configuration"""
         return self._config['assessment']
+
+    def get_database_url(self) -> str:
+        """Generate MySQL connection URL from config; require driver to be installed."""
+        try:
+            import mysql.connector  # noqa: F401
+        except ImportError as exc:  # pragma: no cover - hard failure in prod
+            raise RuntimeError("mysql-connector-python is required. Install it in your environment.") from exc
+
+        db_config = self.database
+        user = db_config.get('user') or os.getenv('DB_USER', 'root')
+        password = db_config.get('password') or os.getenv('DB_PASSWORD', '')
+        host = db_config.get('host') or os.getenv('DB_HOST', 'localhost')
+        port = db_config.get('port') or int(os.getenv('DB_PORT', '3306'))
+        name = db_config.get('name') or os.getenv('DB_NAME', 'digital_hygiene')
+
+        # Construct MySQL URL for SQLAlchemy
+        if password:
+            return f'mysql+mysqlconnector://{user}:{password}@{host}:{port}/{name}'
+        return f'mysql+mysqlconnector://{user}@{host}:{port}/{name}'
 
 
 # Global config instance

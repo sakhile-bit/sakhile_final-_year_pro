@@ -12,6 +12,7 @@ def app():
     """Create and configure a test app instance."""
     app = create_app()
     app.config['TESTING'] = True
+    # Override with SQLite for tests
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
 
     with app.app_context():

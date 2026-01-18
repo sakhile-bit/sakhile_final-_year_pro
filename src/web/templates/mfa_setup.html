@@ -1,0 +1,14 @@
+{% extends 'base.html' %} {% block content %}
+<div class="container mt-4">
+  <h2>Multi-Factor Authentication (MFA) Setup</h2>
+  <p class="text-muted">
+    This feature is coming soon. You will be able to set up MFA for your account
+    to enhance security.
+  </p>
+  <form method="post" action="{{ url_for('mfa_setup') }}">
+    <button type="submit" class="btn btn-primary" disabled>
+      Set Up MFA (Coming Soon)
+    </button>
+  </form>
+</div>
+{% endblock %}

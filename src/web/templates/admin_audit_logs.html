@@ -1,0 +1,51 @@
+{% extends 'base.html' %} {% block title %}Audit Logs{% endblock %} {% block
+content %}
+<div class="container py-4">
+  <h2>Audit Logs</h2>
+  <table class="table table-bordered table-striped">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>User</th>
+        <th>Action</th>
+        <th>Resource</th>
+        <th>Details</th>
+        <th>IP</th>
+        <th>User Agent</th>
+        <th>Timestamp</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in logs.items %}
+      <tr>
+        <td>{{ log.id }}</td>
+        <td>{{ log.user.username if log.user else 'N/A' }}</td>
+        <td>{{ log.action }}</td>
+        <td>{{ log.resource_type }} #{{ log.resource_id }}</td>
+        <td><pre>{{ log.details | tojson }}</pre></td>
+        <td>{{ log.ip_address }}</td>
+        <td>{{ log.user_agent[:40] }}...</td>
+        <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <nav>
+    <ul class="pagination">
+      {% if logs.has_prev %}
+      <li class="page-item">
+        <a class="page-link" href="?page={{ logs.prev_num }}">Previous</a>
+      </li>
+      {% endif %}
+      <li class="page-item active">
+        <span class="page-link">Page {{ logs.page }}</span>
+      </li>
+      {% if logs.has_next %}
+      <li class="page-item">
+        <a class="page-link" href="?page={{ logs.next_num }}">Next</a>
+      </li>
+      {% endif %}
+    </ul>
+  </nav>
+</div>
+{% endblock %}

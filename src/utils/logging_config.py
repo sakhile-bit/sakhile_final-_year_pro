@@ -77,6 +77,6 @@ def get_logger(name: str) -> logging.Logger:
 
 # Initialize global logger
 logger = setup_logging(
-    log_level=config.app.log_level,
-    log_file=config.app.log_file
+    log_level=config.app.get('log_level', 'INFO'),
+    log_file=config.app.get('log_file')
 )

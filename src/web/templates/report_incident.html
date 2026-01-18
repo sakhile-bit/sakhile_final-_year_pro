@@ -1,0 +1,19 @@
+{% extends 'base.html' %} {% block title %}Report Security Incident{% endblock
+%} {% block content %}
+<div class="container py-4">
+  <h2>Report Security Incident</h2>
+  <form method="POST">
+    <div class="mb-3">
+      <label for="description" class="form-label">Description</label>
+      <textarea
+        class="form-control"
+        id="description"
+        name="description"
+        rows="4"
+        required
+      ></textarea>
+    </div>
+    <button type="submit" class="btn btn-danger">Report Incident</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends 'base.html' %} {% block content %}
+<div class="container mt-4">
+  <h2>System Digital Hygiene Scan</h2>
+  <form method="post">
+    <p>
+      This scan will check system hygiene and technical risks. For SSL/TLS and
+      vulnerability scan, enter your domain or IP:
+    </p>
+    <div class="form-group">
+      <label for="domain">Domain/IP to scan</label>
+      <input
+        type="text"
+        name="domain"
+        class="form-control"
+        placeholder="localhost or yourdomain.com"
+      />
+    </div>
+    <button type="submit" class="btn btn-primary">Run Scan</button>
+  </form>
+</div>
+{% endblock %}

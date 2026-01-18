@@ -1,0 +1,101 @@
+{% extends 'base.html' %} {% block content %}
+<div class="container mt-4">
+  <h2>Zambia Digital Hygiene Assessment</h2>
+  <form method="post">
+    <div class="form-group">
+      <label for="sector">Business Sector</label>
+      <select name="sector" class="form-control">
+        {% for sector in sectors %}
+        <option value="{{ sector }}">{{ sector }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="language">Preferred Language</label>
+      <select name="language" class="form-control">
+        {% for lang in languages %}
+        <option value="{{ lang }}">{{ lang }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <hr />
+    <h4>Local Threats & Compliance</h4>
+    {% for tip in tips %}
+    <div class="alert alert-info">{{ tip }}</div>
+    {% endfor %}
+    <div class="form-group">
+      <label
+        ><input type="checkbox" name="sim_swap_fraud" /> SIM swap fraud
+        protection in place</label
+      >
+    </div>
+    <div class="form-group">
+      <label
+        ><input type="checkbox" name="mobile_money_scams" /> Mobile money scam
+        awareness</label
+      >
+    </div>
+    <div class="form-group">
+      <label
+        ><input type="checkbox" name="local_phishing" /> Local phishing
+        protection</label
+      >
+    </div>
+    <div class="form-group">
+      <label
+        ><input type="checkbox" name="whatsapp_fraud" /> WhatsApp fraud
+        protection</label
+      >
+    </div>
+    <div class="form-group">
+      <label
+        ><input type="checkbox" name="regulatory_non_compliance" /> Regulatory
+        compliance</label
+      >
+    </div>
+    <div class="form-group">
+      <label
+        ><input type="checkbox" name="unsecured_mobile_devices" /> Mobile device
+        security</label
+      >
+    </div>
+    <div class="form-group">
+      <label
+        ><input type="checkbox" name="weak_passwords" /> Strong password
+        policy</label
+      >
+    </div>
+    <div class="form-group">
+      <label><input type="checkbox" name="lack_of_mfa" /> MFA enabled</label>
+    </div>
+    <div class="form-group">
+      <label
+        ><input type="checkbox" name="no_data_backup" /> Data backup in
+        place</label
+      >
+    </div>
+    <div class="form-group">
+      <label
+        ><input type="checkbox" name="no_incident_response_plan" /> Incident
+        response plan</label
+      >
+    </div>
+    <div class="form-group">
+      <label
+        ><input type="checkbox" name="data_protection_act_2021" /> Data
+        Protection Act, 2021 compliance</label
+      >
+    </div>
+    <div class="form-group">
+      <label
+        ><input
+          type="checkbox"
+          name="cyber_security_and_cyber_crimes_act_2021"
+        />
+        Cyber Security and Cyber Crimes Act, 2021 compliance</label
+      >
+    </div>
+    <button type="submit" class="btn btn-success">Submit Assessment</button>
+  </form>
+</div>
+{% endblock %}

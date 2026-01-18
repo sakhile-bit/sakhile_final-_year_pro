@@ -37,85 +37,162 @@ A comprehensive cybersecurity assessment tool for Small and Medium Enterprises (
 
 ## 🚀 Quick Start
 
+### One-Command Installation
+
+Install and run the tool with a single command:
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://your-domain.com/install.ps1 | iex
+```
+
+**Windows (Command Prompt):**
+
+```cmd
+curl -s https://your-domain.com/install.bat | cmd
+```
+
+**Linux/macOS:**
+
+```bash
+curl -s https://your-domain.com/install.sh | bash
+```
+
+These scripts will automatically:
+
+- Check Python installation
+- Download the tool
+- Install dependencies
+- Setup the database
+- Start the web interface
+
+See [INSTALL_SCRIPTS.md](INSTALL_SCRIPTS.md) for details.
+
 ### Prerequisites
 
 - Windows 7+ (for automated assessment)
 - Python 3.8+
-- MySQL 8.0+
-- Administrator privileges (recommended)
+- MySQL 8.0+ (required for production)
 
-### Installation
+### Manual Installation & Setup
 
-1. **Clone the repository**
+1. **Clone and enter directory**
 
    ```bash
-   git clone https://github.com/yourusername/zambia-digital-hygiene.git
-   cd zambia-digital-hygiene
+   cd c:\Users\sakil\Desktop\sakhile_final-_year_pro
    ```
 
-2. **Install dependencies**
+2. **Create virtual environment** (if needed)
+
+   ```bash
+   python -m venv .venv
+   .venv\Scripts\activate
+   ```
+
+3. **Install dependencies**
 
    ```bash
    pip install -r requirements.txt
    ```
 
-3. **Set up the database**
+4. **Configure database** (required - MySQL only)
+
+   Run the MySQL setup script:
 
    ```bash
-   # Using Docker Compose (recommended)
-   docker-compose up -d db
-
-   # Or initialize manually
-   python -m src.main init-db
+   python database/setup_mysql.py
    ```
 
-4. **Run the application**
+   This will:
+   - Install MySQL if needed
+   - Create the database and user
+   - Set up tables and sample data
+   - Generate a `.env` file with connection details
+
+   Alternatively, set environment variables manually:
 
    ```bash
-   # Web dashboard
-   python -m src.main web
-
-   # CLI assessment
-   python -m src.main assess
+   set DB_HOST=localhost
+   set DB_PORT=3306
+   set DB_NAME=digital_hygiene
+   set DB_USER=dhassess
+   set DB_PASSWORD=SecurePass123!
    ```
+
+5. **Run tests** (verify setup)
+
+   ```bash
+   python -m pytest -q
+   ```
+
+6. **Start the web app**
+   ```bash
+   python src/web/app.py
+   ```
+   Then open http://localhost:5000 in your browser.
+   - **Default login**: `admin` / `admin123` (change on first login)
+
+### Environment Variables (Production)
+
+```
+DEBUG=false                    # Disable debug mode
+SECRET_KEY=<random-key>        # Flask secret (generated if not set)
+DB_HOST=localhost              # MySQL host
+DB_PORT=3306                   # MySQL port
+DB_NAME=digital_hygiene        # Database name
+DB_USER=root                   # Database user
+DB_PASSWORD=<password>         # Database password
+LOG_LEVEL=INFO                 # Logging level
+WEB_HOST=0.0.0.0              # Web server host
+WEB_PORT=5000                  # Web server port
+```
 
 ## 📖 Usage
 
-### Command Line Interface
+### Web Interface (Recommended)
 
-```bash
-# Run automated assessment
-python -m src.main assess --business-name "My Business" --business-id "REG001"
+1. **Start the app**
+   ```bash
+   python src/web/app.py
+   ```
+2. **Open http://localhost:5000**
+   - Login with default credentials (admin / admin123)
+   - Navigate to "Assessment" to run a new assessment
+   - View results and download reports (HTML, PDF, JSON, CSV)
 
-# Generate manual assessment guide
-python -m src.main manual
-
-# Start web dashboard
-python -m src.main web --host 0.0.0.0 --port 8000
-
-# Initialize database
-python -m src.main init-db
-```
-
-### Web Interface
-
-1. Start the web server: `python -m src.main web`
-2. Open http://localhost:5000 in your browser
-3. Register/Login to access the dashboard
-4. Create new assessments or view existing ones
-
-### API Usage
+### Programmatic API
 
 ```python
-from src.main import create_app
-from src.assessment.assessor import DigitalHygieneAssessor
+from src.assessment.assessor import DigitalHygieneAssessor, BusinessInfo
 
-# Create assessment programmatically
-app = create_app()
-with app.app_context():
-    assessor = DigitalHygieneAssessor("Business Name", "REG001")
-    results = assessor.run_assessment()
-    print(f"Score: {results.score}/{results.total_possible}")
+# Create a business profile
+business = BusinessInfo(
+    name="Tech Company Ltd",
+    id="TC001",
+    industry="Technology",
+    contact_person="John Doe",
+    contact_email="john@example.com"
+)
+
+# Run assessment
+assessor = DigitalHygieneAssessor(business)
+results = assessor.run_assessment()
+
+print(f"Score: {results.score}/{results.total_possible}")
+print(f"Level: {results.certification_level}")
+for rec in results.recommendations:
+    print(f"  - {rec}")
+```
+
+### Testing
+
+Run the test suite to verify everything works:
+
+```bash
+python -m pytest -q              # Quick run
+python -m pytest -v              # Verbose
+python -m pytest --cov=src       # With coverage
 ```
 
 ## 🏗️ Architecture
@@ -283,7 +360,33 @@ mypy src/
 - **Email**: digitalhygiene@zambia.gov.zm
 - **Phone**: +260 211 123456
 
-## 📄 License
+## � Production Deployment
+
+### Security Hardening
+
+- **HTTPS Only**: Set `SESSION_COOKIE_SECURE=True` and use SSL certificates
+- **Strong Passwords**: Enforced 12+ characters with uppercase, lowercase, digits, and special characters
+- **Rate Limiting**: 5 login attempts per 5 minutes per IP
+- **Session Security**: HTTPOnly, SameSite cookies with 30-minute lifetime
+- **Admin Password Reset**: Required on first login
+
+### Admin Reset Instructions
+
+If you need to reset the admin password:
+
+1. Connect to MySQL database
+2. Run: `UPDATE users SET password_hash = '' WHERE username = 'admin';`
+3. Restart the app - admin will be prompted to change password on login
+
+### Environment Validation
+
+The app validates required environment variables on startup:
+
+- `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`
+- `SECRET_KEY` (generate a strong random key)
+- `DEBUG=false` for production
+
+## �📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 

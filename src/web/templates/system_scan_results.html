@@ -1,0 +1,66 @@
+{% extends 'base.html' %} {% block content %}
+<div class="container mt-4">
+  <h2>System Scan Results</h2>
+  <ul>
+    <li><strong>Operating System:</strong> {{ scan_results.os }}</li>
+    <li><strong>Hostname:</strong> {{ scan_results.hostname }}</li>
+    <li>
+      <strong>Open Ports:</strong> {{ scan_results.open_ports | join(', ') if
+      scan_results.open_ports else 'None' }}
+    </li>
+    <li><strong>Firewall Status:</strong> {{ scan_results.firewall }}</li>
+  </ul>
+  <h4>Recommendations</h4>
+  <ul>
+    {% for rec in recommendations %}
+    <li>{{ rec }}</li>
+    {% endfor %}
+  </ul>
+  <h4>Advanced Checks</h4>
+  <ul>
+    <li>
+      <strong>Outdated Software:</strong> {{ advanced_results.outdated_software
+      | join(', ') if advanced_results.outdated_software else 'None detected' }}
+    </li>
+    <li>
+      <strong>Weak Password Accounts:</strong> {{
+      advanced_results.weak_passwords | join(', ') if
+      advanced_results.weak_passwords else 'None detected' }}
+    </li>
+    <li>
+      <strong>Antivirus Status:</strong> {{ advanced_results.antivirus_status }}
+    </li>
+    <li>
+      <strong>Disk Encryption:</strong> {{ advanced_results.disk_encryption }}
+    </li>
+    <li>
+      <strong>Admin Accounts:</strong> {{ advanced_results.admin_accounts |
+      join(', ') if advanced_results.admin_accounts else 'None detected' }}
+    </li>
+    <li>
+      <strong>Suspicious Processes:</strong> {{
+      advanced_results.suspicious_processes | join(', ') if
+      advanced_results.suspicious_processes else 'None detected' }}
+    </li>
+  </ul>
+  <h4>Technical Checks</h4>
+  <ul>
+    <li><strong>SSL/TLS Status:</strong> {{ technical_results.ssl_tls }}</li>
+    <li>
+      <strong>Backup Status:</strong> {{ technical_results.backup_status }}
+    </li>
+    <li><strong>Patch Status:</strong> {{ technical_results.patch_status }}</li>
+    <li><strong>External IP:</strong> {{ technical_results.external_ip }}</li>
+    <li>
+      <strong>Vulnerabilities:</strong> {{ technical_results.vulnerabilities |
+      join(', ') if technical_results.vulnerabilities else 'None detected' }}
+    </li>
+    <li>
+      <strong>Shodan Exposure:</strong> {{ technical_results.shodan_exposure }}
+    </li>
+  </ul>
+  <a href="{{ url_for('dashboard') }}" class="btn btn-secondary mt-3"
+    >Back to Dashboard</a
+  >
+</div>
+{% endblock %}

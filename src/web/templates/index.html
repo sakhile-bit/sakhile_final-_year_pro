@@ -1,0 +1,54 @@
+{% extends 'base.html' %} {% block title %}Zambia Digital Hygiene Assessment{%
+endblock %} {% block content %}
+<section class="hero-section">
+  <div class="container">
+    <div class="row align-items-center">
+      <div class="col-md-8">
+        <h1 class="display-5 fw-bold">Zambia Digital Hygiene Assessment</h1>
+        <p class="lead mt-3">
+          Assess and improve your organization's digital hygiene posture with a
+          quick, standards-aligned checklist.
+        </p>
+        <a href="{{ url_for('assess') }}" class="btn btn-light btn-lg mt-3">
+          Start Assessment
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="container my-5">
+  <div class="row g-4">
+    <div class="col-md-4">
+      <div class="card card-assessment p-3">
+        <div class="card-body">
+          <h5 class="card-title">Run Assessments</h5>
+          <p class="card-text">
+            Quickly evaluate controls and get prioritized recommendations.
+          </p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card card-assessment p-3">
+        <div class="card-body">
+          <h5 class="card-title">View Dashboard</h5>
+          <p class="card-text">
+            Track scores, certification levels, and recent assessments.
+          </p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card card-assessment p-3">
+        <div class="card-body">
+          <h5 class="card-title">Download Reports</h5>
+          <p class="card-text">
+            Export results in PDF, HTML, JSON, or CSV formats.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
