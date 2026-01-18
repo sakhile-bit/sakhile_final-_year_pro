@@ -1,6 +1,9 @@
 -- Database initialization script for Zambia Digital Hygiene Assessment Tool
--- Create database if it doesn't exist
-CREATE DATABASE IF NOT EXISTS digital_hygiene CHARACTER
+-- Drop database if it exists (for clean reinstall)
+DROP DATABASE IF EXISTS digital_hygiene;
+
+-- Create database
+CREATE DATABASE digital_hygiene CHARACTER
 SET
     utf8mb4 COLLATE utf8mb4_unicode_ci;
 

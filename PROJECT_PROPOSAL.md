@@ -3,8 +3,8 @@
 ## Project Proposal & Technical Documentation
 
 **Student Name:** Sakhile Final Year Project  
-**Institution:** [Your Institution Name]  
-**Supervisor:** [Supervisor Name]  
+**Institution:** university of zambia  
+**Supervisor:** not yet set  
 **Date:** December 29, 2025  
 **Version:** 2.0.0
 

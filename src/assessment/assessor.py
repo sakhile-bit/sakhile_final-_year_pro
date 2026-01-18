@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Dict, Tuple, List, Optional
 from pathlib import Path
 
-from utils.logging_config import get_logger
+from src.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
@@ -19,6 +19,11 @@ class BusinessInfo:
     """Business information for assessment"""
     name: str
     id: str
+    contact_person: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    industry: Optional[str] = None
+    address: Optional[str] = None
 
 
 @dataclass
@@ -492,3 +497,35 @@ class DigitalHygieneAssessor:
             recommendations.append("Implement regular backup system with off-site storage")
 
         return recommendations
+
+
+class ZambiaRiskAssessor:
+    """Assesses digital hygiene risks specific to Zambian businesses."""
+    LOCAL_THREATS = [
+        'SIM swap fraud',
+        'Mobile money scams',
+        'Local phishing',
+        'WhatsApp fraud',
+        'Regulatory non-compliance',
+        'Unsecured mobile devices',
+        'Weak passwords',
+        'Lack of MFA',
+        'No data backup',
+        'No incident response plan',
+    ]
+    COMPLIANCE_LAWS = [
+        'Data Protection Act, 2021',
+        'Cyber Security and Cyber Crimes Act, 2021',
+    ]
+    def assess(self, answers):
+        score = 0
+        findings = []
+        for threat in self.LOCAL_THREATS:
+            if not answers.get(threat.replace(' ', '_').lower(), False):
+                findings.append(f"Risk: {threat} detected.")
+                score -= 10
+        for law in self.COMPLIANCE_LAWS:
+            if not answers.get(law.replace(' ', '_').lower(), False):
+                findings.append(f"Compliance gap: {law} not met.")
+                score -= 15
+        return {'score': score, 'findings': findings}

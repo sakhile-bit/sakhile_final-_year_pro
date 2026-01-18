@@ -1,0 +1,26 @@
+{% extends 'base.html' %} {% block content %}
+<div class="container mt-4">
+  <h2>Assessment Results</h2>
+  <div class="alert alert-info">Score: {{ result.score }}</div>
+  <ul>
+    {% for finding in result.findings %}
+    <li>{{ finding }}</li>
+    {% endfor %}
+  </ul>
+  <h4>Recommended Actions</h4>
+  {% for tip in tips %}
+  <div class="alert alert-warning">{{ tip }}</div>
+  {% endfor %}
+  <h4>Mobile Device Security Tips</h4>
+  <ul>
+    {% for tip in tips if 'screen lock' in tip or 'Play Store' in tip or 'device
+    OS' in tip or 'encryption' in tip or 'app permissions' in tip or 'Wi-Fi' in
+    tip or 'security apps' in tip or 'Backup' in tip or 'SMS/WhatsApp' in tip %}
+    <li>{{ tip }}</li>
+    {% endfor %}
+  </ul>
+  <a href="{{ url_for('dashboard') }}" class="btn btn-primary mt-3"
+    >Back to Dashboard</a
+  >
+</div>
+{% endblock %}

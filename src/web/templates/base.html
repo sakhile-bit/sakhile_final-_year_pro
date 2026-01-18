@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -69,6 +69,38 @@
                 >Dashboard</a
               >
             </li>
+            {% if current_user.is_authenticated %}
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('mfa_setup') }}"
+                >MFA Setup</a
+              >
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('zambia_assessment') }}"
+                >Zambia Assessment</a
+              >
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('report_zambia_incident') }}"
+                >Report Incident (ZM)</a
+              >
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('system_scan') }}"
+                >System Scan</a
+              >
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('schedule_scan') }}"
+                >Schedule Scan</a
+              >
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('download_pdf') }}"
+                >Download PDF Report</a
+              >
+            </li>
+            {% endif %}
           </ul>
         </div>
       </div>

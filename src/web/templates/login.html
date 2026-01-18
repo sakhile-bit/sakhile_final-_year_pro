@@ -27,7 +27,17 @@ endblock %} {% block content %}
                 id="password"
                 name="password"
                 required
+                oninput="updateStrengthMeter()"
               />
+              <div class="progress mt-2" style="height: 5px">
+                <div
+                  id="strengthBar"
+                  class="progress-bar"
+                  role="progressbar"
+                  style="width: 0%"
+                ></div>
+              </div>
+              <small id="strengthText" class="form-text text-muted"></small>
             </div>
             <div class="d-grid">
               <button type="submit" class="btn btn-primary">
@@ -45,4 +55,27 @@ endblock %} {% block content %}
     </div>
   </div>
 </div>
+<script>
+  function updateStrengthMeter() {
+    var pw = document.getElementById("password").value;
+    var bar = document.getElementById("strengthBar");
+    var text = document.getElementById("strengthText");
+    var score = 0;
+    if (pw.length >= 10) score++;
+    if (/[A-Z]/.test(pw)) score++;
+    if (/[a-z]/.test(pw)) score++;
+    if (/\d/.test(pw)) score++;
+    if (/[^A-Za-z0-9]/.test(pw)) score++;
+    bar.style.width = score * 20 + "%";
+    bar.className =
+      "progress-bar bg-" +
+      (score < 3 ? "danger" : score < 4 ? "warning" : "success");
+    text.textContent =
+      score < 3
+        ? "Weak password"
+        : score < 4
+          ? "Moderate password"
+          : "Strong password";
+  }
+</script>
 {% endblock %}
