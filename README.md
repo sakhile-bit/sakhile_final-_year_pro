@@ -128,10 +128,10 @@ See [INSTALL_SCRIPTS.md](INSTALL_SCRIPTS.md) for details.
 
    ```bash
    set DB_HOST=localhost
-   set DB_PORT=3306
-   set DB_NAME=digital_hygiene
-   set DB_USER=dhassess
-   set DB_PASSWORD=SecurePass123!
+   set DB_PORT=3306(default)
+   set DB_NAME=db_name here
+   set DB_USER=user
+   set DB_PASSWORD=db_password
    ```
 
 5. **Run tests** (verify setup)
@@ -153,13 +153,13 @@ See [INSTALL_SCRIPTS.md](INSTALL_SCRIPTS.md) for details.
 DEBUG=false                    # Disable debug mode
 SECRET_KEY=<random-key>        # Flask secret (generated if not set)
 DB_HOST=localhost              # MySQL host
-DB_PORT=3306                   # MySQL port
+DB_PORT=3306  (also default)                 # MySQL port
 DB_NAME=digital_hygiene        # Database name
-DB_USER=root                   # Database user
+DB_USER=                 # Database user
 DB_PASSWORD=<password>         # Database password
-LOG_LEVEL=INFO                 # Logging level
-WEB_HOST=0.0.0.0              # Web server host
-WEB_PORT=5000                  # Web server port
+LOG_LEVEL=              # Logging level
+WEB_HOST=            # Web server host
+WEB_PORT=                # Web server port
 ```
 
 ## 📖 Usage
@@ -185,8 +185,8 @@ business = BusinessInfo(
     name="Tech Company Ltd",
     id="TC001",
     industry="Technology",
-    contact_person="John Doe",
-    contact_email="john@example.com"
+    contact_person="Jammy phiri",
+    contact_email="jammyphiri@gmail.com"
 )
 
 # Run assessment
