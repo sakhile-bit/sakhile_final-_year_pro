@@ -27,7 +27,7 @@ content %}
       <div class="card text-center">
         <div class="card-body">
           <h6 class="text-muted">Average Score</h6>
-          <h3>{{ stats.average_score }}</h3>
+          <h3>{{ stats.average_score }}/120</h3>
         </div>
       </div>
     </div>
@@ -51,6 +51,7 @@ content %}
           <th>Score</th>
           <th>Level</th>
           <th>Date</th>
+          <th>Action</th>
         </tr>
       </thead>
       <tbody>
@@ -58,13 +59,26 @@ content %}
         <tr>
           <td>{{ a.id }}</td>
           <td>{{ a.business_name }}</td>
-          <td>{{ a.score }}/{{ a.total_possible }}</td>
-          <td>{{ a.certification_level }}</td>
+          <td>{{ a.total_score }}/120</td>
+          <td>
+            <span
+              class="badge {% if a.certification_level == 'GOLD' %}bg-warning text-dark{% elif a.certification_level == 'SILVER' %}bg-secondary{% elif a.certification_level == 'BRONZE' %}bg-warning{% else %}bg-danger{% endif %}"
+            >
+              {{ a.certification_level }}
+            </span>
+          </td>
           <td>{{ a.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+          <td>
+            <a
+              href="{{ url_for('results', assessment_id=a.id) }}"
+              class="btn btn-sm btn-outline-primary"
+              >View</a
+            >
+          </td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="5" class="text-center">No assessments yet.</td>
+          <td colspan="6" class="text-center">No assessments yet.</td>
         </tr>
         {% endfor %}
       </tbody>
