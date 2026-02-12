@@ -5,35 +5,49 @@
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-A comprehensive cybersecurity assessment tool for Small and Medium Enterprises (SMEs) in Zambia, designed to evaluate digital hygiene and provide certification.
+A comprehensive cybersecurity assessment tool for Small and Medium Enterprises (SMEs) in Zambia, designed to evaluate digital hygiene and provide certification. Aligned with NIST CSF, CIS Controls v8, ISO 27001:2022, and UK Cyber Essentials.
 
 ## 🌟 Features
 
-### Core Assessment
+### Core Assessment (v2.0 – 15-Control Framework)
 
-- **Automated Assessment**: 5 critical security controls evaluation
-- **Manual Assessment**: Comprehensive checklist for non-automated scenarios
-- **Certification Levels**: Gold, Silver, Bronze, and Not Certified
-- **Detailed Reporting**: JSON, CSV, HTML, and PDF formats
+- **15 Security Controls**: 5 automated + 10 manual, covering technical, administrative, and physical domains
+- **Three Assessment Tiers**: Tier 1 (self-assessment), Tier 2 (automated script), Tier 3 (manual on-site)
+- **120-Point Scoring**: Weighted across all 15 controls
+- **Certification Levels**: Gold (≥80%), Silver (≥60%), Bronze (≥40%), with critical-failure gates
+- **Detailed Reporting**: JSON, CSV, HTML, and PDF formats with framework references
 
-### Enhanced Features (v2.0)
+### Enhanced Features
 
 - **Web Dashboard**: Modern web interface for assessment management
-- **Database Integration**: MySQL database for data persistence
-- **Email Notifications**: Automated report delivery
-- **Multi-format Reports**: Professional HTML and PDF reports
+- **Database Integration**: MySQL database for data persistence (SQLite fallback for dev)
+- **Multi-format Reports**: Professional HTML and PDF reports with NIST/CIS/ISO references
 - **REST API**: Programmatic access to assessment data
-- **User Management**: Role-based access control
+- **User Management**: Role-based access control (admin, assessor, viewer)
 - **Audit Logging**: Complete audit trail
-- **Localization**: Support for multiple languages
+- **Manual Assessment Guide**: Printable 15-control on-site checklist
+- **Zambia Context**: Includes ZICTA/CERT reporting, Data Protection Act compliance checks
 
 ### Security Controls Assessed
 
-1. **Operating System Updates** (10 points)
-2. **Antivirus Protection** (15 points)
-3. **Firewall Configuration** (10 points)
-4. **Password Policy** (10 points)
-5. **Backup System** (5 points)
+| ID  | Control                     | Points  | Type           | Verification |
+| --- | --------------------------- | ------- | -------------- | ------------ |
+| C01 | Operating System Updates    | 10      | Technical      | Automated    |
+| C02 | Antivirus Protection        | 15      | Technical      | Automated    |
+| C03 | Firewall Configuration      | 10      | Technical      | Automated    |
+| C04 | Password Policy             | 10      | Technical      | Automated    |
+| C05 | Backup Systems              | 10      | Technical      | Automated    |
+| C06 | Security Awareness Training | 8       | Administrative | Manual       |
+| C07 | Access Control Policy       | 7       | Administrative | Manual       |
+| C08 | Incident Response Plan      | 7       | Administrative | Manual       |
+| C09 | Data Encryption             | 7       | Technical      | Manual       |
+| C10 | Mobile Device Security      | 5       | Technical      | Manual       |
+| C11 | Physical Security           | 5       | Physical       | Manual       |
+| C12 | Network Security            | 5       | Technical      | Manual       |
+| C13 | Acceptable Use Policy       | 5       | Administrative | Manual       |
+| C14 | Vendor / Third-Party Risk   | 8       | Administrative | Manual       |
+| C15 | Regulatory Compliance       | 8       | Administrative | Manual       |
+|     | **Total**                   | **120** |                |              |
 
 ## 🚀 Quick Start
 

@@ -14,21 +14,37 @@ import io
 import re
 import secrets
 from functools import wraps
-from sqlalchemy import Enum
-import requests
 import ssl
-import nmap
 import socket
 import platform
 import subprocess
 import time
-from apscheduler.schedulers.background import BackgroundScheduler
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
-from datetime import datetime
+
+# Optional heavy dependencies — imported lazily where used
+try:
+    import requests as _requests
+except ImportError:  # pragma: no cover
+    _requests = None
+
+try:
+    import nmap as _nmap
+except ImportError:  # pragma: no cover
+    _nmap = None
+
+try:
+    from apscheduler.schedulers.background import BackgroundScheduler
+except ImportError:  # pragma: no cover
+    BackgroundScheduler = None
+
+try:
+    from reportlab.lib.pagesizes import letter
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet
+except ImportError:  # pragma: no cover
+    letter = SimpleDocTemplate = Paragraph = Spacer = getSampleStyleSheet = None
 
 from src.assessment.assessor import DigitalHygieneAssessor, BusinessInfo, ZambiaRiskAssessor
+from src.deployment.checker import PreDeploymentChecker
 from src.reporting.generator import ReportGenerator
 from src.utils.logging_config import get_logger
 from src.utils.config import config, load_env_file
@@ -41,12 +57,12 @@ logger = get_logger(__name__)
 # Initialize Flask app and extensions (application factory pattern)
 app = Flask(__name__)
 app.config['SECRET_KEY'] = config.web.get('secret_key', 'dev-secret-key')
-# Production hardening
-app.config['SESSION_COOKIE_SECURE'] = True  # HTTPS only
+# Session cookies — SECURE only when not in debug / local dev
+app.config['SESSION_COOKIE_SECURE'] = not config.web.get('debug', False)
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=1)
-# Use MySQL via config or fall back to SQLite for tests
+# Use MySQL via config or fall back to SQLite for dev/tests
 app.config['SQLALCHEMY_DATABASE_URI'] = config.get_database_url()
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -55,9 +71,14 @@ db = SQLAlchemy()
 login_manager = LoginManager()
 login_manager.login_view = 'login'
 
-# Initialize scheduler for automation
-scheduler = BackgroundScheduler()
-scheduler.start()
+# Initialize scheduler for automation (optional dependency)
+scheduler = None
+if BackgroundScheduler is not None:
+    try:
+        scheduler = BackgroundScheduler()
+        scheduler.start()
+    except Exception:
+        scheduler = None
 
 # User model aligned to schema (users table)
 class User(UserMixin, db.Model):
@@ -67,7 +88,7 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
-    role = db.Column(Enum('admin', 'assessor', 'viewer', name='role_enum'), default='assessor', nullable=False)
+    role = db.Column(db.String(20), default='assessor', nullable=False)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -104,9 +125,9 @@ class Assessment(db.Model):
     system_info = db.Column(db.JSON)
     controls_results = db.Column(db.JSON, nullable=False)
     total_score = db.Column(db.Integer, nullable=False)
-    certification_level = db.Column(Enum('GOLD', 'SILVER', 'BRONZE', 'NOT_CERTIFIED', name='cert_level_enum'), nullable=False)
+    certification_level = db.Column(db.String(20), nullable=False)
     recommendations = db.Column(db.JSON)
-    status = db.Column(Enum('draft', 'completed', 'certified', name='status_enum'), default='completed', nullable=False)
+    status = db.Column(db.String(20), default='completed', nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -200,16 +221,26 @@ def check_password_strength(password):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-def create_app():
-    """Create and configure the Flask application"""
+def create_app(db_uri=None):
+    """Create and configure the Flask application.
+
+    Args:
+        db_uri: Override the database URI (useful for tests with SQLite).
+    """
+    if db_uri:
+        app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
+
     # Bind extensions to app once (do not create tables here; tests handle it)
     if 'sqlalchemy' not in getattr(app, 'extensions', {}):
         db.init_app(app)
     if not hasattr(app, 'login_manager'):
         login_manager.init_app(app)
 
-    # Session security: set secure cookies, HTTPOnly, SameSite
-    app.config['SESSION_COOKIE_SECURE'] = True
+    # Session security — disable secure cookie flag in test/local mode
+    if not app.config.get('TESTING'):
+        app.config.setdefault('SESSION_COOKIE_SECURE', not config.web.get('debug', False))
+    else:
+        app.config['SESSION_COOKIE_SECURE'] = False
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
     app.config['PERMANENT_SESSION_LIFETIME'] = 1800  # 30 min
@@ -394,8 +425,26 @@ def assess():
                 contact_email=request.form.get('contact_email'),
                 contact_phone=request.form.get('contact_phone'),
                 industry=request.form.get('industry'),
-                address=request.form.get('address')
+                address=request.form.get('address'),
+                province=request.form.get('province'),
+                num_employees=int(request.form.get('num_employees') or 0),
             )
+
+            # Collect manual answers (C06-C15) from form
+            manual_keys = [
+                'C06_security_training', 'C07_access_control',
+                'C08_incident_response', 'C09_encryption',
+                'C10_mobile_security', 'C11_physical_security',
+                'C12_network_security', 'C13_acceptable_use',
+                'C14_vendor_risk', 'C15_regulatory_compliance',
+            ]
+            assessment_tier = request.form.get('assessment_tier', 'automated')
+            manual_answers = {}
+            if assessment_tier in ('full', 'manual_only'):
+                for key in manual_keys:
+                    val = request.form.get(key)
+                    if val is not None:
+                        manual_answers[key] = int(val)
 
             # Upsert business record
             business = Business.query.filter_by(registration_number=business_info.id).first()
@@ -419,8 +468,12 @@ def assess():
                 business.industry = business_info.industry
                 business.address = business_info.address
 
-            # Run assessment
-            assessor = DigitalHygieneAssessor(business_info)
+            # Run assessment with manual answers and tier
+            assessor = DigitalHygieneAssessor(
+                business_info,
+                manual_answers=manual_answers if manual_answers else None,
+                assessment_tier=assessment_tier,
+            )
             results = assessor.run_assessment()
 
             # Save to database
@@ -431,6 +484,8 @@ def assess():
                 controls_results={
                     'controls': controls_payload,
                     'total_possible': results.total_possible,
+                    'critical_failures': getattr(results, 'critical_failures', 0),
+                    'assessment_tier': getattr(results, 'assessment_tier', assessment_tier),
                 },
                 total_score=results.score,
                 certification_level=results.certification_level,
@@ -463,12 +518,16 @@ def results(assessment_id):
     data = assessment.controls_results or {}
     controls = data.get('controls', {})
     total_possible = data.get('total_possible', 0)
+    critical_failures = data.get('critical_failures', 0)
+    assessment_tier = data.get('assessment_tier', 'automated')
     result_obj = type('Results', (), {
         'score': assessment.total_score,
         'total_possible': total_possible,
         'certification_level': assessment.certification_level,
         'controls': {k: type('Control', (), v) for k, v in controls.items()},
-        'recommendations': assessment.recommendations or []
+        'recommendations': assessment.recommendations or [],
+        'critical_failures': critical_failures,
+        'assessment_tier': assessment_tier,
     })()
 
     business_info = BusinessInfo(
@@ -496,12 +555,14 @@ def download_report(assessment_id, format):
     data = assessment.controls_results or {}
     controls = data.get('controls', {})
     total_possible = data.get('total_possible', 0)
+    critical_failures = data.get('critical_failures', 0)
     results = type('Results', (), {
         'score': assessment.total_score,
         'total_possible': total_possible,
         'certification_level': assessment.certification_level,
         'controls': {k: type('Control', (), v) for k, v in controls.items()},
-        'recommendations': assessment.recommendations or []
+        'recommendations': assessment.recommendations or [],
+        'critical_failures': critical_failures,
     })()
 
     business_info = BusinessInfo(
@@ -551,7 +612,7 @@ def api_assessments():
     assessments = query.all()
     return jsonify([{
         'id': a.id,
-        'business_name': a.business_name,
+        'business_name': a.business.name if a.business else '',
         'score': a.total_score,
         'certification_level': a.certification_level,
         'created_at': a.created_at.isoformat()
@@ -610,32 +671,23 @@ def export_data(format):
     if format == 'json':
         data = [{
             'id': a.id,
-            'business': a.business_name,
+            'business': a.business.name if a.business else '',
             'score': a.total_score,
             'certification_level': a.certification_level,
             'date': a.assessment_date.isoformat()
         } for a in assessments]
         return jsonify(data)
     elif format == 'csv':
-        import csv, io
         buffer = io.StringIO()
         writer = csv.writer(buffer)
         writer.writerow(['ID', 'Business', 'Score', 'Level', 'Date'])
         for a in assessments:
-            writer.writerow([a.id, a.business_name, a.total_score, a.certification_level, a.assessment_date.strftime('%Y-%m-%d')])
+            biz_name = a.business.name if a.business else ''
+            writer.writerow([a.id, biz_name, a.total_score, a.certification_level, a.assessment_date.strftime('%Y-%m-%d')])
         buffer.seek(0)
         return send_file(io.BytesIO(buffer.getvalue().encode()), as_attachment=True, download_name='my_assessments.csv', mimetype='text/csv')
     else:
         abort(400)
-
-@app.errorhandler(404)
-def not_found(error):
-    return render_template('404.html'), 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    db.session.rollback()
-    return render_template('500.html'), 500
 
 @app.route('/report-incident', methods=['GET', 'POST'])
 @login_required
@@ -769,14 +821,18 @@ def check_patch_status():
 
 def get_external_ip():
     try:
-        r = requests.get('https://api.ipify.org?format=json', timeout=2)
+        if _requests is None:
+            return 'requests library not available'
+        r = _requests.get('https://api.ipify.org?format=json', timeout=2)
         return r.json().get('ip', 'Unknown')
     except Exception as e:
         return f"IP check error: {e}"
 
 def run_vulnerability_scan(target='localhost'):
     try:
-        nm = nmap.PortScanner()
+        if _nmap is None:
+            return ['nmap library not available — install python-nmap and nmap binary']
+        nm = _nmap.PortScanner()
         nm.scan(target, arguments='-sV --top-ports 10')
         vulns = []
         for host in nm.all_hosts():
@@ -883,6 +939,10 @@ def automated_scan():
 
 def generate_pdf_report(scan_results, recommendations, advanced_results, technical_results):
     """Generate PDF report from scan results."""
+    if SimpleDocTemplate is None or letter is None:
+        # reportlab not installed — return empty buffer with error text
+        buffer = io.BytesIO(b'PDF generation requires the reportlab package.')
+        return buffer
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter)
     styles = getSampleStyleSheet()
@@ -914,21 +974,16 @@ def generate_pdf_report(scan_results, recommendations, advanced_results, technic
     buffer.seek(0)
     return buffer
 
-@app.errorhandler(404)
-def page_not_found(e):
-    return render_template('404.html'), 404
-
-@app.errorhandler(500)
-def internal_error(e):
-    return render_template('500.html'), 500
-
 @app.route('/schedule-scan', methods=['GET', 'POST'])
 @login_required
 def schedule_scan():
     if request.method == 'POST':
         interval = int(request.form.get('interval', 24))  # hours
-        scheduler.add_job(func=automated_scan, trigger="interval", hours=interval, id='automated_scan')
-        flash(f'Scan scheduled every {interval} hours.', 'success')
+        if scheduler is not None:
+            scheduler.add_job(func=automated_scan, trigger="interval", hours=interval, id='automated_scan')
+            flash(f'Scan scheduled every {interval} hours.', 'success')
+        else:
+            flash('Scheduler not available. Install APScheduler.', 'warning')
         return redirect(url_for('dashboard'))
     return render_template('schedule_scan.html')
 
@@ -1048,6 +1103,36 @@ Write-Host "  python src/utils/cli.py --help" -ForegroundColor White
 Write-Host "`nInstallation directory: $((Get-Location).Path)" -ForegroundColor Gray
 '''
     return Response(script_content, mimetype='text/plain')
+
+# ------------------------------------------------------------------
+# Pre-Deployment Digital Hygiene Check
+# ------------------------------------------------------------------
+
+# Keep the last report in memory so the JSON download works after a scan
+_predeploy_last_report: dict = {}
+
+@app.route('/predeploy-check', methods=['GET', 'POST'])
+@login_required
+def predeploy_check():
+    """Run 13-point pre-deployment digital hygiene check."""
+    global _predeploy_last_report
+    report = None
+    if request.method == 'POST':
+        checker = PreDeploymentChecker(project_root=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        report = checker.run_all()
+        _predeploy_last_report = report.to_dict()
+        flash(f'Pre-deployment scan complete – verdict: {report.verdict}',
+              'success' if report.verdict == 'READY' else 'danger')
+    return render_template('predeploy_check.html', report=report)
+
+@app.route('/predeploy-check/json')
+@login_required
+def predeploy_json():
+    """Return the last pre-deployment report as downloadable JSON."""
+    if not _predeploy_last_report:
+        flash('Run a pre-deployment check first.', 'warning')
+        return redirect(url_for('predeploy_check'))
+    return jsonify(_predeploy_last_report)
 
 @app.route('/install.bat')
 def install_bat():

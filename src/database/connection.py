@@ -126,18 +126,16 @@ class DatabaseManager:
         self._connect()
 
     def _connect(self):
-        """Create database connection"""
+        """Create database connection using the centralized config URL."""
         try:
-            # Build connection URL
-            db_config = config.database
-            connection_url = f"mysql+mysqlconnector://{db_config.user}:{db_config.password}@{db_config.host}:{db_config.port}/{db_config.name}"
+            connection_url = config.get_database_url()
 
             # Create engine
             self.engine = create_engine(
                 connection_url,
                 pool_pre_ping=True,
                 pool_recycle=3600,
-                echo=config.app.debug if hasattr(config.app, 'debug') else False
+                echo=config.app.get('debug', False)
             )
 
             # Create session factory
@@ -222,7 +220,7 @@ class DatabaseManager:
                 business_id=business.id,
                 assessor_id=assessor_id,
                 assessment_date=results.assessment_date,
-                system_info=results.system_info,
+                system_info=getattr(results, 'system_info', None),
                 controls_results=controls_data,
                 total_score=results.score,
                 certification_level=results.certification_level,

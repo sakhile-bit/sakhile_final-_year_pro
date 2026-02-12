@@ -23,22 +23,8 @@ pytest>=7.4.0
 pytest-cov>=4.1.0
 pytest-mock>=3.11.0
 
-# Development
-black>=23.0.0
-isort>=5.12.0
-flake8>=6.0.0
-mypy>=1.5.0
-
-# Real integrations
-requests
-python-nmap
-
-# Automation and reporting
-APScheduler
-reportlab
-# - wmi: Windows-specific; psutil provides cross-platform alternative
-# - alembic: not used; schema managed via SQLAlchemy create_all
-# - reportlab, pdfkit, weasyprint: heavy PDF deps; PDF fallback to HTML
-# - smtplib3: not needed; Python has built-in email libs
-# - pyinstaller: optional; removed from core
-# - sphinx, sphinx-rtd-theme: optional docs; not core functionality
+# Optional — install for full functionality
+# requests          # external IP checks
+# python-nmap       # vulnerability scanning (also needs nmap binary)
+# APScheduler       # scheduled scans
+# reportlab         # PDF report generation

@@ -165,6 +165,86 @@ def init_db():
         sys.exit(1)
 
 
+@cli.command()
+@click.option('--project-root', '-p', default='.', help='Project root directory to scan')
+@click.option('--json-out', '-j', is_flag=True, help='Output raw JSON instead of formatted table')
+def predeploy(project_root: str, json_out: bool):
+    """Run pre-deployment digital hygiene checks.
+
+    Scans the current system for security issues before deployment:
+    OS patches, firewall, antivirus, open ports, dependency
+    vulnerabilities, debug flags, and credential hygiene.
+
+    Exit code 0 = READY, exit code 1 = NOT READY (use in CI/CD).
+    """
+    from deployment.checker import PreDeploymentChecker
+    import json as _json
+
+    console.print(Panel.fit(
+        "[bold blue]Pre-Deployment Digital Hygiene Check[/bold blue]\n"
+        "[dim]Verifying system is safe to deploy from[/dim]",
+        title="🚀 Pre-Deploy Gate"
+    ))
+
+    checker = PreDeploymentChecker(project_root=project_root)
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console
+    ) as progress:
+        task = progress.add_task("Running 13 hygiene checks...", total=None)
+        report = checker.run_all()
+        progress.update(task, completed=True)
+
+    if json_out:
+        console.print_json(_json.dumps(report.to_dict(), indent=2))
+    else:
+        # Build a results table
+        table = Table(title="Pre-Deployment Checks")
+        table.add_column("ID", style="cyan", no_wrap=True)
+        table.add_column("Check", style="white")
+        table.add_column("Severity", style="magenta")
+        table.add_column("Result", min_width=8)
+        table.add_column("Details", style="dim")
+
+        for c in report.checks:
+            result_style = "green" if c.passed else "red"
+            result_text = "✅ PASS" if c.passed else "❌ FAIL"
+            sev_style = {"CRITICAL": "bold red", "HIGH": "yellow", "MEDIUM": "cyan", "LOW": "dim"}.get(c.severity, "")
+            table.add_row(
+                c.check_id,
+                c.name,
+                Text(c.severity, style=sev_style),
+                Text(result_text, style=result_style),
+                c.details,
+            )
+
+        console.print(table)
+
+        # Remediation list for failures
+        failures = [c for c in report.checks if not c.passed and c.remediation]
+        if failures:
+            rem_lines = "\n".join(f"• [bold]{c.check_id}[/bold]: {c.remediation}" for c in failures)
+            console.print(Panel.fit(rem_lines, title="🔧 Remediation Steps"))
+
+        # Verdict
+        if report.verdict == 'READY':
+            console.print(Panel.fit(
+                f"[bold green]VERDICT: READY[/bold green]\n"
+                f"Passed {report.passed}/{report.total} checks – safe to deploy.",
+                title="✅ Deploy Gate"
+            ))
+        else:
+            console.print(Panel.fit(
+                f"[bold red]VERDICT: NOT READY[/bold red]\n"
+                f"Failed {report.failed}/{report.total} checks "
+                f"({report.critical_failures} critical). Fix issues above before deploying.",
+                title="🚫 Deploy Gate"
+            ))
+            sys.exit(1)
+
+
 def _display_results(results):
     """Display assessment results in a nice table"""
     table = Table(title="Assessment Results")

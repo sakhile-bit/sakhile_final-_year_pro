@@ -5,6 +5,7 @@ Configuration management for the Zambia Digital Hygiene Assessment Tool
 import os
 from pathlib import Path
 from typing import Dict, Any
+from urllib.parse import quote_plus
 import yaml
 
 
@@ -63,7 +64,19 @@ class Config:
             },
             'assessment': {
                 'timeout': 300,  # 5 minutes
-                'max_retries': 3
+                'max_retries': 3,
+                'total_controls': 15,
+                'total_possible_score': 120,
+                'automated_controls': ['C01', 'C02', 'C03', 'C04', 'C05'],
+                'manual_controls': ['C06', 'C07', 'C08', 'C09', 'C10',
+                                    'C11', 'C12', 'C13', 'C14', 'C15'],
+                'frameworks': ['NIST CSF v1.1', 'CIS Controls v8',
+                               'ISO 27001:2022', 'UK Cyber Essentials'],
+                'certification_tiers': {
+                    'GOLD': {'min_pct': 80, 'max_critical': 0, 'validity_months': 12},
+                    'SILVER': {'min_pct': 60, 'max_critical': 1, 'validity_months': 12},
+                    'BRONZE': {'min_pct': 40, 'max_critical': 2, 'validity_months': 6},
+                },
             }
         }
 
@@ -119,23 +132,36 @@ class Config:
         return self._config['assessment']
 
     def get_database_url(self) -> str:
-        """Generate MySQL connection URL from config; require driver to be installed."""
+        """Generate database connection URL from config.
+
+        Tries MySQL first.  Falls back to a local SQLite database when the
+        MySQL driver is not installed or the connection details are missing,
+        which is the common case during development and testing.
+        """
         try:
             import mysql.connector  # noqa: F401
-        except ImportError as exc:  # pragma: no cover - hard failure in prod
-            raise RuntimeError("mysql-connector-python is required. Install it in your environment.") from exc
+            mysql_available = True
+        except ImportError:
+            mysql_available = False
 
         db_config = self.database
-        user = db_config.get('user') or os.getenv('DB_USER', 'root')
+        user = db_config.get('user') or os.getenv('DB_USER', '')
         password = db_config.get('password') or os.getenv('DB_PASSWORD', '')
         host = db_config.get('host') or os.getenv('DB_HOST', 'localhost')
         port = db_config.get('port') or int(os.getenv('DB_PORT', '3306'))
         name = db_config.get('name') or os.getenv('DB_NAME', 'digital_hygiene')
 
-        # Construct MySQL URL for SQLAlchemy
-        if password:
-            return f'mysql+mysqlconnector://{user}:{password}@{host}:{port}/{name}'
-        return f'mysql+mysqlconnector://{user}@{host}:{port}/{name}'
+        if mysql_available and user:
+            # Construct MySQL URL for SQLAlchemy (quote password for special chars like @)
+            if password:
+                return f'mysql+mysqlconnector://{user}:{quote_plus(password)}@{host}:{port}/{name}'
+            return f'mysql+mysqlconnector://{user}@{host}:{port}/{name}'
+
+        # Fallback to SQLite for local dev / testing
+        db_dir = Path(__file__).parent.parent.parent / 'instance'
+        db_dir.mkdir(parents=True, exist_ok=True)
+        sqlite_path = db_dir / 'digital_hygiene.db'
+        return f'sqlite:///{sqlite_path}'
 
 
 # Global config instance
