@@ -18,13 +18,20 @@ Werkzeug>=2.3.0
 # Reporting
 Jinja2>=3.1.0
 
+# MFA / Two-Factor Authentication
+pyotp>=2.9.0
+qrcode[pil]>=7.4.0
+
+# Production WSGI server
+gunicorn>=21.2.0
+
 # Testing
 pytest>=7.4.0
 pytest-cov>=4.1.0
 pytest-mock>=3.11.0
 
 # Optional — install for full functionality
-# requests          # external IP checks
+# requests          # external IP checks, Shodan lookups
 # python-nmap       # vulnerability scanning (also needs nmap binary)
 # APScheduler       # scheduled scans
 # reportlab         # PDF report generation

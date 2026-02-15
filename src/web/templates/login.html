@@ -9,6 +9,7 @@ endblock %} {% block content %}
         </div>
         <div class="card-body">
           <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <div class="mb-3">
               <label for="username" class="form-label">Username</label>
               <input
@@ -48,7 +49,12 @@ endblock %} {% block content %}
         </div>
         <div class="card-footer text-center">
           <small class="text-muted">
-            Default credentials: admin / admin123
+            Don't have an account?
+            <a href="{{ url_for('register') }}">Register here</a>
+          </small>
+          <br />
+          <small class="text-muted">
+            Zambia Digital Hygiene Certification Program
           </small>
         </div>
       </div>

@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Digital Hygiene Assessment Report – {{ business_info.name }}</title>
+    <style>
+      body {
+        font-family: "Segoe UI", Arial, sans-serif;
+        margin: 20px;
+        color: #333;
+        line-height: 1.6;
+      }
+      h1 {
+        color: #1a5276;
+        border-bottom: 3px solid #1a5276;
+        padding-bottom: 10px;
+      }
+      h2 {
+        color: #2c3e50;
+        margin-top: 25px;
+        border-left: 4px solid #1a5276;
+        padding-left: 10px;
+      }
+      .header {
+        background: linear-gradient(135deg, #1a5276, #2980b9);
+        color: white;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+      }
+      .header h1 {
+        color: white;
+        border: none;
+        margin: 0;
+      }
+      .header p {
+        margin: 5px 0;
+        opacity: 0.9;
+      }
+      .summary {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        margin: 20px 0;
+        border: 1px solid #dee2e6;
+      }
+      .score {
+        font-size: 2.2em;
+        font-weight: bold;
+        color: #1a5276;
+      }
+      .cert-badge {
+        display: inline-block;
+        padding: 8px 20px;
+        border-radius: 5px;
+        color: white;
+        font-weight: bold;
+        font-size: 1.2em;
+      }
+      .cert-GOLD {
+        background: #ffd700;
+        color: #333;
+      }
+      .cert-SILVER {
+        background: #c0c0c0;
+        color: #333;
+      }
+      .cert-BRONZE {
+        background: #cd7f32;
+      }
+      .cert-NOT_CERTIFIED {
+        background: #dc3545;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 15px 0;
+      }
+      th,
+      td {
+        border: 1px solid #dee2e6;
+        padding: 10px;
+        text-align: left;
+      }
+      th {
+        background-color: #1a5276;
+        color: white;
+      }
+      tr:nth-child(even) {
+        background-color: #f8f9fa;
+      }
+      .badge {
+        padding: 4px 10px;
+        border-radius: 3px;
+        color: white;
+        font-weight: bold;
+        font-size: 0.85em;
+      }
+      .bg-success {
+        background-color: #28a745;
+      }
+      .bg-warning {
+        background-color: #ffc107;
+        color: #333;
+      }
+      .bg-danger {
+        background-color: #dc3545;
+      }
+      .bg-secondary {
+        background-color: #6c757d;
+      }
+      .text-danger {
+        color: #dc3545;
+      }
+      .fw-bold {
+        font-weight: bold;
+      }
+      .frameworks {
+        background: #eaf2f8;
+        padding: 10px 15px;
+        border-radius: 5px;
+        margin: 10px 0;
+        font-size: 0.9em;
+      }
+      .footer {
+        margin-top: 30px;
+        border-top: 2px solid #1a5276;
+        padding-top: 15px;
+        font-size: 0.9em;
+        color: #666;
+        text-align: center;
+      }
+      @media print {
+        body {
+          margin: 0;
+        }
+        .no-print {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h1>Zambia Digital Hygiene Certification Program</h1>
+      <p>Assessment Report – {{ business_info.name }}</p>
+      <p>Generated: {{ generated_date }}</p>
+    </div>
+
+    <div class="frameworks">
+      <strong>Aligned Frameworks:</strong> NIST CSF v1.1 | CIS Controls v8 (IG1)
+      | ISO/IEC 27001:2022 | UK Cyber Essentials
+    </div>
+
+    <h2>Business Information</h2>
+    <table>
+      <tr>
+        <td><strong>Name</strong></td>
+        <td>{{ business_info.name }}</td>
+        <td><strong>Registration</strong></td>
+        <td>{{ business_info.id }}</td>
+      </tr>
+      <tr>
+        <td><strong>Industry</strong></td>
+        <td>{{ business_info.industry or 'N/A' }}</td>
+        <td><strong>Contact</strong></td>
+        <td>{{ business_info.contact_person or 'N/A' }}</td>
+      </tr>
+      <tr>
+        <td><strong>Email</strong></td>
+        <td>{{ business_info.contact_email or 'N/A' }}</td>
+        <td><strong>Phone</strong></td>
+        <td>{{ business_info.contact_phone or 'N/A' }}</td>
+      </tr>
+      <tr>
+        <td><strong>Address</strong></td>
+        <td colspan="3">{{ business_info.address or 'N/A' }}</td>
+      </tr>
+    </table>
+
+    <h2>Assessment Summary</h2>
+    <div class="summary">
+      <div>
+        <strong>Overall Score:</strong>
+        <span class="score"
+          >{{ results.score }}/{{ results.total_possible }}</span
+        >
+        ({{ percentage }}%)
+      </div>
+      <div style="margin-top: 10px">
+        <strong>Certification Level:</strong>
+        <span
+          class="cert-badge cert-{{ results.certification_level | replace(' ', '_') }}"
+          >{{ results.certification_level }}</span
+        >
+      </div>
+      <div style="margin-top: 10px">
+        <strong>Controls Assessed:</strong> {{ results.controls | length }} of
+        15
+      </div>
+      <div>
+        <strong>Critical Failures:</strong> {{ results.critical_failures }}
+      </div>
+    </div>
+
+    <h2>Automated Technical Controls (C01–C05)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Control</th>
+          <th>Score</th>
+          <th>Status</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cid, control in results.controls.items() %} {% if
+        control.verification == 'automated' %}
+        <tr>
+          <td>{{ control.control_id }}</td>
+          <td>{{ control.name }}</td>
+          <td>{{ control.score }}/{{ control.weight }}</td>
+          <td>
+            <span
+              class="badge bg-{% if control.status == 'PASS' %}success{% elif control.status == 'WARNING' %}warning{% elif control.status == 'NOT_ASSESSED' %}secondary{% else %}danger{% endif %}"
+              >{{ control.status }}</span
+            >
+          </td>
+          <td>{{ control.details }}</td>
+        </tr>
+        {% endif %} {% endfor %}
+      </tbody>
+    </table>
+
+    <h2>Administrative &amp; Physical Controls (C06–C15)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Control</th>
+          <th>Score</th>
+          <th>Status</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set has_manual = [] %} {% for cid, control in
+        results.controls.items() %} {% if control.verification != 'automated' %}
+        {% if has_manual.append(1) %}{% endif %}
+        <tr>
+          <td>{{ control.control_id }}</td>
+          <td>{{ control.name }}</td>
+          <td>{{ control.score }}/{{ control.weight }}</td>
+          <td>
+            <span
+              class="badge bg-{% if control.status == 'PASS' %}success{% elif control.status == 'WARNING' %}warning{% elif control.status == 'NOT_ASSESSED' %}secondary{% else %}danger{% endif %}"
+              >{{ control.status }}</span
+            >
+          </td>
+          <td>{{ control.details }}</td>
+        </tr>
+        {% endif %} {% endfor %} {% if not has_manual %}
+        <tr>
+          <td colspan="5" style="text-align: center; color: #999">
+            Awaiting manual verification
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+
+    <h2>Recommendations</h2>
+    <ul>
+      {% for rec in results.recommendations %}
+      <li
+        class="{% if rec.startswith('[CRITICAL]') %}text-danger fw-bold{% endif %}"
+      >
+        {{ rec }}
+      </li>
+      {% endfor %}
+    </ul>
+
+    <h2>Certification Thresholds</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Level</th>
+          <th>Min Score</th>
+          <th>Max Critical Failures</th>
+          <th>Validity</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="background: #ffd700; color: #333; font-weight: bold">
+            GOLD
+          </td>
+          <td>&ge; 80% (&ge;96/120)</td>
+          <td>0</td>
+          <td>12 months</td>
+        </tr>
+        <tr>
+          <td style="background: #c0c0c0; color: #333; font-weight: bold">
+            SILVER
+          </td>
+          <td>&ge; 60% (&ge;72/120)</td>
+          <td>&le; 1</td>
+          <td>12 months</td>
+        </tr>
+        <tr>
+          <td style="background: #cd7f32; color: white; font-weight: bold">
+            BRONZE
+          </td>
+          <td>&ge; 40% (&ge;48/120)</td>
+          <td>&le; 2</td>
+          <td>6 months</td>
+        </tr>
+        <tr>
+          <td style="background: #dc3545; color: white; font-weight: bold">
+            NOT CERTIFIED
+          </td>
+          <td>&lt; 40%</td>
+          <td>&gt; 2</td>
+          <td>N/A</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="footer">
+      <p><strong>Zambia Digital Hygiene Certification Program v2.0</strong></p>
+      <p>Aligned with NIST CSF | CIS Controls | ISO 27001 | Cyber Essentials</p>
+      <p>Report Generated: {{ generated_date }}</p>
+    </div>
+  </body>
+</html>

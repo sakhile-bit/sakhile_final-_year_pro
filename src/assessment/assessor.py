@@ -129,85 +129,85 @@ CONTROL_CATALOGUE = {
         "nist_mapping": "PR.IP-4, RC.RP-1",
     },
     # ── Manual / administrative controls (C06-C15) ──────────────────
-    "C06_admin_accounts": {
-        "id": "C06", "name": "Admin Account Management",
+    "C06_security_training": {
+        "id": "C06", "name": "Security Awareness Training",
         "weight": 8, "critical": False,
         "category": "administrative", "verification": "manual",
-        "description": "Limited number of admin accounts; separate admin and user accounts",
+        "description": "Annual security awareness training for all employees; phishing simulations",
+        "cis_mapping": "CIS Control 14 – Security Awareness Training",
+        "nist_mapping": "PR.AT-1, PR.AT-2",
+    },
+    "C07_access_control": {
+        "id": "C07", "name": "Access Control Policy",
+        "weight": 7, "critical": False,
+        "category": "administrative", "verification": "manual",
+        "description": "Documented access control / least-privilege policy; regular reviews",
         "cis_mapping": "CIS Control 5 – Account Management",
         "nist_mapping": "PR.AC-4",
     },
-    "C07_software_updates": {
-        "id": "C07", "name": "Third-Party Software Updates",
-        "weight": 7, "critical": False,
-        "category": "technical", "verification": "manual",
-        "description": "Third-party software (Java, Adobe, browsers) updated regularly",
-        "cis_mapping": "CIS Control 2 – Software Asset Management",
-        "nist_mapping": "PR.IP-12",
-    },
-    "C08_wifi_security": {
-        "id": "C08", "name": "Wi-Fi Security",
-        "weight": 7, "critical": False,
-        "category": "technical", "verification": "manual",
-        "description": "WPA2/WPA3 encryption; default SSID/password changed",
-        "cis_mapping": "CIS Control 9 – Network Infrastructure Management",
-        "nist_mapping": "PR.AC-5",
-    },
-    "C09_email_security": {
-        "id": "C09", "name": "Email Security",
+    "C08_incident_response": {
+        "id": "C08", "name": "Incident Response Plan",
         "weight": 7, "critical": False,
         "category": "administrative", "verification": "manual",
-        "description": "Spam filter enabled; staff aware of phishing indicators",
-        "cis_mapping": "CIS Control 9 – Email and Web Browser Protections",
-        "nist_mapping": "PR.AT-1, DE.CM-1",
+        "description": "Documented plan; designated contact person; tested annually; ZICTA/CERT contacts",
+        "cis_mapping": "CIS Control 17 – Incident Response Management",
+        "nist_mapping": "RS.RP-1, RS.CO-1",
     },
-    "C10_device_locking": {
-        "id": "C10", "name": "Device Locking",
+    "C09_encryption": {
+        "id": "C09", "name": "Data Encryption",
+        "weight": 7, "critical": False,
+        "category": "technical", "verification": "manual",
+        "description": "Sensitive data encrypted at rest and in transit; full-disk encryption + TLS/HTTPS",
+        "cis_mapping": "CIS Control 3 – Data Protection",
+        "nist_mapping": "PR.DS-1, PR.DS-2",
+    },
+    "C10_mobile_security": {
+        "id": "C10", "name": "Mobile Device Security",
         "weight": 5, "critical": False,
-        "category": "physical", "verification": "manual",
-        "description": "Screensaver with password; manual lock when away from device",
+        "category": "technical", "verification": "manual",
+        "description": "Screen lock, trusted apps only, MDM/MAM policy, encryption & remote wipe",
         "cis_mapping": "CIS Control 4 – Secure Configuration",
-        "nist_mapping": "PR.AC-2",
+        "nist_mapping": "PR.AC-2, PR.AC-3",
     },
     "C11_physical_security": {
         "id": "C11", "name": "Physical Security",
         "weight": 5, "critical": False,
         "category": "physical", "verification": "manual",
-        "description": "Server room locked; visitor log maintained",
+        "description": "Access-controlled server room; visitor logs; CCTV",
         "cis_mapping": "CIS Control 1 – Inventory of Assets",
         "nist_mapping": "PR.AC-2, PR.IP-5",
     },
-    "C12_data_classification": {
-        "id": "C12", "name": "Data Classification",
+    "C12_network_security": {
+        "id": "C12", "name": "Network Security",
+        "weight": 5, "critical": False,
+        "category": "technical", "verification": "manual",
+        "description": "WPA2/WPA3 Wi-Fi; guest network; network segmentation",
+        "cis_mapping": "CIS Control 9 – Network Infrastructure Management",
+        "nist_mapping": "PR.AC-5",
+    },
+    "C13_acceptable_use": {
+        "id": "C13", "name": "Acceptable Use Policy",
         "weight": 5, "critical": False,
         "category": "administrative", "verification": "manual",
-        "description": "Sensitive data identified, labelled, and handled according to policy",
-        "cis_mapping": "CIS Control 3 – Data Protection",
-        "nist_mapping": "PR.DS-1, ID.AM-5",
-    },
-    "C13_secure_disposal": {
-        "id": "C13", "name": "Secure Disposal",
-        "weight": 5, "critical": False,
-        "category": "administrative", "verification": "manual",
-        "description": "Shredding of paper records; secure wipe of old devices",
-        "cis_mapping": "CIS Control 3 – Data Protection",
-        "nist_mapping": "PR.DS-3, PR.IP-6",
-    },
-    "C14_incident_response": {
-        "id": "C14", "name": "Incident Response Plan",
-        "weight": 8, "critical": False,
-        "category": "administrative", "verification": "manual",
-        "description": "Documented plan; designated contact person; tested annually",
-        "cis_mapping": "CIS Control 17 – Incident Response Management",
-        "nist_mapping": "RS.RP-1, RS.CO-1",
-    },
-    "C15_staff_training": {
-        "id": "C15", "name": "Staff Security Training",
-        "weight": 8, "critical": False,
-        "category": "administrative", "verification": "manual",
-        "description": "Annual security awareness training for all employees",
+        "description": "Documented AUP signed by all staff with regular awareness reminders",
         "cis_mapping": "CIS Control 14 – Security Awareness Training",
-        "nist_mapping": "PR.AT-1, PR.AT-2",
+        "nist_mapping": "PR.AT-1",
+    },
+    "C14_vendor_risk": {
+        "id": "C14", "name": "Vendor / Third-Party Risk",
+        "weight": 8, "critical": False,
+        "category": "administrative", "verification": "manual",
+        "description": "Vendor contracts include security clauses; formal risk assessment & regular reviews",
+        "cis_mapping": "CIS Control 15 – Service Provider Management",
+        "nist_mapping": "ID.SC-1, ID.SC-2",
+    },
+    "C15_regulatory_compliance": {
+        "id": "C15", "name": "Regulatory Compliance",
+        "weight": 8, "critical": False,
+        "category": "administrative", "verification": "manual",
+        "description": "Compliant with Zambia Data Protection Act & ZICTA regulations",
+        "cis_mapping": "CIS Control 18 – Penetration Testing (Compliance)",
+        "nist_mapping": "ID.GV-3, ID.GV-4",
     },
 }
 
@@ -256,16 +256,16 @@ class DigitalHygieneAssessor:
         results["C05_backups"] = self._check_backup_system()
 
         # ── Manual / administrative checks (C06-C15) ────────────────
-        results["C06_admin_accounts"] = self._evaluate_manual("C06_admin_accounts")
-        results["C07_software_updates"] = self._evaluate_manual("C07_software_updates")
-        results["C08_wifi_security"] = self._evaluate_manual("C08_wifi_security")
-        results["C09_email_security"] = self._evaluate_manual("C09_email_security")
-        results["C10_device_locking"] = self._evaluate_manual("C10_device_locking")
+        results["C06_security_training"] = self._evaluate_manual("C06_security_training")
+        results["C07_access_control"] = self._evaluate_manual("C07_access_control")
+        results["C08_incident_response"] = self._evaluate_manual("C08_incident_response")
+        results["C09_encryption"] = self._evaluate_manual("C09_encryption")
+        results["C10_mobile_security"] = self._evaluate_manual("C10_mobile_security")
         results["C11_physical_security"] = self._evaluate_manual("C11_physical_security")
-        results["C12_data_classification"] = self._evaluate_manual("C12_data_classification")
-        results["C13_secure_disposal"] = self._evaluate_manual("C13_secure_disposal")
-        results["C14_incident_response"] = self._evaluate_manual("C14_incident_response")
-        results["C15_staff_training"] = self._evaluate_manual("C15_staff_training")
+        results["C12_network_security"] = self._evaluate_manual("C12_network_security")
+        results["C13_acceptable_use"] = self._evaluate_manual("C13_acceptable_use")
+        results["C14_vendor_risk"] = self._evaluate_manual("C14_vendor_risk")
+        results["C15_regulatory_compliance"] = self._evaluate_manual("C15_regulatory_compliance")
 
         # Count critical failures
         for key, ctrl_def in self.controls.items():
@@ -690,16 +690,16 @@ class DigitalHygieneAssessor:
             "C03_firewall":          "Enable Windows Firewall for all network profiles (Domain, Private, Public) and configure inbound rules.",
             "C04_password_policy":   "Strengthen password policy: minimum 8 characters, expiry every 90 days, account lockout after 5 failures.",
             "C05_backups":           "Implement daily automated backups with off-site or cloud storage. Test restores quarterly.",
-            "C06_admin_accounts":    "Limit admin accounts to essential personnel only. Use separate admin and standard user accounts.",
-            "C07_software_updates":  "Keep all third-party software (browsers, Java, Adobe) updated. Use an application inventory.",
-            "C08_wifi_security":     "Ensure Wi-Fi uses WPA2/WPA3 encryption. Change default SSID and router passwords.",
-            "C09_email_security":    "Enable spam filtering, train staff to identify phishing emails, and implement email authentication (SPF/DKIM).",
-            "C10_device_locking":    "Configure screensaver lock (max 5 minutes). Train staff to lock devices (Win+L) when stepping away.",
-            "C11_physical_security": "Lock server rooms and network equipment. Maintain a visitor log for sensitive areas.",
-            "C12_data_classification": "Identify and label sensitive data. Create a data handling policy appropriate to each classification level.",
-            "C13_secure_disposal":   "Shred paper records and securely wipe or destroy old storage devices before disposal.",
-            "C14_incident_response": "Document an incident response plan with designated contacts. Test the plan at least annually.",
-            "C15_staff_training":    "Conduct annual security awareness training for all employees covering phishing, passwords, and data handling.",
+            "C06_security_training": "Conduct annual security awareness training for all employees covering phishing, passwords, and data handling.",
+            "C07_access_control":    "Document and enforce a least-privilege access control policy with regular access reviews.",
+            "C08_incident_response": "Document an incident response plan with designated contacts and ZICTA/CERT-ZM reporting. Test annually.",
+            "C09_encryption":        "Encrypt sensitive data at rest (full-disk encryption) and in transit (TLS/HTTPS for all services).",
+            "C10_mobile_security":   "Implement mobile device management: screen locks, trusted app sources, encryption, and remote wipe.",
+            "C11_physical_security": "Lock server rooms and network equipment. Maintain a visitor log and CCTV for sensitive areas.",
+            "C12_network_security":  "Secure Wi-Fi with WPA2/WPA3, change default credentials, and implement network segmentation.",
+            "C13_acceptable_use":    "Create and enforce a documented Acceptable Use Policy signed by all staff.",
+            "C14_vendor_risk":       "Conduct formal vendor risk assessments. Include security clauses in all vendor contracts.",
+            "C15_regulatory_compliance": "Ensure compliance with the Zambia Data Protection Act 2021 and ZICTA regulations.",
         }
 
         # Build prioritised list: critical failures first, then warnings

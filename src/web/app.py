@@ -2,9 +2,10 @@
 Flask web application for the Zambia Digital Hygiene Assessment Tool
 """
 
-from flask import Flask, render_template, request, redirect, url_for, flash, send_file, jsonify, abort, Response
+from flask import Flask, render_template, request, redirect, url_for, flash, send_file, jsonify, abort, Response, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from flask_wtf.csrf import CSRFProtect
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 from datetime import datetime, timedelta
@@ -43,6 +44,15 @@ try:
 except ImportError:  # pragma: no cover
     letter = SimpleDocTemplate = Paragraph = Spacer = getSampleStyleSheet = None
 
+try:
+    import pyotp
+    import qrcode
+    import qrcode.image.svg
+    _MFA_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    pyotp = qrcode = None
+    _MFA_AVAILABLE = False
+
 from src.assessment.assessor import DigitalHygieneAssessor, BusinessInfo, ZambiaRiskAssessor
 from src.deployment.checker import PreDeploymentChecker
 from src.reporting.generator import ReportGenerator
@@ -56,7 +66,7 @@ logger = get_logger(__name__)
 
 # Initialize Flask app and extensions (application factory pattern)
 app = Flask(__name__)
-app.config['SECRET_KEY'] = config.web.get('secret_key', 'dev-secret-key')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', config.web.get('secret_key', 'dev-secret-key'))
 # Session cookies — SECURE only when not in debug / local dev
 app.config['SESSION_COOKIE_SECURE'] = not config.web.get('debug', False)
 app.config['SESSION_COOKIE_HTTPONLY'] = True
@@ -70,6 +80,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy()
 login_manager = LoginManager()
 login_manager.login_view = 'login'
+csrf = CSRFProtect()
 
 # Initialize scheduler for automation (optional dependency)
 scheduler = None
@@ -88,10 +99,15 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(20), default='assessor', nullable=False)
+    role = db.Column(db.String(20), default='assessor', nullable=False)  # admin | assessor | business_owner
     is_active = db.Column(db.Boolean, default=True)
+    mfa_secret = db.Column(db.String(32), nullable=True)
+    mfa_enabled = db.Column(db.Boolean, default=False)
+    business_id = db.Column(db.Integer, db.ForeignKey('businesses.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    business = db.relationship('Business', backref=db.backref('owners', lazy='dynamic'))
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -203,6 +219,26 @@ class AuditLog(db.Model):
 
     user = db.relationship('User')
 
+
+class AssessmentRequest(db.Model):
+    """Business owners request assessments; assessors pick them up."""
+    __tablename__ = 'assessment_requests'
+
+    id = db.Column(db.Integer, primary_key=True)
+    business_id = db.Column(db.Integer, db.ForeignKey('businesses.id'), nullable=False)
+    requested_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    assigned_to = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    assessment_tier = db.Column(db.String(20), default='full')
+    status = db.Column(db.String(20), default='pending')  # pending | assigned | in_progress | completed | cancelled
+    notes = db.Column(db.Text)
+    preferred_date = db.Column(db.Date, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    business = db.relationship('Business')
+    requester = db.relationship('User', foreign_keys=[requested_by])
+    assessor = db.relationship('User', foreign_keys=[assigned_to])
+
 def check_password_strength(password):
     """Check if password meets strength requirements."""
     if len(password) < 12:
@@ -235,6 +271,8 @@ def create_app(db_uri=None):
         db.init_app(app)
     if not hasattr(app, 'login_manager'):
         login_manager.init_app(app)
+    if 'csrf' not in getattr(app, 'extensions', {}):
+        csrf.init_app(app)
 
     # Session security — disable secure cookie flag in test/local mode
     if not app.config.get('TESTING'):
@@ -245,12 +283,29 @@ def create_app(db_uri=None):
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
     app.config['PERMANENT_SESSION_LIFETIME'] = 1800  # 30 min
 
-    # CSRF protection (simple token)
-    app.config['CSRF_TOKEN'] = secrets.token_urlsafe(32)
+    # WTF CSRF is handled by CSRFProtect extension above
 
     # Ensure tables exist and seed a default admin if missing (MySQL production path)
     with app.app_context():
         db.create_all()
+
+        # Migrate existing tables: add MFA columns if missing
+        try:
+            from sqlalchemy import inspect as sa_inspect, text
+            inspector = sa_inspect(db.engine)
+            if 'users' in inspector.get_table_names():
+                existing_cols = {c['name'] for c in inspector.get_columns('users')}
+                if 'mfa_secret' not in existing_cols:
+                    db.session.execute(text('ALTER TABLE users ADD COLUMN mfa_secret VARCHAR(32)'))
+                if 'mfa_enabled' not in existing_cols:
+                    db.session.execute(text('ALTER TABLE users ADD COLUMN mfa_enabled BOOLEAN DEFAULT 0'))
+                if 'business_id' not in existing_cols:
+                    db.session.execute(text('ALTER TABLE users ADD COLUMN business_id INTEGER'))
+                db.session.commit()
+        except Exception as e:
+            logger.warning(f'Column migration: {e}')
+            db.session.rollback()
+
         admin = User.query.filter_by(username='admin').first()
         if not admin:
             admin = User(username='admin', email='admin@digitalhygiene.gov.zm', role='admin', is_active=True)
@@ -264,6 +319,11 @@ def create_app(db_uri=None):
                 admin.set_password('admin123')
                 db.session.commit()
                 logger.info('Default admin password reset to pbkdf2 hash')
+
+    # Register admin dashboard blueprint (only once)
+    from src.web.admin import admin_bp
+    if 'admin' not in app.blueprints:
+        app.register_blueprint(admin_bp)
 
     return app
 
@@ -316,9 +376,10 @@ def login():
                 flash('Account is disabled. Contact an administrator.', 'error')
                 return render_template('login.html')
 
-            # MFA stub: require TOTP for admin (future)
-            # if user.role == 'admin' and not session.get('mfa_verified'):
-            #     return redirect(url_for('mfa'))
+            # MFA gate: if user has MFA enabled, redirect to verification
+            if getattr(user, 'mfa_enabled', False) and _MFA_AVAILABLE:
+                session['mfa_user_id'] = user.id
+                return redirect(url_for('mfa_verify'))
 
             login_user(user)
             # Log login event
@@ -344,12 +405,229 @@ def logout():
     logout_user()
     return redirect(url_for('index'))
 
+
+# ------------------------------------------------------------------
+# Self-Registration
+# ------------------------------------------------------------------
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    """Public self-registration for business owners and assessors."""
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        email = request.form.get('email', '').strip()
+        password = request.form.get('password', '')
+        confirm = request.form.get('confirm_password', '')
+        role = request.form.get('role', 'business_owner')
+
+        # Validation
+        if not username or not email or not password:
+            flash('All fields are required.', 'error')
+            return render_template('register.html')
+        if password != confirm:
+            flash('Passwords do not match.', 'error')
+            return render_template('register.html')
+        is_strong, msg = check_password_strength(password)
+        if not is_strong:
+            flash(msg, 'error')
+            return render_template('register.html')
+        if role not in ('business_owner', 'assessor'):
+            role = 'business_owner'
+        if User.query.filter((User.username == username) | (User.email == email)).first():
+            flash('Username or email already taken.', 'error')
+            return render_template('register.html')
+
+        user = User(username=username, email=email, role=role, is_active=True)
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+
+        log = AuditLog(user_id=user.id, action='register', resource_type='user',
+                       resource_id=user.id, details={'role': role, 'ip': request.remote_addr})
+        db.session.add(log)
+        db.session.commit()
+
+        flash('Registration successful! Please log in.', 'success')
+        return redirect(url_for('login'))
+
+    return render_template('register.html')
+
+
+# ------------------------------------------------------------------
+# Business Onboarding – business owners manage their business profile
+# ------------------------------------------------------------------
+@app.route('/my-business', methods=['GET', 'POST'])
+@login_required
+def my_business():
+    """Business owner registers / edits their business profile."""
+    if current_user.role not in ('business_owner', 'admin'):
+        flash('Only business owners can access this page.', 'error')
+        return redirect(url_for('dashboard'))
+
+    business = None
+    if current_user.business_id:
+        business = Business.query.get(current_user.business_id)
+
+    if request.method == 'POST':
+        name = request.form.get('business_name', '').strip()
+        reg_number = request.form.get('registration_number', '').strip()
+        contact_person = request.form.get('contact_person', '').strip()
+        contact_email = request.form.get('contact_email', '').strip()
+        contact_phone = request.form.get('contact_phone', '').strip()
+        industry = request.form.get('industry', '')
+        province = request.form.get('province', '')
+        num_employees = request.form.get('num_employees', '0')
+        address = request.form.get('address', '').strip()
+
+        if not name or not reg_number:
+            flash('Business name and registration number are required.', 'error')
+            return render_template('my_business.html', business=business)
+
+        if business:
+            # Update existing
+            business.name = name
+            business.registration_number = reg_number
+            business.contact_person = contact_person
+            business.contact_email = contact_email
+            business.contact_phone = contact_phone
+            business.industry = industry
+            business.address = address
+        else:
+            # Check for duplicate registration number
+            existing = Business.query.filter_by(registration_number=reg_number).first()
+            if existing:
+                flash('A business with this registration number already exists.', 'error')
+                return render_template('my_business.html', business=business)
+            business = Business(
+                name=name, registration_number=reg_number,
+                contact_person=contact_person, contact_email=contact_email,
+                contact_phone=contact_phone, industry=industry, address=address)
+            db.session.add(business)
+            db.session.flush()
+            current_user.business_id = business.id
+
+        db.session.commit()
+        flash('Business profile saved successfully!', 'success')
+        return redirect(url_for('my_business'))
+
+    # Gather assessments & certificates for this business
+    assessments = []
+    certificates = []
+    if business:
+        assessments = Assessment.query.filter_by(business_id=business.id).order_by(Assessment.created_at.desc()).all()
+        certificates = Certificate.query.join(Assessment).filter(Assessment.business_id == business.id, Certificate.is_active == True).all()
+
+    return render_template('my_business.html', business=business, assessments=assessments, certificates=certificates)
+
+
+# ------------------------------------------------------------------
+# Assessment Request Flow
+# ------------------------------------------------------------------
+@app.route('/request-assessment', methods=['GET', 'POST'])
+@login_required
+def request_assessment():
+    """Business owners request an assessment for their business."""
+    if current_user.role != 'business_owner':
+        flash('Only business owners can request assessments.', 'error')
+        return redirect(url_for('dashboard'))
+
+    if not current_user.business_id:
+        flash('Please register your business first.', 'warning')
+        return redirect(url_for('my_business'))
+
+    business = Business.query.get(current_user.business_id)
+
+    if request.method == 'POST':
+        tier = request.form.get('assessment_tier', 'full')
+        notes = request.form.get('notes', '').strip()
+        preferred_date_str = request.form.get('preferred_date', '')
+        preferred_date = None
+        if preferred_date_str:
+            try:
+                preferred_date = datetime.strptime(preferred_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+
+        ar = AssessmentRequest(
+            business_id=business.id,
+            requested_by=current_user.id,
+            assessment_tier=tier,
+            notes=notes,
+            preferred_date=preferred_date,
+            status='pending')
+        db.session.add(ar)
+        db.session.commit()
+
+        flash('Assessment request submitted! An assessor will be assigned soon.', 'success')
+        return redirect(url_for('my_business'))
+
+    return render_template('request_assessment.html', business=business)
+
+
+@app.route('/assessment-requests')
+@login_required
+def assessment_requests():
+    """Assessors and admins view pending assessment requests."""
+    if current_user.role not in ('assessor', 'admin'):
+        flash('Access denied.', 'error')
+        return redirect(url_for('dashboard'))
+
+    if current_user.role == 'admin':
+        requests_list = AssessmentRequest.query.order_by(AssessmentRequest.created_at.desc()).all()
+    else:
+        # Assessors see pending + their assigned requests
+        requests_list = AssessmentRequest.query.filter(
+            (AssessmentRequest.status == 'pending') |
+            (AssessmentRequest.assigned_to == current_user.id)
+        ).order_by(AssessmentRequest.created_at.desc()).all()
+
+    return render_template('assessment_requests.html', requests=requests_list)
+
+
+@app.route('/accept-request/<int:request_id>', methods=['POST'])
+@login_required
+def accept_request(request_id):
+    """Assessor accepts a pending assessment request."""
+    if current_user.role not in ('assessor', 'admin'):
+        flash('Access denied.', 'error')
+        return redirect(url_for('dashboard'))
+
+    ar = AssessmentRequest.query.get_or_404(request_id)
+    if ar.status != 'pending':
+        flash('This request has already been processed.', 'warning')
+        return redirect(url_for('assessment_requests'))
+
+    ar.assigned_to = current_user.id
+    ar.status = 'assigned'
+    db.session.commit()
+
+    flash(f'You have been assigned to assess {ar.business.name}.', 'success')
+    return redirect(url_for('assessment_requests'))
+
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    """Assessment dashboard"""
+    """Role-based assessment dashboard"""
     query = Assessment.query
-    if current_user.role != 'admin':
+    pending_requests = []
+
+    if current_user.role == 'admin':
+        # Admins see everything
+        pass
+    elif current_user.role == 'business_owner':
+        # Business owners see their own business assessments
+        if current_user.business_id:
+            query = query.filter_by(business_id=current_user.business_id)
+        else:
+            query = query.filter_by(id=-1)  # no results
+        # Show their pending requests
+        pending_requests = AssessmentRequest.query.filter_by(
+            requested_by=current_user.id
+        ).order_by(AssessmentRequest.created_at.desc()).limit(5).all()
+    else:
+        # Assessors see assessments they performed
         query = query.filter_by(assessor_id=current_user.id)
     assessments = query.order_by(Assessment.created_at.desc()).all()
 
@@ -409,7 +687,7 @@ def dashboard():
     if old_assessments:
         reminders.append(f"{old_assessments} assessment(s) due for reassessment.")
 
-    return render_template('dashboard.html', assessments=assessments, stats=stats, tip=tip, reminders=reminders, mobile_device_tips=MOBILE_DEVICE_TIPS)
+    return render_template('dashboard.html', assessments=assessments, stats=stats, tip=tip, reminders=reminders, mobile_device_tips=MOBILE_DEVICE_TIPS, pending_requests=pending_requests)
 
 @app.route('/assess', methods=['GET', 'POST'])
 @login_required
@@ -510,7 +788,11 @@ def assess():
 def results(assessment_id):
     """Assessment results"""
     query = Assessment.query
-    if current_user.role != 'admin':
+    if current_user.role == 'admin':
+        query = query.filter_by(id=assessment_id)
+    elif current_user.role == 'business_owner' and current_user.business_id:
+        query = query.filter_by(id=assessment_id, business_id=current_user.business_id)
+    else:
         query = query.filter_by(id=assessment_id, assessor_id=current_user.id)
     assessment = query.first_or_404()
 
@@ -547,7 +829,11 @@ def results(assessment_id):
 def download_report(assessment_id, format):
     """Download assessment report"""
     query = Assessment.query
-    if current_user.role != 'admin':
+    if current_user.role == 'admin':
+        query = query.filter_by(id=assessment_id)
+    elif current_user.role == 'business_owner' and current_user.business_id:
+        query = query.filter_by(id=assessment_id, business_id=current_user.business_id)
+    else:
         query = query.filter_by(id=assessment_id, assessor_id=current_user.id)
     assessment = query.first_or_404()
 
@@ -626,14 +912,7 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated
 
-@app.route('/admin/audit-logs')
-@login_required
-@admin_required
-def audit_logs():
-    page = int(request.args.get('page', 1))
-    per_page = 20
-    logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).paginate(page=page, per_page=per_page)
-    return render_template('admin_audit_logs.html', logs=logs)
+# Legacy audit-logs route removed – now served by the admin blueprint at /admin/audit-logs
 
 @app.route('/change-password', methods=['GET', 'POST'])
 @login_required
@@ -704,16 +983,98 @@ def report_incident():
 @app.route('/mfa-setup', methods=['GET', 'POST'])
 @login_required
 def mfa_setup():
-    # Stub: In future, generate TOTP secret and QR code
-    flash('MFA setup coming soon!', 'info')
-    return render_template('mfa_setup.html')
+    """Set up TOTP-based multi-factor authentication."""
+    if not _MFA_AVAILABLE:
+        flash('MFA requires pyotp and qrcode packages. Install them via: pip install pyotp qrcode[pil]', 'warning')
+        return render_template('mfa_setup.html', mfa_available=False, mfa_enabled=current_user.mfa_enabled)
 
-@app.route('/mfa-verify', methods=['POST'])
-@login_required
+    if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'enable':
+            # Generate a new secret and store it (not yet enabled until verified)
+            secret = pyotp.random_base32()
+            current_user.mfa_secret = secret
+            db.session.commit()
+            # Generate QR code
+            totp = pyotp.TOTP(secret)
+            provisioning_uri = totp.provisioning_uri(
+                name=current_user.username,
+                issuer_name='Zambia Digital Hygiene'
+            )
+            # Create QR code as base64 PNG
+            import base64
+            qr = qrcode.QRCode(version=1, box_size=6, border=4)
+            qr.add_data(provisioning_uri)
+            qr.make(fit=True)
+            img = qr.make_image(fill_color='black', back_color='white')
+            buf = io.BytesIO()
+            img.save(buf, format='PNG')
+            qr_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+            return render_template('mfa_setup.html', mfa_available=True, mfa_enabled=False,
+                                   qr_code=qr_b64, secret=secret, step='verify')
+        elif action == 'verify':
+            code = request.form.get('mfa_code', '').strip()
+            if current_user.mfa_secret:
+                totp = pyotp.TOTP(current_user.mfa_secret)
+                if totp.verify(code, valid_window=1):
+                    current_user.mfa_enabled = True
+                    db.session.commit()
+                    log = AuditLog(user_id=current_user.id, action='mfa_enabled',
+                                   resource_type='user', resource_id=current_user.id,
+                                   details={'ip': request.remote_addr})
+                    db.session.add(log)
+                    db.session.commit()
+                    flash('MFA enabled successfully!', 'success')
+                    return redirect(url_for('profile'))
+                else:
+                    flash('Invalid MFA code. Please try again.', 'error')
+                    return redirect(url_for('mfa_setup'))
+            else:
+                flash('No MFA secret found. Please start setup again.', 'error')
+                return redirect(url_for('mfa_setup'))
+        elif action == 'disable':
+            current_user.mfa_enabled = False
+            current_user.mfa_secret = None
+            db.session.commit()
+            log = AuditLog(user_id=current_user.id, action='mfa_disabled',
+                           resource_type='user', resource_id=current_user.id,
+                           details={'ip': request.remote_addr})
+            db.session.add(log)
+            db.session.commit()
+            flash('MFA has been disabled.', 'info')
+            return redirect(url_for('profile'))
+
+    return render_template('mfa_setup.html', mfa_available=True, mfa_enabled=current_user.mfa_enabled)
+
+@app.route('/mfa-verify', methods=['GET', 'POST'])
 def mfa_verify():
-    # Stub: In future, verify TOTP code
-    flash('MFA verification coming soon!', 'info')
-    return redirect(url_for('dashboard'))
+    """Verify MFA code during login."""
+    user_id = session.get('mfa_user_id')
+    if not user_id:
+        return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        code = request.form.get('mfa_code', '').strip()
+        user = User.query.get(user_id)
+        if user and user.mfa_secret and _MFA_AVAILABLE:
+            totp = pyotp.TOTP(user.mfa_secret)
+            if totp.verify(code, valid_window=1):
+                session.pop('mfa_user_id', None)
+                login_user(user)
+                log = AuditLog(user_id=user.id, action='login', resource_type='user',
+                               resource_id=user.id,
+                               details={'ip': request.remote_addr, 'ua': request.user_agent.string, 'mfa': True})
+                db.session.add(log)
+                db.session.commit()
+                flash('Login successful!', 'success')
+                return redirect(url_for('dashboard'))
+            else:
+                flash('Invalid MFA code. Please try again.', 'error')
+        else:
+            flash('MFA verification failed.', 'error')
+            return redirect(url_for('login'))
+
+    return render_template('mfa_verify.html')
 
 @app.route('/zambia-assessment', methods=['GET', 'POST'])
 @login_required
@@ -759,28 +1120,101 @@ def report_zambia_incident():
     return render_template('report_zambia_incident.html', zicta_url=zicta_url, cert_url=cert_url)
 
 def check_outdated_software():
-    # Stub: In real deployment, integrate with OS package manager or vulnerability DB
-    return ['Python', 'Flask', 'MySQL']  # Example outdated
+    """Check for outdated Python packages."""
+    try:
+        result = subprocess.run(
+            [platform.system() == 'Windows' and 'pip' or 'pip3', 'list', '--outdated', '--format=json'],
+            capture_output=True, text=True, timeout=30, shell=(platform.system() == 'Windows')
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            packages = json.loads(result.stdout)
+            return [f"{p['name']} ({p['version']} → {p['latest_version']})" for p in packages[:10]]
+        return []
+    except Exception:
+        return ['Unable to check — pip not available']
 
 def check_weak_passwords():
-    # Stub: In real deployment, check against password policy or breached DB
-    return ['admin', 'test']  # Example weak accounts
+    """Check for user accounts with weak/default passwords."""
+    weak = []
+    try:
+        users = User.query.all()
+        common = ['admin123', 'password', '123456', 'password123', 'admin', 'test', 'letmein']
+        for u in users:
+            for pw in common:
+                if u.check_password(pw):
+                    weak.append(u.username)
+                    break
+    except Exception:
+        pass
+    return weak if weak else []
 
 def check_antivirus_status():
-    # Stub: In real deployment, query OS for AV status
-    return 'Unknown or not detected'
+    """Query OS for antivirus status."""
+    try:
+        if platform.system() == 'Windows':
+            result = subprocess.run(
+                'powershell -Command "Get-MpComputerStatus | Select-Object -ExpandProperty AntivirusEnabled"',
+                shell=True, capture_output=True, text=True, timeout=10
+            )
+            if result.returncode == 0 and 'True' in result.stdout:
+                return 'Windows Defender enabled'
+            return 'Antivirus may not be active'
+        elif platform.system() == 'Linux':
+            for av in ['clamav', 'clamd']:
+                r = subprocess.run(['which', av], capture_output=True, text=True)
+                if r.returncode == 0:
+                    return f'{av} detected'
+            return 'No known antivirus detected'
+        return 'Check manually for your OS'
+    except Exception as e:
+        return f'Check error: {e}'
 
 def check_disk_encryption():
-    # Stub: In real deployment, check OS disk encryption status
-    return 'Not enabled'
+    """Check disk encryption status."""
+    try:
+        if platform.system() == 'Windows':
+            result = subprocess.run(
+                'manage-bde -status C:',
+                shell=True, capture_output=True, text=True, timeout=10
+            )
+            if result.returncode == 0 and 'Fully Encrypted' in result.stdout:
+                return 'BitLocker enabled on C:'
+            elif result.returncode == 0:
+                return 'BitLocker not fully enabled'
+            return 'Unable to determine BitLocker status'
+        elif platform.system() == 'Linux':
+            result = subprocess.run('lsblk -o NAME,TYPE,MOUNTPOINT', shell=True, capture_output=True, text=True)
+            if 'crypt' in result.stdout:
+                return 'LUKS encryption detected'
+            return 'No disk encryption detected'
+        return 'Check manually for your OS'
+    except Exception as e:
+        return f'Check error: {e}'
 
 def check_admin_accounts():
-    # Stub: In real deployment, list admin/root accounts
-    return ['Administrator', 'root']
+    """List admin accounts in the application."""
+    try:
+        admins = User.query.filter_by(role='admin').all()
+        return [u.username for u in admins]
+    except Exception:
+        return ['Unable to query accounts']
 
 def check_suspicious_processes():
-    # Stub: In real deployment, scan for known malware or suspicious processes
-    return ['unknown.exe', 'suspicious.py']
+    """Check for potentially suspicious processes."""
+    suspicious = []
+    try:
+        import psutil
+        known_suspicious = ['cryptominer', 'xmrig', 'coinhive', 'keylogger', 'trojan']
+        for proc in psutil.process_iter(['name']):
+            name = (proc.info['name'] or '').lower()
+            for s in known_suspicious:
+                if s in name:
+                    suspicious.append(proc.info['name'])
+        return suspicious if suspicious else []
+    except ImportError:
+        return ['psutil not installed — cannot scan processes']
+    except Exception:
+        return []
 
 def check_ssl_tls(domain='localhost'):
     try:

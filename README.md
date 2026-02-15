@@ -404,13 +404,14 @@ The app validates required environment variables on startup:
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - Zambia Ministry of Technology and Science
 - Local cybersecurity community
 - Open source contributors
+- university of zambia
 
-## 🔄 Changelog
+## Changelog
 
 ### Version 2.0.0 (Current)
 
