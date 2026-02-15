@@ -16,7 +16,7 @@ CREATE TABLE
         username VARCHAR(50) UNIQUE NOT NULL,
         email VARCHAR(100) UNIQUE NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
-        role ENUM ('admin', 'assessor', 'viewer') DEFAULT 'assessor',
+        role ENUM ('admin', 'assessor', 'viewer', 'business_owner') DEFAULT 'assessor',
         is_active BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -47,7 +47,13 @@ CREATE TABLE
         system_info JSON,
         controls_results JSON NOT NULL,
         total_score INT NOT NULL,
-        certification_level ENUM ('GOLD', 'SILVER', 'BRONZE', 'NOT_CERTIFIED') NOT NULL,
+        certification_level ENUM (
+            'GOLD',
+            'SILVER',
+            'BRONZE',
+            'NOT_CERTIFIED',
+            'NOT CERTIFIED'
+        ) NOT NULL,
         recommendations JSON,
         status ENUM ('draft', 'completed', 'certified') DEFAULT 'completed',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

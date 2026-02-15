@@ -1,0 +1,87 @@
+{% extends "base.html" %} {% block title %}Assessment Requests - Zambia Digital
+Hygiene{% endblock %} {% block content %}
+<div class="container py-4">
+  <h2 class="mb-4"><i class="fas fa-inbox me-2"></i>Assessment Requests</h2>
+
+  {% if not requests %}
+  <div class="card shadow">
+    <div class="card-body text-center py-5">
+      <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+      <h5 class="text-muted">No pending assessment requests</h5>
+      <p class="text-muted">
+        New requests from business owners will appear here.
+      </p>
+    </div>
+  </div>
+  {% else %}
+  <div class="row g-3">
+    {% for req in requests %}
+    <div class="col-md-6 col-lg-4">
+      <div
+        class="card shadow h-100 {% if req.status == 'pending' %}border-start border-4 border-warning{% elif req.status == 'assigned' %}border-start border-4 border-primary{% elif req.status == 'completed' %}border-start border-4 border-success{% endif %}"
+      >
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <h6 class="card-title mb-0">{{ req.business.name }}</h6>
+            <span
+              class="badge {% if req.status == 'pending' %}bg-warning text-dark{% elif req.status == 'assigned' %}bg-primary{% elif req.status == 'completed' %}bg-success{% else %}bg-secondary{% endif %}"
+            >
+              {{ req.status | capitalize }}
+            </span>
+          </div>
+          <p class="small text-muted mb-1">
+            <i class="fas fa-id-card me-1"></i>{{
+            req.business.registration_number }}
+          </p>
+          <p class="small text-muted mb-1">
+            <i class="fas fa-layer-group me-1"></i>Tier:
+            <strong>{{ req.assessment_tier | capitalize }}</strong>
+          </p>
+          {% if req.preferred_date %}
+          <p class="small text-muted mb-1">
+            <i class="fas fa-calendar me-1"></i>Preferred: {{
+            req.preferred_date.strftime('%Y-%m-%d') }}
+          </p>
+          {% endif %}
+          <p class="small text-muted mb-1">
+            <i class="fas fa-user me-1"></i>Requested by: {{
+            req.requester.username }}
+          </p>
+          <p class="small text-muted mb-2">
+            <i class="fas fa-clock me-1"></i>{{
+            req.created_at.strftime('%Y-%m-%d %H:%M') }}
+          </p>
+          {% if req.notes %}
+          <p class="small border-top pt-2">{{ req.notes }}</p>
+          {% endif %} {% if req.status == 'pending' %}
+          <form
+            method="POST"
+            action="{{ url_for('accept_request', request_id=req.id) }}"
+          >
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <button type="submit" class="btn btn-primary btn-sm w-100">
+              <i class="fas fa-check me-1"></i>Accept & Assign to Me
+            </button>
+          </form>
+          {% elif req.status == 'assigned' and req.assigned_to ==
+          current_user.id %}
+          <a
+            href="{{ url_for('assess') }}"
+            class="btn btn-success btn-sm w-100"
+          >
+            <i class="fas fa-play me-1"></i>Start Assessment
+          </a>
+          {% elif req.assessor %}
+          <p class="small text-muted mb-0">
+            <i class="fas fa-user-check me-1"></i>Assigned to: {{
+            req.assessor.username }}
+          </p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

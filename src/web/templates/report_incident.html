@@ -3,6 +3,7 @@
 <div class="container py-4">
   <h2>Report Security Incident</h2>
   <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <div class="mb-3">
       <label for="description" class="form-label">Description</label>
       <textarea

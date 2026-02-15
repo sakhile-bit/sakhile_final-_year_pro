@@ -1,0 +1,121 @@
+{% extends "admin/base_admin.html" %} {% block admin_title %}System Health{%
+endblock %} {% block admin_content %}
+<h2 class="mb-4"><i class="fas fa-server me-2"></i>System Health</h2>
+
+<div class="row g-3 mb-4">
+  <!-- Hardware -->
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white"><strong>Server Resources</strong></div>
+      <ul class="list-group list-group-flush">
+        <li class="list-group-item d-flex justify-content-between">
+          <span><i class="fas fa-desktop me-2 text-primary"></i>OS</span>
+          <span>{{ hw.os }}</span>
+        </li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span><i class="fab fa-python me-2 text-warning"></i>Python</span>
+          <span>{{ hw.python }}</span>
+        </li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span><i class="fas fa-microchip me-2 text-info"></i>CPUs</span>
+          <span>{{ hw.cpu_count }}</span>
+        </li>
+        <li class="list-group-item">
+          <div class="d-flex justify-content-between mb-1">
+            <span
+              ><i class="fas fa-microchip me-2 text-info"></i>CPU Usage</span
+            >
+            <span>{{ hw.cpu_percent }}%</span>
+          </div>
+          <div class="progress" style="height: 8px">
+            <div
+              class="progress-bar {{ 'bg-success' if hw.cpu_percent < 60 else ('bg-warning' if hw.cpu_percent < 85 else 'bg-danger') }}"
+              style="width: {{ hw.cpu_percent }}%"
+            ></div>
+          </div>
+        </li>
+        <li class="list-group-item">
+          <div class="d-flex justify-content-between mb-1">
+            <span><i class="fas fa-memory me-2 text-success"></i>Memory</span>
+            <span
+              >{{ (hw.memory.used / 1073741824) | round(1) }} / {{
+              (hw.memory.total / 1073741824) | round(1) }} GB</span
+            >
+          </div>
+          <div class="progress" style="height: 8px">
+            <div
+              class="progress-bar {{ 'bg-success' if hw.memory.percent < 60 else ('bg-warning' if hw.memory.percent < 85 else 'bg-danger') }}"
+              style="width: {{ hw.memory.percent }}%"
+            ></div>
+          </div>
+        </li>
+        <li class="list-group-item">
+          <div class="d-flex justify-content-between mb-1">
+            <span><i class="fas fa-hdd me-2 text-secondary"></i>Disk</span>
+            <span
+              >{{ (hw.disk.used / 1073741824) | round(1) }} / {{ (hw.disk.total
+              / 1073741824) | round(1) }} GB</span
+            >
+          </div>
+          <div class="progress" style="height: 8px">
+            <div
+              class="progress-bar {{ 'bg-success' if hw.disk.percent < 60 else ('bg-warning' if hw.disk.percent < 85 else 'bg-danger') }}"
+              style="width: {{ hw.disk.percent }}%"
+            ></div>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Database counts -->
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white">
+        <strong>Database Statistics</strong>
+      </div>
+      <ul class="list-group list-group-flush">
+        <li class="list-group-item d-flex justify-content-between">
+          <span><i class="fas fa-users me-2 text-primary"></i>Users</span>
+          <span class="badge bg-primary rounded-pill">{{ counts.users }}</span>
+        </li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span
+            ><i class="fas fa-building me-2 text-success"></i>Businesses</span
+          >
+          <span class="badge bg-success rounded-pill"
+            >{{ counts.businesses }}</span
+          >
+        </li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span
+            ><i class="fas fa-clipboard-check me-2 text-info"></i
+            >Assessments</span
+          >
+          <span class="badge bg-info rounded-pill"
+            >{{ counts.assessments }}</span
+          >
+        </li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span
+            ><i class="fas fa-certificate me-2 text-warning"></i
+            >Certificates</span
+          >
+          <span class="badge bg-warning rounded-pill"
+            >{{ counts.certificates }}</span
+          >
+        </li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span
+            ><i class="fas fa-clipboard-list me-2 text-secondary"></i>Audit
+            Logs</span
+          >
+          <span class="badge bg-secondary rounded-pill"
+            >{{ counts.audit_logs }}</span
+          >
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}

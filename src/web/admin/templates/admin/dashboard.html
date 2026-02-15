@@ -1,0 +1,237 @@
+{% extends "admin/base_admin.html" %} {% block admin_title %}Dashboard{%
+endblock %} {% block admin_content %}
+<h2 class="mb-4"><i class="fas fa-tachometer-alt me-2"></i>Admin Dashboard</h2>
+
+<!-- ─── KPI Cards ─── -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-xl-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center">
+          <div class="rounded-circle bg-primary bg-opacity-10 p-3 me-3">
+            <i class="fas fa-users fa-2x text-primary"></i>
+          </div>
+          <div>
+            <h6 class="text-muted mb-1">Total Users</h6>
+            <h3 class="mb-0">{{ total_users }}</h3>
+            <small class="text-success">{{ active_users }} active</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center">
+          <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
+            <i class="fas fa-building fa-2x text-success"></i>
+          </div>
+          <div>
+            <h6 class="text-muted mb-1">Businesses</h6>
+            <h3 class="mb-0">{{ total_businesses }}</h3>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center">
+          <div class="rounded-circle bg-info bg-opacity-10 p-3 me-3">
+            <i class="fas fa-clipboard-check fa-2x text-info"></i>
+          </div>
+          <div>
+            <h6 class="text-muted mb-1">Assessments</h6>
+            <h3 class="mb-0">{{ total_assessments }}</h3>
+            <small class="text-info"
+              >{{ assessments_this_month }} this month</small
+            >
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center">
+          <div class="rounded-circle bg-warning bg-opacity-10 p-3 me-3">
+            <i class="fas fa-certificate fa-2x text-warning"></i>
+          </div>
+          <div>
+            <h6 class="text-muted mb-1">Certificates</h6>
+            <h3 class="mb-0">{{ total_certs }}</h3>
+            {% if expiring_soon %}
+            <small class="text-danger"
+              ><i class="fas fa-exclamation-triangle"></i> {{ expiring_soon }}
+              expiring soon</small
+            >
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Row 2 : Charts ─── -->
+<div class="row g-3 mb-4">
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white">
+        <strong>Certification Distribution</strong>
+      </div>
+      <div class="card-body">
+        <canvas id="certChart" height="260"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white">
+        <strong>Average Score Trend (12 mo)</strong>
+      </div>
+      <div class="card-body">
+        <canvas id="scoreChart" height="260"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Row 3 : Recent Activity + System Info ─── -->
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card border-0 shadow-sm">
+      <div
+        class="card-header bg-white d-flex justify-content-between align-items-center"
+      >
+        <strong>Recent Activity</strong>
+        <a
+          href="{{ url_for('admin.audit_logs') }}"
+          class="btn btn-sm btn-outline-primary"
+          >View All</a
+        >
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Time</th>
+                <th>User</th>
+                <th>Action</th>
+                <th>Resource</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for log in recent_logs %}
+              <tr>
+                <td class="text-nowrap">
+                  <small>{{ log.timestamp.strftime('%Y-%m-%d %H:%M') }}</small>
+                </td>
+                <td>{{ log.user.username if log.user else '—' }}</td>
+                <td>
+                  <span class="badge bg-secondary">{{ log.action }}</span>
+                </td>
+                <td>
+                  {{ log.resource_type or '' }} {{ log.resource_id or '' }}
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="4" class="text-center text-muted py-3">
+                  No activity yet.
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header bg-white">
+        <strong>Recent Assessments</strong>
+      </div>
+      <ul class="list-group list-group-flush">
+        {% for a in recent_assessments %}
+        <li
+          class="list-group-item d-flex justify-content-between align-items-center"
+        >
+          <div>
+            <strong>{{ a.business.name if a.business else 'N/A' }}</strong
+            ><br />
+            <small class="text-muted"
+              >{{ a.created_at.strftime('%d %b %Y') }}</small
+            >
+          </div>
+          <div class="text-end">
+            <span
+              class="badge bg-{{ 'success' if a.certification_level == 'Gold' else ('warning text-dark' if a.certification_level == 'Silver' else 'info') }}"
+            >
+              {{ a.certification_level }} </span
+            ><br />
+            <small>Score: {{ a.total_score }}</small>
+          </div>
+        </li>
+        {% else %}
+        <li class="list-group-item text-muted text-center">
+          No assessments yet.
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white"><strong>System Info</strong></div>
+      <ul class="list-group list-group-flush">
+        <li class="list-group-item">
+          <strong>OS:</strong> {{ system_info.os }}
+        </li>
+        <li class="list-group-item">
+          <strong>Python:</strong> {{ system_info.python }}
+        </li>
+        <li class="list-group-item">
+          <strong>Database:</strong> <code>{{ system_info.db_uri }}</code>
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block admin_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+  // ─── Certification distribution (doughnut) ───
+  const certData = {{ cert_levels | tojson }};
+  const labels = Object.keys(certData);
+  const values = Object.values(certData);
+  const colours = ['#198754','#ffc107','#0dcaf0','#6f42c1','#dc3545','#0d6efd'];
+  new Chart(document.getElementById('certChart'), {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: values, backgroundColor: colours.slice(0, labels.length) }] },
+    options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+  });
+
+  // ─── Score trend (line) ───
+  const trend = {{ score_trend | tojson }};
+  new Chart(document.getElementById('scoreChart'), {
+    type: 'line',
+    data: {
+      labels: trend.map(t => t.label),
+      datasets: [{
+        label: 'Avg Score',
+        data: trend.map(t => t.avg),
+        borderColor: '#667eea',
+        backgroundColor: 'rgba(102,126,234,0.1)',
+        fill: true, tension: 0.3
+      }]
+    },
+    options: { responsive: true, scales: { y: { beginAtZero: true } } }
+  });
+</script>
+{% endblock %}

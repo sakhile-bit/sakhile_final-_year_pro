@@ -3,49 +3,190 @@ endblock %} {% block content %}
 <section class="hero-section">
   <div class="container">
     <div class="row align-items-center">
-      <div class="col-md-8">
-        <h1 class="display-5 fw-bold">Zambia Digital Hygiene Assessment</h1>
+      <div class="col-md-7">
+        <h1 class="display-5 fw-bold">Zambia Digital Hygiene Certification</h1>
         <p class="lead mt-3">
-          Assess and improve your organization's digital hygiene posture with a
-          quick, standards-aligned checklist.
+          Get your business certified for digital hygiene compliance. Protect
+          your customers, meet ZICTA regulations, and build trust.
         </p>
-        <a href="{{ url_for('assess') }}" class="btn btn-light btn-lg mt-3">
-          Start Assessment
-        </a>
+        <div class="mt-4 d-flex flex-wrap gap-3">
+          {% if current_user.is_authenticated %} {% if current_user.role ==
+          'business_owner' %}
+          <a href="{{ url_for('my_business') }}" class="btn btn-light btn-lg">
+            <i class="fas fa-building me-2"></i>My Business
+          </a>
+          {% else %}
+          <a href="{{ url_for('assess') }}" class="btn btn-light btn-lg">
+            <i class="fas fa-clipboard-check me-2"></i>Run Assessment
+          </a>
+          {% endif %} {% else %}
+          <a href="{{ url_for('register') }}" class="btn btn-light btn-lg">
+            <i class="fas fa-user-plus me-2"></i>Get Started
+          </a>
+          <a href="{{ url_for('login') }}" class="btn btn-outline-light btn-lg">
+            <i class="fas fa-sign-in-alt me-2"></i>Log In
+          </a>
+          {% endif %}
+        </div>
+      </div>
+      <div class="col-md-5 d-none d-md-block text-center">
+        <i class="fas fa-shield-alt" style="font-size: 10rem; opacity: 0.2"></i>
       </div>
     </div>
   </div>
 </section>
 
+<!-- How It Works -->
 <div class="container my-5">
+  <h2 class="text-center mb-4">How It Works</h2>
+  <div class="row g-4 text-center">
+    <div class="col-md-3">
+      <div
+        class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center mb-3"
+        style="width: 70px; height: 70px"
+      >
+        <span class="fw-bold fs-4">1</span>
+      </div>
+      <h5>Register</h5>
+      <p class="text-muted small">
+        Create an account and register your business on the platform.
+      </p>
+    </div>
+    <div class="col-md-3">
+      <div
+        class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center mb-3"
+        style="width: 70px; height: 70px"
+      >
+        <span class="fw-bold fs-4">2</span>
+      </div>
+      <h5>Request Assessment</h5>
+      <p class="text-muted small">
+        Submit a request and choose the assessment tier that fits your needs.
+      </p>
+    </div>
+    <div class="col-md-3">
+      <div
+        class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center mb-3"
+        style="width: 70px; height: 70px"
+      >
+        <span class="fw-bold fs-4">3</span>
+      </div>
+      <h5>Get Assessed</h5>
+      <p class="text-muted small">
+        A certified assessor evaluates your digital hygiene controls.
+      </p>
+    </div>
+    <div class="col-md-3">
+      <div
+        class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center mb-3"
+        style="width: 70px; height: 70px"
+      >
+        <span class="fw-bold fs-4">4</span>
+      </div>
+      <h5>Get Certified</h5>
+      <p class="text-muted small">
+        Receive your certification (Bronze, Silver, or Gold) and improvement
+        report.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- Role Cards -->
+<div class="container mb-5">
   <div class="row g-4">
     <div class="col-md-4">
-      <div class="card card-assessment p-3">
-        <div class="card-body">
-          <h5 class="card-title">Run Assessments</h5>
+      <div class="card card-assessment p-3 h-100">
+        <div class="card-body text-center">
+          <i class="fas fa-building fa-2x text-primary mb-3"></i>
+          <h5 class="card-title">Business Owners</h5>
           <p class="card-text">
-            Quickly evaluate controls and get prioritized recommendations.
+            Register your business, request assessments, track your
+            certification status, and download compliance reports.
           </p>
+          {% if not current_user.is_authenticated %}
+          <a
+            href="{{ url_for('register') }}"
+            class="btn btn-outline-primary btn-sm"
+            >Register Now</a
+          >
+          {% endif %}
         </div>
       </div>
     </div>
     <div class="col-md-4">
-      <div class="card card-assessment p-3">
-        <div class="card-body">
-          <h5 class="card-title">View Dashboard</h5>
+      <div class="card card-assessment p-3 h-100">
+        <div class="card-body text-center">
+          <i class="fas fa-clipboard-check fa-2x text-success mb-3"></i>
+          <h5 class="card-title">Assessors</h5>
           <p class="card-text">
-            Track scores, certification levels, and recent assessments.
+            Conduct digital hygiene evaluations, run automated and manual
+            control checks, and issue certifications.
           </p>
+          {% if not current_user.is_authenticated %}
+          <a
+            href="{{ url_for('register') }}"
+            class="btn btn-outline-success btn-sm"
+            >Join as Assessor</a
+          >
+          {% endif %}
         </div>
       </div>
     </div>
     <div class="col-md-4">
-      <div class="card card-assessment p-3">
-        <div class="card-body">
-          <h5 class="card-title">Download Reports</h5>
+      <div class="card card-assessment p-3 h-100">
+        <div class="card-body text-center">
+          <i class="fas fa-chart-line fa-2x text-info mb-3"></i>
+          <h5 class="card-title">Reports & Analytics</h5>
           <p class="card-text">
-            Export results in PDF, HTML, JSON, or CSV formats.
+            Export detailed reports in PDF, HTML, JSON, or CSV. Track scores and
+            certification levels over time.
           </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Certification Levels -->
+<div class="bg-light py-5">
+  <div class="container">
+    <h2 class="text-center mb-4">Certification Levels</h2>
+    <div class="row g-4 justify-content-center">
+      <div class="col-md-3 text-center">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <i class="fas fa-medal fa-2x mb-2" style="color: #cd7f32"></i>
+            <h5>Bronze</h5>
+            <p class="small text-muted">
+              Basic digital hygiene practices in place. Good starting point for
+              compliance.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3 text-center">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <i class="fas fa-medal fa-2x mb-2 text-secondary"></i>
+            <h5>Silver</h5>
+            <p class="small text-muted">
+              Solid security controls with room for improvement. Meets most
+              Zambia ICT standards.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3 text-center">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <i class="fas fa-medal fa-2x mb-2 text-warning"></i>
+            <h5>Gold</h5>
+            <p class="small text-muted">
+              Top-tier compliance. Fully aligned with ZICTA regulations and
+              international best practices.
+            </p>
+          </div>
         </div>
       </div>
     </div>

@@ -1,0 +1,147 @@
+{% extends "base.html" %} {% block title %}Request Assessment - Zambia Digital
+Hygiene{% endblock %} {% block content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+      <div class="card shadow">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0">
+            <i class="fas fa-clipboard-check me-2"></i>Request Assessment
+          </h5>
+        </div>
+        <div class="card-body">
+          <div class="alert alert-info">
+            <i class="fas fa-building me-2"></i>
+            Requesting assessment for: <strong>{{ business.name }}</strong>
+            <br /><small class="text-muted"
+              >Reg# {{ business.registration_number }}</small
+            >
+          </div>
+
+          <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+            <div class="mb-3">
+              <label class="form-label fw-bold">Assessment Tier</label>
+              <div class="row g-2">
+                <div class="col-md-4">
+                  <input
+                    type="radio"
+                    class="btn-check"
+                    name="assessment_tier"
+                    id="tier_automated"
+                    value="automated"
+                  />
+                  <label
+                    class="btn btn-outline-success w-100 py-3"
+                    for="tier_automated"
+                  >
+                    <i class="fas fa-robot d-block mb-1 fs-4"></i>
+                    <strong>Automated</strong>
+                    <br /><small>C01–C05 (55 pts)</small>
+                  </label>
+                </div>
+                <div class="col-md-4">
+                  <input
+                    type="radio"
+                    class="btn-check"
+                    name="assessment_tier"
+                    id="tier_full"
+                    value="full"
+                    checked
+                  />
+                  <label
+                    class="btn btn-outline-primary w-100 py-3"
+                    for="tier_full"
+                  >
+                    <i class="fas fa-shield-alt d-block mb-1 fs-4"></i>
+                    <strong>Full</strong>
+                    <br /><small>C01–C15 (120 pts)</small>
+                  </label>
+                </div>
+                <div class="col-md-4">
+                  <input
+                    type="radio"
+                    class="btn-check"
+                    name="assessment_tier"
+                    id="tier_manual"
+                    value="manual_only"
+                  />
+                  <label
+                    class="btn btn-outline-warning w-100 py-3"
+                    for="tier_manual"
+                  >
+                    <i class="fas fa-pen d-block mb-1 fs-4"></i>
+                    <strong>Manual Only</strong>
+                    <br /><small>C06–C15 (65 pts)</small>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label for="preferred_date" class="form-label"
+                >Preferred Date (optional)</label
+              >
+              <input
+                type="date"
+                class="form-control"
+                id="preferred_date"
+                name="preferred_date"
+              />
+            </div>
+
+            <div class="mb-3">
+              <label for="notes" class="form-label">Additional Notes</label>
+              <textarea
+                class="form-control"
+                id="notes"
+                name="notes"
+                rows="3"
+                placeholder="Any specific concerns or information for the assessor…"
+              ></textarea>
+            </div>
+
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+              <a
+                href="{{ url_for('my_business') }}"
+                class="btn btn-secondary me-md-2"
+              >
+                <i class="fas fa-arrow-left me-1"></i>Back
+              </a>
+              <button type="submit" class="btn btn-primary btn-lg">
+                <i class="fas fa-paper-plane me-2"></i>Submit Request
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- How it works -->
+      <div class="card shadow mt-4">
+        <div class="card-body">
+          <h6 class="card-title">
+            <i class="fas fa-info-circle me-2 text-info"></i>How It Works
+          </h6>
+          <ol class="mb-0 small">
+            <li class="mb-1">
+              You submit an assessment request for your business.
+            </li>
+            <li class="mb-1">
+              A certified assessor reviews and accepts the request.
+            </li>
+            <li class="mb-1">
+              The assessor conducts automated and/or manual checks on your
+              systems.
+            </li>
+            <li class="mb-1">
+              You receive a detailed report with your certification level and
+              recommendations.
+            </li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

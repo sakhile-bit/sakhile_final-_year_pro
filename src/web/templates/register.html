@@ -1,0 +1,170 @@
+{% extends "base.html" %} {% block title %}Register - Zambia Digital Hygiene{%
+endblock %} {% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-7 col-lg-5">
+      <div class="card shadow">
+        <div class="card-header bg-primary text-white text-center">
+          <h4 class="mb-0">
+            <i class="fas fa-user-plus me-2"></i>Create Account
+          </h4>
+        </div>
+        <div class="card-body">
+          <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+            <!-- Role Selection -->
+            <div class="mb-3">
+              <label class="form-label fw-bold">I am a…</label>
+              <div class="row g-2">
+                <div class="col-6">
+                  <input
+                    type="radio"
+                    class="btn-check"
+                    name="role"
+                    id="role_owner"
+                    value="business_owner"
+                    checked
+                  />
+                  <label
+                    class="btn btn-outline-primary w-100 py-3"
+                    for="role_owner"
+                  >
+                    <i class="fas fa-building d-block mb-1 fs-4"></i>
+                    Business Owner
+                  </label>
+                </div>
+                <div class="col-6">
+                  <input
+                    type="radio"
+                    class="btn-check"
+                    name="role"
+                    id="role_assessor"
+                    value="assessor"
+                  />
+                  <label
+                    class="btn btn-outline-primary w-100 py-3"
+                    for="role_assessor"
+                  >
+                    <i class="fas fa-clipboard-check d-block mb-1 fs-4"></i>
+                    Assessor
+                  </label>
+                </div>
+              </div>
+              <small class="form-text text-muted mt-1">
+                Business owners register their company and request assessments.
+                Assessors conduct digital hygiene evaluations.
+              </small>
+            </div>
+
+            <hr />
+
+            <div class="mb-3">
+              <label for="username" class="form-label">Username</label>
+              <input
+                type="text"
+                class="form-control"
+                id="username"
+                name="username"
+                required
+                placeholder="Choose a username"
+                minlength="3"
+                maxlength="80"
+              />
+            </div>
+
+            <div class="mb-3">
+              <label for="email" class="form-label">Email Address</label>
+              <input
+                type="email"
+                class="form-control"
+                id="email"
+                name="email"
+                required
+                placeholder="your@email.com"
+              />
+            </div>
+
+            <div class="mb-3">
+              <label for="password" class="form-label">Password</label>
+              <input
+                type="password"
+                class="form-control"
+                id="password"
+                name="password"
+                required
+                minlength="12"
+                oninput="updateStrengthMeter()"
+              />
+              <div class="progress mt-2" style="height: 5px">
+                <div
+                  id="strengthBar"
+                  class="progress-bar"
+                  role="progressbar"
+                  style="width: 0%"
+                ></div>
+              </div>
+              <small id="strengthText" class="form-text text-muted"></small>
+            </div>
+
+            <div class="mb-3">
+              <label for="confirm_password" class="form-label"
+                >Confirm Password</label
+              >
+              <input
+                type="password"
+                class="form-control"
+                id="confirm_password"
+                name="confirm_password"
+                required
+              />
+            </div>
+
+            <div class="alert alert-info small py-2">
+              <i class="fas fa-info-circle me-1"></i>
+              Password must be at least 12 characters with uppercase, lowercase,
+              digit, and special character.
+            </div>
+
+            <div class="d-grid">
+              <button type="submit" class="btn btn-primary btn-lg">
+                <i class="fas fa-user-plus me-2"></i>Create Account
+              </button>
+            </div>
+          </form>
+        </div>
+        <div class="card-footer text-center">
+          <small class="text-muted">
+            Already have an account?
+            <a href="{{ url_for('login') }}">Log in here</a>
+          </small>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function updateStrengthMeter() {
+    var pw = document.getElementById("password").value;
+    var bar = document.getElementById("strengthBar");
+    var text = document.getElementById("strengthText");
+    var score = 0;
+    if (pw.length >= 12) score++;
+    if (/[A-Z]/.test(pw)) score++;
+    if (/[a-z]/.test(pw)) score++;
+    if (/\d/.test(pw)) score++;
+    if (/[^A-Za-z0-9]/.test(pw)) score++;
+    bar.style.width = score * 20 + "%";
+    bar.className =
+      "progress-bar bg-" +
+      (score < 3 ? "danger" : score < 4 ? "warning" : "success");
+    text.textContent =
+      score < 3
+        ? "Weak password"
+        : score < 4
+          ? "Moderate password"
+          : "Strong password";
+  }
+</script>
+{% endblock %}

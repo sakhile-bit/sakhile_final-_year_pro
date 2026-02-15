@@ -2,6 +2,7 @@
 <div class="container mt-4">
   <h2>Schedule Automated Scan</h2>
   <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <div class="form-group">
       <label for="interval">Scan Interval (hours)</label>
       <input
