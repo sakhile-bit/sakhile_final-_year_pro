@@ -409,8 +409,7 @@ Key documentation files for your project:
 
 | Document | Purpose |
 |----------|---------|
-| [ENVIRONMENT_SETUP.md](ENVIRONMENT_SETUP.md) | **👉 Start here for Ubuntu/Linux setup** – Comprehensive guide with troubleshooting |
-| [DATABASE_SETUP.md](DATABASE_SETUP.md) | Database configuration for MySQL and SQLite |
+| [ENVIRONMENT_SETUP.md](ENVIRONMENT_SETUP.md) | **👉 Start here for Ubuntu/Linux setup** – Comprehensive guide with troubleshooting || [DATABASE_SETUP_FOR_TEAM.md](DATABASE_SETUP_FOR_TEAM.md) | **👉 Team database setup** – Step-by-step MySQL database creation, credentials, and initialization || [DATABASE_SETUP.md](DATABASE_SETUP.md) | Database configuration for MySQL and SQLite |
 | [SETUP.md](SETUP.md) | Manual setup instructions for other platforms |
 | [INSTALL_SCRIPTS.md](INSTALL_SCRIPTS.md) | One-command installation scripts |
 | [TESTING_CHECKLIST.md](TESTING_CHECKLIST.md) | Test procedures and acceptance criteria |
