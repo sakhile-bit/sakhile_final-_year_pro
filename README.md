@@ -89,7 +89,43 @@ See [INSTALL_SCRIPTS.md](INSTALL_SCRIPTS.md) for details.
 - Python 3.8+
 - MySQL 8.0+ (required for production)
 
-### Manual Installation & Setup
+## 🔧 Environment Setup
+
+### For Ubuntu/Linux Users (Recommended)
+
+If you're using **Ubuntu 20.04+**, follow the comprehensive [ENVIRONMENT_SETUP.md](ENVIRONMENT_SETUP.md) guide, which covers:
+
+- System prerequisites and package installation
+- Handling PEP 668 "externally-managed-environment" errors
+- Virtual environment setup (venv)
+- Database configuration (SQLite for dev, MySQL for production)
+- Running the application, tests, and CLI commands
+- Troubleshooting common issues
+
+**Quick Start for Ubuntu:**
+
+```bash
+# Clone and navigate
+cd ~/Desktop
+git clone https://github.com/sakhile-bit/sakhile_final-_year_pro.git
+cd sakhile_final-_year_pro
+
+# Install system dependencies
+sudo apt-get update
+sudo apt-get install -y python3 python3-pip python3-dev git build-essential
+
+# Install Python dependencies
+python3 -m pip install --break-system-packages -r requirements.txt
+
+# Start the web server
+python3 cli.py web --debug
+```
+
+Then open **http://127.0.0.1:5000** in your browser.
+
+👉 **For detailed troubleshooting and full setup instructions, see [ENVIRONMENT_SETUP.md](ENVIRONMENT_SETUP.md)**
+
+### Manual Installation (Windows/Other)
 
 1. **Clone and enter directory**
 
@@ -110,9 +146,9 @@ See [INSTALL_SCRIPTS.md](INSTALL_SCRIPTS.md) for details.
    pip install -r requirements.txt
    ```
 
-4. **Configure database** (required - MySQL only)
+4. **Configure database** (optional - uses SQLite by default)
 
-   Run the MySQL setup script:
+   For MySQL setup:
 
    ```bash
    python database/setup_mysql.py
@@ -128,10 +164,10 @@ See [INSTALL_SCRIPTS.md](INSTALL_SCRIPTS.md) for details.
 
    ```bash
    set DB_HOST=localhost
-   set DB_PORT=3306(default)
-   set DB_NAME=db_name here
+   set DB_PORT=3306
+   set DB_NAME=digital_hygiene
    set DB_USER=user
-   set DB_PASSWORD=db_password
+   set DB_PASSWORD=password
    ```
 
 5. **Run tests** (verify setup)
@@ -142,7 +178,7 @@ See [INSTALL_SCRIPTS.md](INSTALL_SCRIPTS.md) for details.
 
 6. **Start the web app**
    ```bash
-   python src/web/app.py
+   python cli.py web --debug
    ```
    Then open http://localhost:5000 in your browser.
    - **Default login**: `admin` / `admin123` (change on first login)
@@ -367,7 +403,20 @@ mypy src/
 | **Bronze**        | 20-29       | 3+ controls implemented, ≤2 critical failures  |
 | **Not Certified** | <20         | Significant security gaps                      |
 
-## 📞 Support
+## � Documentation
+
+Key documentation files for your project:
+
+| Document | Purpose |
+|----------|---------|
+| [ENVIRONMENT_SETUP.md](ENVIRONMENT_SETUP.md) | **👉 Start here for Ubuntu/Linux setup** – Comprehensive guide with troubleshooting |
+| [DATABASE_SETUP.md](DATABASE_SETUP.md) | Database configuration for MySQL and SQLite |
+| [SETUP.md](SETUP.md) | Manual setup instructions for other platforms |
+| [INSTALL_SCRIPTS.md](INSTALL_SCRIPTS.md) | One-command installation scripts |
+| [TESTING_CHECKLIST.md](TESTING_CHECKLIST.md) | Test procedures and acceptance criteria |
+| [PROJECT_PROPOSAL.md](PROJECT_PROPOSAL.md) | Project overview and requirements |
+
+## �📞 Support
 
 - **Documentation**: [Read the Docs](https://zambia-digital-hygiene.readthedocs.io/)
 - **Issues**: [GitHub Issues](https://github.com/yourusername/zambia-digital-hygiene/issues)
