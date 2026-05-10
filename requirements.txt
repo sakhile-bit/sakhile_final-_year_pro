@@ -4,6 +4,13 @@ click>=8.1.0
 rich>=13.0.0
 PyYAML>=6.0
 
+# Windows GUI (desktop app)
+customtkinter>=5.2.0
+Pillow>=10.0.0
+
+# Build
+pyinstaller>=6.0.0
+
 # Database
 SQLAlchemy>=2.0.0
 mysql-connector-python>=8.0.0
