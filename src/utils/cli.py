@@ -148,9 +148,38 @@ def assess(business_name: str, business_id: str, output_dir: str,
 
         # Save to database
         if save_db:
-            from src.database.connection import DatabaseManager
-            db = DatabaseManager()
-            db.save_assessment(results, business_info)
+            from src.web.app import create_app, db as flask_db, Business, Assessment
+            flask_app = create_app()
+            with flask_app.app_context():
+                business = Business.query.filter_by(registration_number=business_info.id).first()
+                if not business:
+                    business = Business(
+                        name=business_info.name,
+                        registration_number=business_info.id,
+                        contact_person=business_info.contact_person,
+                        contact_email=business_info.contact_email,
+                        contact_phone=business_info.contact_phone,
+                        industry=business_info.industry,
+                        address=business_info.address,
+                    )
+                    flask_db.session.add(business)
+                    flask_db.session.flush()
+                controls_data = {
+                    cid: {"name": c.name, "score": c.score, "weight": c.weight,
+                          "status": c.status, "details": c.details}
+                    for cid, c in results.controls.items()
+                }
+                record = Assessment(
+                    business_id=business.id,
+                    assessment_date=results.assessment_date,
+                    controls_results=controls_data,
+                    total_score=results.score,
+                    certification_level=results.certification_level,
+                    recommendations=results.recommendations,
+                    status='completed',
+                )
+                flask_db.session.add(record)
+                flask_db.session.commit()
             console.print("✅ Assessment saved to database")
 
         console.print("\n[green]✓ Assessment completed successfully![/green]")
@@ -341,7 +370,7 @@ def predeploy(project_root: str, json_out: bool):
 
     Exit code 0 = READY · exit code 1 = NOT READY (use in CI/CD).
     """
-    from src.deployment.checker import PreDeploymentChecker
+    from src.security.deployment.checker import PreDeploymentChecker
 
     console.print(Panel.fit(
         "[bold blue]Pre-Deployment Digital Hygiene Check[/bold blue]\n"

@@ -1727,5 +1727,61 @@ echo "You can safely delete this directory after copying the files elsewhere."
 '''
     return Response(script_content, mimetype='text/plain')
 
+@app.route('/verify/<certificate_number>')
+def verify(certificate_number):
+    """Public certificate verification — queries the Certificate table."""
+    cert = Certificate.query.filter_by(
+        certificate_number=certificate_number, is_active=True
+    ).first()
+    verified = cert is not None
+    business_name = None
+    issued_date = None
+    expiry_date = None
+    level = None
+    if cert:
+        try:
+            business_name = cert.assessment.business.name if cert.assessment and cert.assessment.business else None
+        except Exception:
+            pass
+        issued_date = cert.issued_date
+        expiry_date = cert.expiry_date
+        level = cert.assessment.certification_level if cert.assessment else None
+    return render_template(
+        'verify.html',
+        cert_id=certificate_number,
+        verified=verified,
+        business_name=business_name,
+        issued_date=issued_date,
+        expiry_date=expiry_date,
+        certification_level=level,
+    )
+
+
+@app.route('/about')
+def about():
+    """About the program."""
+    return render_template('about.html')
+
+
+@app.route('/download')
+def download():
+    """Redirect to the latest Windows .exe on GitHub Releases."""
+    download_url = os.environ.get(
+        'DOWNLOAD_URL',
+        'https://github.com/sakhile-bit/sakhile_final-_year_pro/releases/latest/download/ZambiaDigitalHygiene.exe',
+    )
+    return redirect(download_url)
+
+
+@app.errorhandler(404)
+def not_found(e):
+    return render_template('404.html'), 404
+
+
+@app.errorhandler(500)
+def server_error(e):
+    return render_template('500.html'), 500
+
+
 if __name__ == '__main__':
     create_app().run(debug=True)
