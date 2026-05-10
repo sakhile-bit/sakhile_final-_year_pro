@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # Flask Web Application
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: digital_hygiene_web
+    ports:
+      - "5000:5000"
+    environment:
+      FLASK_APP: src.web.app
+      FLASK_ENV: ${FLASK_ENV:-production}
+      SECRET_KEY: ${SECRET_KEY:-changeme-in-production}
+      DEBUG: ${DEBUG:-false}
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-digital_hygiene}
+      DB_USER: ${DB_USER:-hygiene_user}
+      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DOWNLOAD_URL: ${DOWNLOAD_URL:-https://github.com/sakhile-bit/sakhile_final-_year_pro/releases/latest/download/ZambiaDigitalHygiene.exe}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./reports:/app/reports
+      - ./logs:/app/logs
+      - ./instance:/app/instance
+    networks:
+      - digital_hygiene_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # MySQL Database
+  db:
+    image: mysql:8.0
+    container_name: digital_hygiene_db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-changeme}
+      MYSQL_DATABASE: ${DB_NAME:-digital_hygiene}
+      MYSQL_USER: ${DB_USER:-hygiene_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-changeme}
+      MYSQL_ALLOW_EMPTY_PASSWORD: "false"
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - digital_hygiene_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  digital_hygiene_network:
+    driver: bridge

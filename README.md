@@ -200,6 +200,55 @@ WEB_PORT=                # Web server port
 
 ## 📖 Usage
 
+### Windows Desktop App (Phase 1 – Current)
+
+**Download and Run:**
+
+1. **Download** `ZambiaDigitalHygiene.exe` from the [latest release](https://github.com/sakhile-bit/sakhile_final-_year_pro/releases)
+2. **Double-click** the .exe – no installation needed
+3. **Follow the wizard:**
+   - Enter business information
+   - Run automated checks
+   - Answer 10 manual questions
+   - Get your certification (Bronze/Silver/Gold)
+4. **Export reports** in JSON or HTML format
+
+**For developers – build the .exe:**
+
+See [BUILD.md](BUILD.md) for full instructions. Quick version:
+
+```bash
+# On Windows:
+.\devops\build.bat
+# Output: dist\ZambiaDigitalHygiene.exe
+```
+
+### Web Portal (Landing Page + Deployment)
+
+The web app serves as a **marketing landing page** and **Phase 2 foundation**. 
+
+**Local Development:**
+
+```bash
+python -m flask run
+# or
+python src/web/app.py
+```
+
+Then open **http://localhost:5000**
+
+**Docker Deployment (Recommended for production):**
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for complete guide. Quick start:
+
+```bash
+cp .env.example .env
+# Edit .env with your settings
+docker-compose up --build
+```
+
+The app will be at **http://localhost:5000**
+
 ### Web Interface (Recommended)
 
 1. **Start the app**
@@ -207,32 +256,85 @@ WEB_PORT=                # Web server port
    python src/web/app.py
    ```
 2. **Open http://localhost:5000**
-   - Login with default credentials (admin / admin123)
-   - Navigate to "Assessment" to run a new assessment
-   - View results and download reports (HTML, PDF, JSON, CSV)
+   - View marketing landing page
+   - Click "Download" to get the Windows exe
+   - View "About" page for program details
+   - Verify certificates (Phase 2)
+
+### Command-Line Interface (CLI)
+
+For batch processing and automation:
+
+```bash
+# Run full assessment
+python cli.py assess --business-name "Acme Ltd" --business-id REG-001 -f html -f json
+
+# Quick system scan
+python cli.py scan
+
+# Generate manual assessment guide
+python cli.py manual
+
+# Check deployment readiness
+python cli.py predeploy
+
+# Start web server
+python cli.py web
+
+# Initialize database
+python cli.py init-db
+
+# Manage users
+python cli.py users list
+python cli.py users create
+
+# Show status
+python cli.py status
+
+# Get help
+python cli.py --help
+python cli.py assess --help
+```
 
 ### Programmatic API
 
 ```python
-from src.assessment.assessor import DigitalHygieneAssessor, BusinessInfo
+from src.security.assessment.assessor import DigitalHygieneAssessor, BusinessInfo
 
 # Create a business profile
 business = BusinessInfo(
     name="Tech Company Ltd",
     id="TC001",
     industry="Technology",
-    contact_person="Jammy phiri",
-    contact_email="jammyphiri@gmail.com"
+    contact_person="Jammy Phiri",
+    contact_email="jammyphiri@gmail.com",
+    province="Lusaka"
 )
 
-# Run assessment
-assessor = DigitalHygieneAssessor(business)
+# Run full assessment (with manual answers)
+assessor = DigitalHygieneAssessor(
+    business_info=business,
+    manual_answers={
+        "C06_security_training": 1,      # Fully implemented
+        "C07_access_control": 0.5,       # Partially implemented
+        "C08_incident_response": 0,      # Not implemented
+        # ... etc for all 10 manual controls
+    }
+)
 results = assessor.run_assessment()
 
 print(f"Score: {results.score}/{results.total_possible}")
 print(f"Level: {results.certification_level}")
 for rec in results.recommendations:
     print(f"  - {rec}")
+
+# Generate reports
+from src.reporting.generator import ReportGenerator
+
+gen = ReportGenerator(output_dir="reports")
+html_file = gen.generate_html_report(results, business, "assessment_report")
+json_data = gen.generate_json_report(results, business)
+csv_rows = gen.generate_csv_report(results, business)
 ```
 
 ### Testing
