@@ -53,8 +53,8 @@ except ImportError:  # pragma: no cover
     pyotp = qrcode = None
     _MFA_AVAILABLE = False
 
-from src.assessment.assessor import DigitalHygieneAssessor, BusinessInfo, ZambiaRiskAssessor
-from src.deployment.checker import PreDeploymentChecker
+from src.security.assessment.assessor import DigitalHygieneAssessor, BusinessInfo, ZambiaRiskAssessor
+from src.security.deployment.checker import PreDeploymentChecker
 from src.reporting.generator import ReportGenerator
 from src.utils.logging_config import get_logger
 from src.utils.config import config, load_env_file

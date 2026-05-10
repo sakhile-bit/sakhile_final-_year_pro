@@ -12,7 +12,7 @@ or developers can act on.
 
 Usage
 -----
-    from src.deployment.checker import PreDeploymentChecker
+    from src.security.deployment.checker import PreDeploymentChecker
 
     checker = PreDeploymentChecker()
     report  = checker.run_all()

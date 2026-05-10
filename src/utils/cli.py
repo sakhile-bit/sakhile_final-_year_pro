@@ -45,7 +45,7 @@ _project_root = str(Path(__file__).resolve().parent.parent.parent)
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
-from src.assessment.assessor import DigitalHygieneAssessor, BusinessInfo, ZambiaRiskAssessor
+from src.security.assessment.assessor import DigitalHygieneAssessor, BusinessInfo, ZambiaRiskAssessor
 from src.reporting.generator import ReportGenerator
 from src.utils.logging_config import get_logger
 from src.utils.config import config
