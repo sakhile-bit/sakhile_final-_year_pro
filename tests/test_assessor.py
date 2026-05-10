@@ -4,7 +4,7 @@ Unit tests for the assessment module (15-control framework, 120 pts)
 
 import pytest
 from unittest.mock import patch, MagicMock
-from src.assessment.assessor import (
+from src.security.assessment.assessor import (
     DigitalHygieneAssessor,
     BusinessInfo,
     ControlResult,
