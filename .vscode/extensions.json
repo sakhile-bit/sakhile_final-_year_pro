@@ -1,0 +1,74 @@
+{
+  "recommendations": [
+    // Python Development
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "ms-python.debugpy",
+
+    // Code Quality
+    "ms-python.flake8",
+    "charliermarsh.ruff",
+
+    // Formatting
+    "ms-python.black-formatter",
+
+    // Testing
+    "LittleFoxTeam.vscode-python-test-adapter",
+
+    // Git & Version Control
+    "eamodio.gitlens",
+    "GitHub.vscode-pull-request-github",
+
+    // Docker
+    "ms-azuretools.vscode-docker",
+
+    // Documentation
+    "bierner.markdown-preview-github-styles",
+    "yzhang.markdown-all-in-one",
+
+    // Code Navigation
+    "formulahendry.code-runner",
+
+    // Project Management
+    "ms-vscode.todo-highlight",
+
+    // Environment Variables
+    "mikestead.dotenv",
+
+    // YAML Support
+    "redhat.vscode-yaml",
+
+    // HTTP Client
+    "humao.rest-client",
+
+    // ASCII Diagrams
+    "jebbs.plantuml",
+
+    // Bookmarks
+    "alefragnani.bookmarks",
+
+    // Error Lens
+    "usernamehw.errorlens",
+
+    // Trailing Spaces
+    "shardulm94.trailing-spaces",
+
+    // Better Comments
+    "aaron-bond.better-comments",
+
+    // Path Intellisense
+    "christian-kohler.path-intellisense",
+
+    // Code Spell Checker
+    "streetsidesoftware.code-spell-checker",
+
+    // GitLens (advanced Git)
+    "eamodio.gitlens",
+
+    // Draw.io Integration
+    "hediet.vscode-drawio",
+
+    // Thunder Client (API Testing)
+    "rangav.vscode-thunder-client"
+  ]
+}
