@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}About — Zambia Digital Hygiene Certification{% endblock %}
+{% block content %}
+<div class="container py-5" style="max-width:780px">
+  <h1 class="fw-bold mb-2">About the Program</h1>
+  <p style="color:var(--muted)" class="mb-5">Zambia Digital Hygiene Certification Program — Final Year Project, University of Zambia</p>
+
+  <div class="card-surface p-4 mb-4">
+    <h4 class="fw-bold mb-3" style="color:var(--brand)">What is this?</h4>
+    <p>The Zambia Digital Hygiene Certification Program provides SMEs in Zambia with a practical, 
+    affordable, and recognised pathway to baseline cybersecurity compliance. The Windows desktop 
+    application assesses 15 essential security controls and awards Bronze, Silver, or Gold certification.</p>
+  </div>
+
+  <div class="card-surface p-4 mb-4">
+    <h4 class="fw-bold mb-3" style="color:var(--brand)">Frameworks &amp; Standards</h4>
+    <div class="row g-3">
+      {% for fw in ['NIST Cybersecurity Framework v1.1','CIS Critical Security Controls v8 (IG1)','ISO/IEC 27001:2022 Annex A','UK Cyber Essentials','Australian Essential Eight','Zambia Data Protection Act 2021','ZICTA Cybersecurity Regulations'] %}
+      <div class="col-md-6">
+        <div style="background:#0D1B2A;border-radius:10px;padding:12px 16px;font-size:.9rem">
+          <i class="fas fa-check-circle me-2" style="color:var(--brand)"></i>{{ fw }}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card-surface p-4 mb-4">
+    <h4 class="fw-bold mb-3" style="color:var(--brand)">Project Team</h4>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <strong>Stanford Zulu</strong><br>
+        <span style="color:var(--muted);font-size:.9rem">Student ID: 2020025752<br>Networking &amp; Information Security</span>
+      </div>
+      <div class="col-md-6">
+        <strong>Misheck Trinity Chama</strong><br>
+        <span style="color:var(--muted);font-size:.9rem">Student ID: 2022049713<br>Networking &amp; Information Security</span>
+      </div>
+      <div class="col-12 mt-2">
+        <strong>Supervisor:</strong> Martin Phiri<br>
+        <span style="color:var(--muted);font-size:.9rem">University of Zambia, Dept. of Computing and Informatics</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="text-center mt-5">
+    <a href="{{ url_for('download') }}" class="btn btn-brand btn-lg">
+      <i class="fas fa-download me-2"></i>Download the Windows App
+    </a>
+  </div>
+</div>
+{% endblock %}

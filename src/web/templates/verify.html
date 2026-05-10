@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}Verify Certificate — Zambia Digital Hygiene{% endblock %}
+{% block content %}
+<div class="container py-5" style="max-width:600px;text-align:center">
+  <i class="fas fa-certificate mb-4" style="font-size:4rem;color:var(--brand)"></i>
+  <h2 class="fw-bold mb-2">Certificate Verification</h2>
+  <p style="color:var(--muted)" class="mb-4">Certificate ID: <code>{{ cert_id }}</code></p>
+
+  {% if verified %}
+  <div style="background:rgba(0,200,150,.1);border:1px solid rgba(0,200,150,.3);border-radius:16px;padding:32px">
+    <i class="fas fa-check-circle mb-3" style="font-size:3rem;color:var(--brand)"></i>
+    <h4 style="color:var(--brand)">Certificate Valid</h4>
+    <p style="color:var(--muted)">This certificate is authentic and on record.</p>
+  </div>
+  {% else %}
+  <div style="background:rgba(255,76,76,.08);border:1px solid rgba(255,76,76,.25);border-radius:16px;padding:32px">
+    <i class="fas fa-circle-xmark mb-3" style="font-size:3rem;color:#FF4C4C"></i>
+    <h4 style="color:#FF4C4C">Certificate Not Found</h4>
+    <p style="color:var(--muted)">
+      This ID was not found in our records. It may not exist, or certificate 
+      verification will be available in Phase 2 of this program.
+    </p>
+  </div>
+  {% endif %}
+
+  <a href="{{ url_for('index') }}" class="btn btn-outline-brand mt-4">← Back to Home</a>
+</div>
+{% endblock %}
