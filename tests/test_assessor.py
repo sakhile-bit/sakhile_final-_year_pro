@@ -9,6 +9,7 @@ from src.security.assessment.assessor import (
     BusinessInfo,
     ControlResult,
     AssessmentResults,
+    InfrastructureAssessor,
     ZambiaRiskAssessor,
     CONTROL_CATALOGUE,
     TOTAL_POSSIBLE_SCORE,
@@ -143,6 +144,22 @@ class TestDigitalHygieneAssessor:
             )
         recs = assessor._generate_recommendations(controls)
         assert len(recs) >= 5  # at least one rec per failed control
+
+
+class TestInfrastructureAssessor:
+    def test_run_checks_returns_expected_keys(self):
+        assessor = InfrastructureAssessor('example.com')
+        with patch.object(InfrastructureAssessor, '_check_dns_resolution', return_value='Resolves to 93.184.216.34'):
+            with patch.object(InfrastructureAssessor, '_check_ssl_certificate', return_value='SSL/TLS enabled'):
+                with patch.object(InfrastructureAssessor, '_check_https_redirect', return_value='HTTP redirects to HTTPS (https://example.com)'):
+                    with patch.object(InfrastructureAssessor, '_get_external_ip', return_value='203.0.113.1'):
+                        with patch.object(InfrastructureAssessor, '_scan_common_ports', return_value=[80, 443]):
+                            result = assessor.run_checks()
+                            assert result['dns_resolution'] == 'Resolves to 93.184.216.34'
+                            assert result['ssl_certificate'] == 'SSL/TLS enabled'
+                            assert result['https_redirect'].startswith('HTTP redirects to HTTPS')
+                            assert result['external_ip'] == '203.0.113.1'
+                            assert result['open_ports'] == [80, 443]
 
 
 class TestZambiaRiskAssessor:

@@ -357,6 +357,17 @@ class DigitalHygieneAssessor:
     def _check_os_updates(self) -> ControlResult:
         """C01 – Check Windows Update settings and last update time"""
         ctrl = self.controls["C01_os_updates"]
+        # Only run Windows-specific checks on Windows hosts
+        if platform.system() != 'Windows':
+            return ControlResult(
+                control_id=ctrl["id"], name=ctrl["name"],
+                score=0, weight=ctrl["weight"],
+                status="NOT_APPLICABLE",
+                details="Non-Windows host — automated check skipped",
+                category=ctrl.get("category", "technical"),
+                verification=ctrl.get("verification", "automated"),
+            )
+
         try:
             import psutil
             import winreg
@@ -412,6 +423,16 @@ class DigitalHygieneAssessor:
     def _check_antivirus(self) -> ControlResult:
         """C02 – Check for antivirus installation and status using WMI / registry"""
         ctrl = self.controls["C02_antivirus"]
+        if platform.system() != 'Windows':
+            return ControlResult(
+                control_id=ctrl["id"], name=ctrl["name"],
+                score=0, weight=ctrl["weight"],
+                status="NOT_APPLICABLE",
+                details="Non-Windows host — automated check skipped",
+                category=ctrl.get("category", "technical"),
+                verification=ctrl.get("verification", "automated"),
+            )
+
         try:
             import winreg
 
@@ -477,12 +498,22 @@ class DigitalHygieneAssessor:
     def _check_firewall(self) -> ControlResult:
         """C03 – Check Windows Firewall status via netsh"""
         ctrl = self.controls["C03_firewall"]
+        if platform.system() != 'Windows':
+            return ControlResult(
+                control_id=ctrl["id"], name=ctrl["name"],
+                score=0, weight=ctrl["weight"],
+                status="NOT_APPLICABLE",
+                details="Non-Windows host — automated check skipped",
+                category=ctrl.get("category", "technical"),
+                verification=ctrl.get("verification", "automated"),
+            )
+
         try:
             import subprocess
 
             result = subprocess.run(
                 ['netsh', 'advfirewall', 'show', 'allprofiles', 'state'],
-                capture_output=True, text=True, shell=True,
+                capture_output=True, text=True, shell=False,
             )
 
             firewall_enabled = False
@@ -522,12 +553,22 @@ class DigitalHygieneAssessor:
     def _check_password_policy(self) -> ControlResult:
         """C04 – Check password policy settings via 'net accounts'"""
         ctrl = self.controls["C04_password_policy"]
+        if platform.system() != 'Windows':
+            return ControlResult(
+                control_id=ctrl["id"], name=ctrl["name"],
+                score=0, weight=ctrl["weight"],
+                status="NOT_APPLICABLE",
+                details="Non-Windows host — automated check skipped",
+                category=ctrl.get("category", "technical"),
+                verification=ctrl.get("verification", "automated"),
+            )
+
         try:
             import subprocess
 
             result = subprocess.run(
                 ['net', 'accounts'],
-                capture_output=True, text=True, shell=True,
+                capture_output=True, text=True, shell=False,
             )
 
             min_length = 0
@@ -595,6 +636,16 @@ class DigitalHygieneAssessor:
     def _check_backup_system(self) -> ControlResult:
         """C05 – Check for backup software or recent backup files"""
         ctrl = self.controls["C05_backups"]
+        if platform.system() != 'Windows':
+            return ControlResult(
+                control_id=ctrl["id"], name=ctrl["name"],
+                score=0, weight=ctrl["weight"],
+                status="NOT_APPLICABLE",
+                details="Non-Windows host — automated check skipped",
+                category=ctrl.get("category", "technical"),
+                verification=ctrl.get("verification", "automated"),
+            )
+
         try:
             import os
             import winreg
@@ -720,6 +771,78 @@ class DigitalHygieneAssessor:
         recommendations.append("Review compliance with the Cyber Security and Cyber Crimes Act, 2021.")
 
         return recommendations
+
+
+class InfrastructureAssessor:
+    """Infrastructure hygiene checks for public-facing services."""
+
+    COMMON_PORTS = [22, 80, 443, 3306, 8080, 8443, 3389]
+
+    def __init__(self, target: str = 'localhost'):
+        self.target = target.strip() or 'localhost'
+
+    def run_checks(self) -> Dict[str, object]:
+        return {
+            'dns_resolution': self._check_dns_resolution(),
+            'ssl_certificate': self._check_ssl_certificate(),
+            'https_redirect': self._check_https_redirect(),
+            'external_ip': self._get_external_ip(),
+            'open_ports': self._scan_common_ports(),
+        }
+
+    def _check_dns_resolution(self) -> str:
+        try:
+            infos = socket.getaddrinfo(self.target, None)
+            addresses = sorted({item[4][0] for item in infos if item and item[4]})
+            if not addresses:
+                return 'No DNS records found'
+            return f"Resolves to {', '.join(addresses)}"
+        except Exception as exc:
+            return f"DNS resolution failed: {exc}"
+
+    def _check_ssl_certificate(self) -> str:
+        try:
+            context = ssl.create_default_context()
+            with socket.create_connection((self.target, 443), timeout=5) as sock:
+                with context.wrap_socket(sock, server_hostname=self.target) as ssock:
+                    cert = ssock.getpeercert()
+                    expires = cert.get('notAfter')
+                    return f"SSL/TLS enabled, expires: {expires}"
+        except Exception as exc:
+            return f"SSL/TLS not detected: {exc}"
+
+    def _check_https_redirect(self) -> str:
+        try:
+            import urllib.request
+
+            url = f'http://{self.target}'
+            request = urllib.request.Request(url, method='GET')
+            opener = urllib.request.build_opener(urllib.request.HTTPRedirectHandler())
+            response = opener.open(request, timeout=5)
+            final_url = response.geturl()
+            if final_url.startswith('https://'):
+                return f'HTTP redirects to HTTPS ({final_url})'
+            return f'HTTP does not redirect to HTTPS (final: {final_url})'
+        except Exception as exc:
+            return f'HTTPS redirect check failed: {exc}'
+
+    def _get_external_ip(self) -> str:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                sock.connect(('8.8.8.8', 53))
+                return sock.getsockname()[0]
+        except Exception as exc:
+            return f'External IP unavailable: {exc}'
+
+    def _scan_common_ports(self) -> List[int]:
+        open_ports = []
+        for port in self.COMMON_PORTS:
+            try:
+                with socket.create_connection((self.target, port), timeout=0.75):
+                    open_ports.append(port)
+            except Exception:
+                continue
+        return open_ports
 
 
 class ZambiaRiskAssessor:

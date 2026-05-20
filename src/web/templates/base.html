@@ -1,90 +1,272 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{% block title %}Zambia Digital Hygiene Certification{% endblock %}</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet" />
-  <style>
-    :root {
-      --brand: #00C896;
-      --brand-dark: #00A87A;
-      --bg: #0D1B2A;
-      --surface: #1B2A3B;
-      --text: #E6F1FF;
-      --muted: #7A8FA6;
-    }
-    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; }
-    .navbar { background: var(--surface) !important; border-bottom: 1px solid rgba(0,200,150,.15); }
-    .navbar-brand { color: var(--brand) !important; font-weight: 700; font-size: 1.2rem; }
-    .nav-link { color: var(--muted) !important; }
-    .nav-link:hover { color: var(--text) !important; }
-    .btn-brand { background: var(--brand); color: #000; font-weight: 600; border: none; border-radius: 25px; padding: 10px 28px; }
-    .btn-brand:hover { background: var(--brand-dark); color: #000; }
-    .btn-outline-brand { border: 1.5px solid var(--brand); color: var(--brand); background: transparent; border-radius: 25px; padding: 10px 28px; font-weight: 600; }
-    .btn-outline-brand:hover { background: var(--brand); color: #000; }
-    .card-surface { background: var(--surface); border: none; border-radius: 16px; }
-    footer { background: var(--surface); border-top: 1px solid rgba(255,255,255,.07); color: var(--muted); }
-    a { color: var(--brand); text-decoration: none; }
-    a:hover { color: var(--brand-dark); }
-  </style>
-  {% block head %}{% endblock %}
-</head>
-<body>
-  <nav class="navbar navbar-expand-lg">
-    <div class="container">
-      <a class="navbar-brand" href="{{ url_for('index') }}">
-        <i class="fas fa-shield-halved me-2"></i>Zambia Digital Hygiene
-      </a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="nav">
-        <ul class="navbar-nav ms-auto align-items-center gap-2">
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('about') }}">About</a></li>
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}#how-it-works">How It Works</a></li>
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}#controls">15 Controls</a></li>
-          <li class="nav-item">
-            <a href="{{ url_for('download') }}" class="btn btn-brand btn-sm ms-2">
-              <i class="fas fa-download me-1"></i>Download
-            </a>
-          </li>
-        </ul>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>
+      {% block title %}Zambia Digital Hygiene Certification{% endblock %}
+    </title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --brand: #00d19b;
+        --brand-dark: #00a67c;
+        --bg: #08101a;
+        --surface: rgba(22, 40, 62, 0.96);
+        --panel: rgba(15, 26, 40, 0.92);
+        --text: #eaf4ff;
+        --muted: #94a6c0;
+        --border: rgba(255, 255, 255, 0.08);
+      }
+      * {
+        scroll-behavior: smooth;
+      }
+      html {
+        min-height: 100%;
+      }
+      body {
+        background:
+          radial-gradient(
+            circle at top left,
+            rgba(0, 200, 150, 0.12),
+            transparent 20%
+          ),
+          linear-gradient(180deg, #07101a 0%, #081724 45%, #0d1a25 100%);
+        color: var(--text);
+        font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+        min-height: 100vh;
+      }
+      body::selection {
+        background: rgba(0, 209, 155, 0.24);
+        color: var(--text);
+      }
+      .navbar {
+        background: rgba(16, 28, 43, 0.96) !important;
+        border-bottom: 1px solid rgba(0, 209, 155, 0.12);
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.18);
+      }
+      .navbar-brand {
+        color: var(--brand) !important;
+        font-weight: 700;
+        font-size: 1.25rem;
+        letter-spacing: 0.02em;
+      }
+      .nav-link {
+        color: var(--muted) !important;
+        transition: color 0.2s ease;
+      }
+      .nav-link:hover,
+      .nav-link.active {
+        color: var(--text) !important;
+      }
+      .btn,
+      .btn-brand,
+      .btn-outline-brand {
+        transition: all 0.2s ease;
+        border-radius: 999px;
+        font-weight: 600;
+      }
+      .btn-brand {
+        background: var(--brand);
+        color: #07101a;
+        border: 1px solid transparent;
+        box-shadow: 0 14px 30px rgba(0, 209, 155, 0.14);
+      }
+      .btn-brand:hover,
+      .btn-brand:focus {
+        background: var(--brand-dark);
+        color: #fff;
+      }
+      .btn-outline-brand {
+        border: 1.5px solid var(--brand);
+        color: var(--brand);
+        background: rgba(0, 209, 155, 0.06);
+      }
+      .btn-outline-brand:hover,
+      .btn-outline-brand:focus {
+        background: rgba(0, 209, 155, 0.18);
+        color: #fff;
+        border-color: var(--brand);
+      }
+      .btn-secondary {
+        border-radius: 999px;
+        transition: all 0.2s ease;
+      }
+      .card-surface {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 1.25rem;
+        box-shadow: 0 30px 70px rgba(0, 0, 0, 0.22);
+        backdrop-filter: blur(12px);
+      }
+      .card {
+        border-radius: 1rem;
+      }
+      .card-body {
+        padding: 1.75rem;
+      }
+      .form-control,
+      .form-select,
+      .form-check-input {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: var(--text);
+        border-radius: 0.85rem;
+        box-shadow: inset 0 4px 12px rgba(0, 0, 0, 0.12);
+      }
+      .form-control:focus,
+      .form-select:focus {
+        background: rgba(255, 255, 255, 0.09);
+        border-color: rgba(0, 209, 155, 0.6);
+        outline: none;
+        box-shadow: 0 0 0 0.2rem rgba(0, 209, 155, 0.15);
+        color: var(--text);
+      }
+      .form-check-input:checked {
+        background-color: var(--brand);
+        border-color: var(--brand);
+      }
+      .form-control::placeholder {
+        color: rgba(234, 244, 255, 0.55);
+      }
+      .section-heading {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-size: 1.35rem;
+        font-weight: 700;
+        margin-bottom: 0.75rem;
+        color: var(--text);
+      }
+      .section-heading::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: rgba(255, 255, 255, 0.08);
+        margin-left: 1rem;
+      }
+      .feature-card {
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.02);
+      }
+      .text-muted {
+        color: rgba(234, 244, 255, 0.7) !important;
+      }
+      .alert {
+        border-radius: 1rem;
+      }
+      footer {
+        background: rgba(15, 26, 40, 0.98);
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        color: var(--muted);
+      }
+      footer a {
+        color: var(--brand);
+      }
+      .link-quiet {
+        color: var(--muted);
+      }
+      .link-quiet:hover {
+        color: var(--text);
+      }
+      .table thead th {
+        border-bottom-color: rgba(255, 255, 255, 0.12);
+      }
+      .table tbody tr:hover {
+        background: rgba(255, 255, 255, 0.04);
+      }
+      .shadow-soft {
+        box-shadow: 0 16px 45px rgba(0, 0, 0, 0.16);
+      }
+    </style>
+    {% block head %}{% endblock %}
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-lg navbar-dark py-3">
+      <div class="container">
+        <a class="navbar-brand" href="{{ url_for('index') }}">
+          <i class="fas fa-shield-halved me-2"></i>Zambia Digital Hygiene
+        </a>
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#nav"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="nav">
+          <ul class="navbar-nav ms-auto align-items-center gap-2">
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('about') }}">About</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('index') }}#how-it-works"
+                >How It Works</a
+              >
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('index') }}#controls"
+                >15 Controls</a
+              >
+            </li>
+            <li class="nav-item">
+              <a
+                href="{{ url_for('download') }}"
+                class="btn btn-brand btn-sm ms-2"
+              >
+                <i class="fas fa-download me-1"></i>Download
+              </a>
+            </li>
+          </ul>
+        </div>
       </div>
-    </div>
-  </nav>
+    </nav>
 
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <div class="container mt-3">
-        {% for cat, msg in messages %}
-          <div class="alert alert-{{ 'danger' if cat == 'error' else cat }} alert-dismissible fade show" role="alert">
-            {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-          </div>
-        {% endfor %}
+    {% with messages = get_flashed_messages(with_categories=true) %} {% if
+    messages %}
+    <div class="container mt-3">
+      {% for cat, msg in messages %}
+      <div
+        class="alert alert-{{ 'danger' if cat == 'error' else cat }} alert-dismissible fade show"
+        role="alert"
+      >
+        {{ msg }}<button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="alert"
+        ></button>
       </div>
-    {% endif %}
-  {% endwith %}
-
-  {% block content %}{% endblock %}
-
-  <footer class="mt-5 py-4">
-    <div class="container text-center" style="font-size:.85rem">
-      <p class="mb-1">
-        <strong style="color:var(--text)">Zambia Digital Hygiene Certification Program</strong>
-      </p>
-      <p class="mb-1">
-        University of Zambia &nbsp;•&nbsp; Dept. of Computing &amp; Informatics &nbsp;•&nbsp;
-        Networking &amp; Information Security
-      </p>
-      <p class="mb-0" style="font-size:.75rem">
-        Aligned to NIST CSF v1.1 &nbsp;•&nbsp; CIS Controls v8 &nbsp;•&nbsp; ISO 27001:2022 &nbsp;•&nbsp; Cyber Essentials
-      </p>
+      {% endfor %}
     </div>
-  </footer>
+    {% endif %} {% endwith %} {% block content %}{% endblock %}
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-  {% block scripts %}{% endblock %}
-</body>
+    <footer class="mt-5 py-4">
+      <div class="container text-center" style="font-size: 0.85rem">
+        <p class="mb-1">
+          <strong style="color: var(--text)"
+            >Zambia Digital Hygiene Certification Program</strong
+          >
+        </p>
+        <p class="mb-1">
+          University of Zambia &nbsp;•&nbsp; Dept. of Computing &amp;
+          Informatics &nbsp;•&nbsp; Networking &amp; Information Security
+        </p>
+        <p class="mb-0" style="font-size: 0.75rem">
+          Aligned to NIST CSF v1.1 &nbsp;•&nbsp; CIS Controls v8 &nbsp;•&nbsp;
+          ISO 27001:2022 &nbsp;•&nbsp; Cyber Essentials
+        </p>
+      </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% block scripts %}{% endblock %}
+  </body>
 </html>

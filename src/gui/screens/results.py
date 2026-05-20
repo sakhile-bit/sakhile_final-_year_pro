@@ -8,7 +8,7 @@ from tkinter import filedialog
 
 from src.gui.theme import (
     CLR_BG, CLR_SURFACE, CLR_ACCENT, CLR_TEXT, CLR_MUTED,
-    CLR_SUCCESS, CLR_WARNING, CLR_DANGER,
+    CLR_SUCCESS, CLR_WARNING, CLR_DANGER, CLR_BORDER,
     CLR_GOLD, CLR_SILVER, CLR_BRONZE,
     FONT_TITLE, FONT_HEADING, FONT_BODY, FONT_SMALL, PAD,
     TIER_COLOURS,
@@ -42,17 +42,24 @@ class ResultsScreen(ctk.CTkFrame):
         tier_colour = TIER_COLOURS.get(tier, CLR_DANGER)
 
         # Header
-        hdr = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=64)
+        hdr = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=84)
         hdr.grid(row=0, column=0, sticky="ew")
         hdr.grid_columnconfigure(0, weight=1)
+        hdr.grid_columnconfigure(1, weight=0)
         ctk.CTkLabel(
             hdr, text="Assessment Results",
             font=FONT_HEADING, text_color=CLR_TEXT,
-        ).grid(row=0, column=0, padx=PAD, pady=16, sticky="w")
+        ).grid(row=0, column=0, padx=PAD, pady=(16, 6), sticky="w")
         ctk.CTkLabel(
             hdr, text="Step 4 of 4",
             font=FONT_SMALL, text_color=CLR_MUTED,
-        ).grid(row=0, column=1, padx=PAD, pady=16, sticky="e")
+        ).grid(row=0, column=1, padx=PAD, pady=(16, 6), sticky="e")
+        progress = ctk.CTkProgressBar(
+            hdr, fg_color=CLR_BG, progress_color=CLR_ACCENT,
+            corner_radius=6, height=10,
+        )
+        progress.set(1.0)
+        progress.grid(row=1, column=0, columnspan=2, sticky="ew", padx=PAD, pady=(0, 16))
 
         # Scrollable body
         scroll = ctk.CTkScrollableFrame(self, fg_color=CLR_BG, corner_radius=0)
@@ -60,13 +67,13 @@ class ResultsScreen(ctk.CTkFrame):
         scroll.grid_columnconfigure(0, weight=1)
 
         # ── Certification badge ──────────────────────────────────────
-        badge = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE, corner_radius=16)
-        badge.grid(row=0, column=0, padx=PAD, pady=(PAD, 8), sticky="ew")
+        badge = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE, corner_radius=18, border_width=1, border_color=CLR_BORDER)
+        badge.grid(row=0, column=0, padx=PAD, pady=(PAD, 12), sticky="ew")
         badge.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
             badge, text=TIER_ICON.get(tier, ""), font=("Segoe UI Emoji", 52),
-        ).grid(row=0, column=0, pady=(20, 4))
+        ).grid(row=0, column=0, pady=(22, 8))
 
         ctk.CTkLabel(
             badge, text=f"{tier} CERTIFICATION",
@@ -77,21 +84,46 @@ class ResultsScreen(ctk.CTkFrame):
             badge,
             text=f"{r.business_info.name}  •  {r.business_info.id}",
             font=FONT_BODY, text_color=CLR_TEXT,
-        ).grid(row=2, column=0, pady=(4, 0))
+        ).grid(row=2, column=0, pady=(8, 0))
 
         ctk.CTkLabel(
             badge,
             text=f"Score: {r.score} / {r.total_possible}  ({pct}%)",
             font=("Segoe UI", 14, "bold"), text_color=tier_colour,
-        ).grid(row=3, column=0, pady=(2, 4))
+        ).grid(row=3, column=0, pady=(4, 10))
 
         # Score bar
         bar = ctk.CTkProgressBar(
-            badge, fg_color="#243447", progress_color=tier_colour,
-            height=12, corner_radius=6, width=400,
+            badge, fg_color=CLR_BG, progress_color=tier_colour,
+            height=14, corner_radius=7,
         )
         bar.set(pct / 100)
-        bar.grid(row=4, column=0, padx=PAD * 3, pady=(4, 20))
+        bar.grid(row=4, column=0, padx=PAD * 2, pady=(0, 22), sticky="ew")
+
+        metrics = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE, corner_radius=18, border_width=1, border_color=CLR_BORDER)
+        metrics.grid(row=1, column=0, padx=PAD, pady=(0, 16), sticky="ew")
+        metrics.grid_columnconfigure((0, 1, 2), weight=1)
+
+        counts = {
+            "PASS": sum(1 for ctrl in r.controls.values() if ctrl.status == "PASS"),
+            "WARNING": sum(1 for ctrl in r.controls.values() if ctrl.status == "WARNING"),
+            "FAIL": sum(1 for ctrl in r.controls.values() if ctrl.status == "FAIL"),
+        }
+        labels = [
+            ("Passed", counts["PASS"], CLR_SUCCESS),
+            ("Review", counts["WARNING"], CLR_WARNING),
+            ("Failed", counts["FAIL"], CLR_DANGER),
+        ]
+        for idx, (label, value, colour) in enumerate(labels):
+            cell = ctk.CTkFrame(metrics, fg_color="transparent")
+            cell.grid(row=0, column=idx, padx=8, pady=18, sticky="ew")
+            cell.grid_columnconfigure(0, weight=1)
+            ctk.CTkLabel(
+                cell, text=label, font=FONT_SMALL, text_color=CLR_MUTED,
+            ).grid(row=0, column=0, sticky="w")
+            ctk.CTkLabel(
+                cell, text=str(value), font=("Segoe UI", 24, "bold"), text_color=colour,
+            ).grid(row=1, column=0, sticky="w", pady=(6, 0))
 
         # ── Control breakdown ────────────────────────────────────────
         ctk.CTkLabel(
@@ -110,18 +142,17 @@ class ResultsScreen(ctk.CTkFrame):
         }
 
         for i, (key, ctrl) in enumerate(r.controls.items()):
-            row_f = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE, corner_radius=10, height=48)
-            row_f.grid(row=i + 2, column=0, padx=PAD, pady=3, sticky="ew")
+            row_f = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE, corner_radius=14, border_width=1, border_color=CLR_BORDER)
+            row_f.grid(row=i + 3, column=0, padx=PAD, pady=6, sticky="ew")
             row_f.grid_columnconfigure(1, weight=1)
-            row_f.grid_propagate(False)
 
             clr = STATUS_CLR.get(ctrl.status, CLR_MUTED)
             icon = STATUS_ICON.get(ctrl.status, "?")
 
             ctk.CTkLabel(
-                row_f, text=icon, font=("Segoe UI", 13),
-                text_color=clr, width=30,
-            ).grid(row=0, column=0, padx=(12, 4), pady=14)
+                row_f, text=icon, font=("Segoe UI", 14),
+                text_color=clr, width=32,
+            ).grid(row=0, column=0, padx=(14, 8), pady=18)
 
             ctk.CTkLabel(
                 row_f, text=f"{ctrl.control_id}  {ctrl.name}",
@@ -133,7 +164,7 @@ class ResultsScreen(ctk.CTkFrame):
                 font=("Segoe UI", 11, "bold"), text_color=clr, anchor="e",
             ).grid(row=0, column=2, padx=14, sticky="e")
 
-        base_row = len(r.controls) + 2
+        base_row = len(r.controls) + 3
 
         # ── Recommendations ──────────────────────────────────────────
         if r.recommendations:

@@ -3,6 +3,7 @@
 import customtkinter as ctk
 from src.gui.theme import (
     CLR_BG, CLR_SURFACE, CLR_ACCENT, CLR_TEXT, CLR_MUTED,
+    CLR_BORDER, CLR_SUCCESS, CLR_WARNING, CLR_DANGER,
     FONT_HEADING, FONT_BODY, FONT_SMALL, PAD,
 )
 
@@ -80,40 +81,47 @@ class ManualChecksScreen(ctk.CTkFrame):
         self.grid_rowconfigure(1, weight=1)
 
         # Header
-        hdr = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=64)
+        hdr = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=84)
         hdr.grid(row=0, column=0, sticky="ew")
         hdr.grid_columnconfigure(0, weight=1)
+        hdr.grid_columnconfigure(1, weight=0)
         ctk.CTkLabel(
             hdr, text="Manual Assessment Questions",
             font=FONT_HEADING, text_color=CLR_TEXT,
-        ).grid(row=0, column=0, padx=PAD, pady=16, sticky="w")
+        ).grid(row=0, column=0, padx=PAD, pady=(16, 6), sticky="w")
         ctk.CTkLabel(
             hdr, text="Step 3 of 4",
             font=FONT_SMALL, text_color=CLR_MUTED,
-        ).grid(row=0, column=1, padx=PAD, pady=16, sticky="e")
+        ).grid(row=0, column=1, padx=PAD, pady=(16, 6), sticky="e")
+        progress = ctk.CTkProgressBar(
+            hdr, fg_color=CLR_BG, progress_color=CLR_ACCENT,
+            corner_radius=6, height=10,
+        )
+        progress.set(0.75)
+        progress.grid(row=1, column=0, columnspan=2, sticky="ew", padx=PAD, pady=(0, 16))
 
-        # Scrollable question list
         scroll = ctk.CTkScrollableFrame(self, fg_color=CLR_BG, corner_radius=0)
         scroll.grid(row=1, column=0, sticky="nsew")
         scroll.grid_columnconfigure(0, weight=1)
 
+        info_card = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE, corner_radius=18, border_width=1, border_color=CLR_BORDER)
+        info_card.grid(row=0, column=0, padx=PAD, pady=(PAD, 10), sticky="ew")
         ctk.CTkLabel(
-            scroll,
-            text="Answer each question honestly based on your current security practices.",
-            font=FONT_SMALL, text_color=CLR_MUTED,
-        ).grid(row=0, column=0, padx=PAD, pady=(PAD, 8), sticky="w")
+            info_card,
+            text="Complete the manual questions to finish your certification assessment. Choose the option that best matches your current controls.",
+            font=FONT_BODY, text_color=CLR_MUTED, wraplength=760, justify="left",
+        ).grid(row=0, column=0, padx=PAD, pady=PAD)
 
         for q_idx, (ctrl_key, cid, cname, question) in enumerate(MANUAL_CONTROLS):
             var = ctk.StringVar(value="No")
             self._answers[ctrl_key] = var
 
-            card = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE, corner_radius=12)
-            card.grid(row=q_idx + 1, column=0, padx=PAD, pady=6, sticky="ew")
+            card = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE, corner_radius=18, border_width=1, border_color=CLR_BORDER)
+            card.grid(row=q_idx + 1, column=0, padx=PAD, pady=8, sticky="ew")
             card.grid_columnconfigure(0, weight=1)
 
-            # Badge + name
             top = ctk.CTkFrame(card, fg_color="transparent")
-            top.grid(row=0, column=0, padx=14, pady=(12, 4), sticky="ew")
+            top.grid(row=0, column=0, padx=18, pady=(16, 4), sticky="ew")
             top.grid_columnconfigure(1, weight=1)
 
             ctk.CTkLabel(
@@ -121,34 +129,32 @@ class ManualChecksScreen(ctk.CTkFrame):
                 font=("Segoe UI", 10, "bold"),
                 text_color="#000000",
                 fg_color=CLR_ACCENT,
-                corner_radius=6, width=40, height=22,
-            ).grid(row=0, column=0, padx=(0, 8))
+                corner_radius=6, width=42, height=24,
+            ).grid(row=0, column=0, padx=(0, 10))
 
             ctk.CTkLabel(
                 top, text=cname,
-                font=("Segoe UI", 12, "bold"), text_color=CLR_TEXT, anchor="w",
+                font=("Segoe UI", 13, "bold"), text_color=CLR_TEXT, anchor="w",
             ).grid(row=0, column=1, sticky="w")
 
-            # Question text
             ctk.CTkLabel(
                 card, text=question,
-                font=FONT_SMALL, text_color=CLR_MUTED,
-                wraplength=740, justify="left", anchor="w",
-            ).grid(row=1, column=0, padx=14, pady=(0, 10), sticky="w")
+                font=FONT_BODY, text_color=CLR_MUTED,
+                wraplength=760, justify="left", anchor="w",
+            ).grid(row=1, column=0, padx=18, pady=(0, 14), sticky="w")
 
-            # Radio buttons
             radio_row = ctk.CTkFrame(card, fg_color="transparent")
-            radio_row.grid(row=2, column=0, padx=14, pady=(0, 12), sticky="w")
+            radio_row.grid(row=2, column=0, padx=18, pady=(0, 18), sticky="w")
             for choice in ("Yes – Fully", "Partially", "No"):
-                colour = {"Yes – Fully": "#00C896", "Partially": "#FFB800", "No": "#FF4C4C"}[choice]
+                colour = {"Yes – Fully": CLR_SUCCESS, "Partially": CLR_WARNING, "No": CLR_DANGER}[choice]
                 ctk.CTkRadioButton(
                     radio_row, text=choice, variable=var, value=choice,
                     font=FONT_BODY, text_color=CLR_TEXT,
                     fg_color=colour, hover_color=colour,
-                    border_color=CLR_MUTED,
-                ).pack(side="left", padx=(0, 20))
+                    border_color=CLR_BORDER, border_width=1,
+                    width=170, height=32,
+                ).pack(side="left", padx=(0, 14))
 
-        # Nav
         nav = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=64)
         nav.grid(row=2, column=0, sticky="ew")
         nav.grid_columnconfigure(1, weight=1)
@@ -156,7 +162,7 @@ class ManualChecksScreen(ctk.CTkFrame):
         ctk.CTkButton(
             nav, text="← Back", font=FONT_BODY,
             fg_color="transparent", border_color=CLR_MUTED, border_width=1,
-            text_color=CLR_TEXT, hover_color="#243447", width=100, height=36,
+            text_color=CLR_TEXT, hover_color="#243447", width=110, height=38,
             command=self._on_back,
         ).grid(row=0, column=0, padx=PAD, pady=14)
 
@@ -164,7 +170,7 @@ class ManualChecksScreen(ctk.CTkFrame):
             nav, text="Calculate Results →",
             font=("Segoe UI", 13, "bold"),
             fg_color=CLR_ACCENT, hover_color="#00A87A",
-            text_color="#000000", height=36, corner_radius=18,
+            text_color="#000000", height=38, corner_radius=18,
             command=self._submit,
         ).grid(row=0, column=2, padx=PAD, pady=14)
 

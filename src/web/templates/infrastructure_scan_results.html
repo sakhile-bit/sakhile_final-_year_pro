@@ -1,0 +1,75 @@
+{% extends 'base.html' %} {% block content %}
+<div class="container py-5">
+  <div class="card card-surface shadow-soft mx-auto" style="max-width: 860px">
+    <div class="card-body">
+      <div
+        class="d-flex flex-column flex-md-row justify-content-between gap-3 align-items-start mb-4"
+      >
+        <div>
+          <div class="section-heading">Infrastructure Scan Results</div>
+          <p class="text-muted mb-0">
+            Target host: <strong>{{ target }}</strong>
+          </p>
+        </div>
+        <span
+          class="badge rounded-pill bg-success bg-opacity-10 text-success py-2 px-3"
+          >Clean infrastructure summary</span
+        >
+      </div>
+      <div class="row row-cols-1 row-cols-md-2 g-3 mb-4">
+        <div class="col">
+          <div class="card feature-card p-3 h-100">
+            <div class="fw-semibold mb-2">DNS Resolution</div>
+            <div>{{ infra_results.dns_resolution }}</div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="card feature-card p-3 h-100">
+            <div class="fw-semibold mb-2">SSL/TLS Status</div>
+            <div>{{ infra_results.ssl_certificate }}</div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="card feature-card p-3 h-100">
+            <div class="fw-semibold mb-2">HTTP → HTTPS Redirect</div>
+            <div>{{ infra_results.https_redirect }}</div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="card feature-card p-3 h-100">
+            <div class="fw-semibold mb-2">External IP</div>
+            <div>{{ infra_results.external_ip }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="card feature-card p-4 mb-4">
+        <div class="fw-semibold mb-3">Open Ports</div>
+        <div>
+          {{ infra_results.open_ports | join(', ') if infra_results.open_ports
+          else 'None detected' }}
+        </div>
+      </div>
+      <div>
+        <h4 class="section-heading">Recommendations</h4>
+        <ul class="list-unstyled mb-0">
+          {% for rec in recommendations %}
+          <li class="py-2 border-bottom border-white border-opacity-10">
+            {{ rec }}
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div class="d-flex flex-column flex-md-row gap-2 mt-4">
+        <a
+          href="{{ url_for('infrastructure_scan') }}"
+          class="btn btn-outline-brand"
+          >Run another scan</a
+        >
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary"
+          >Back to Dashboard</a
+        >
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

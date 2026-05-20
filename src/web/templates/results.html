@@ -1,185 +1,148 @@
-{% extends "base.html" %} {% block title %}Assessment Results - Zambia Digital
-Hygiene{% endblock %} {% block content %}
+{% extends "base.html" %}
+{% block title %}Assessment Results - Zambia Digital Hygiene{% endblock %}
+{% block content %}
 <div class="container py-5">
   <div class="row">
     <div class="col-lg-10 mx-auto">
-      <div class="card shadow mb-4">
-        <div class="card-header bg-success text-white">
-          <h3 class="card-title mb-0">
-            <i class="fas fa-trophy me-2"></i>
-            Assessment Complete
-          </h3>
-        </div>
-        <div class="card-body text-center">
-          <h4 class="mb-3">{{ business_info.name }}</h4>
-          <div class="row">
-            <div class="col-md-4">
-              <div class="border rounded p-3 mb-3">
-                <h5 class="text-primary">Overall Score</h5>
-                <h2 class="display-4 text-success">
-                  {{ results.score }}/{{ results.total_possible }}
-                </h2>
-                <p class="mb-0">
-                  {{ "%.1f"|format((results.score / results.total_possible *
-                  100)) }}%
-                </p>
-              </div>
-            </div>
-            <div class="col-md-4">
-              <div class="border rounded p-3 mb-3">
-                <h5 class="text-primary">Certification Level</h5>
-                <h2
-                  class="display-4 {% if results.certification_level == 'GOLD' %}text-warning{% elif results.certification_level == 'SILVER' %}text-secondary{% elif results.certification_level == 'BRONZE' %}text-warning{% else %}text-danger{% endif %}"
-                >
-                  {{ results.certification_level }}
-                </h2>
-              </div>
-            </div>
-            <div class="col-md-4">
-              <div class="border rounded p-3 mb-3">
-                <h5 class="text-primary">Controls Assessed</h5>
-                <h2 class="display-4 text-info">
-                  {{ results.controls | length }} / 15
-                </h2>
-                {% if results.critical_failures is defined and
-                results.critical_failures > 0 %}
-                <p class="mb-0 text-danger fw-bold">
-                  <i class="fas fa-exclamation-triangle"></i>
-                  {{ results.critical_failures }} critical failure(s)
-                </p>
-                {% endif %}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Automated Controls (C01-C05) -->
-      <div class="card shadow mb-4">
+      <div class="card shadow-soft mb-4">
         <div class="card-header bg-primary text-white">
-          <h5 class="mb-0">
-            <i class="fas fa-robot me-2"></i>
-            Automated Technical Controls (C01–C05)
-          </h5>
+          <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+            <div>
+              <h3 class="mb-1"><i class="fas fa-clipboard-check me-2"></i>Assessment Results</h3>
+              <p class="mb-0 text-white-75">Summary of the completed digital hygiene assessment.</p>
+            </div>
+            <span class="badge bg-light text-dark py-2 px-3">{{ business_info.name }}</span>
+          </div>
         </div>
         <div class="card-body">
-          {% for control_id, control in results.controls.items() %} {% if
-          control.verification is defined and control.verification ==
-          'automated' %}
-          <div class="mb-3 p-3 border rounded">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <h6 class="mb-0">
-                <span class="badge bg-dark me-1"
-                  >{{ control.control_id if control.control_id is defined else
-                  control_id }}</span
-                >
-                {{ control.name }}
-              </h6>
-              <span
-                class="badge {% if control.status == 'PASS' %}bg-success{% elif control.status == 'WARNING' %}bg-warning{% elif control.status == 'NOT_ASSESSED' %}bg-secondary{% else %}bg-danger{% endif %}"
-              >
-                {{ control.status }}
-              </span>
-            </div>
-            <div class="row">
-              <div class="col-md-3">
-                <small class="text-muted">Score</small>
-                <div class="fw-bold">
-                  {{ control.score }}/{{ control.weight }}
+          <div class="row gy-3">
+            <div class="col-md-4">
+              <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                  <h6 class="text-uppercase text-muted">Overall Score</h6>
+                  <h2 class="display-5 text-success">{{ results.score }}/{{ results.total_possible }}</h2>
+                  <p class="mb-0 text-muted">{{ "%.1f"|format((results.score / results.total_possible * 100)) }}%</p>
                 </div>
               </div>
-              <div class="col-md-9">
-                <small class="text-muted">Details</small>
-                <div>{{ control.details }}</div>
+            </div>
+            <div class="col-md-4">
+              <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                  <h6 class="text-uppercase text-muted">Certification Level</h6>
+                  <h2 class="display-5 {% if results.certification_level == 'GOLD' %}text-warning{% elif results.certification_level == 'SILVER' %}text-secondary{% elif results.certification_level == 'BRONZE' %}text-warning{% else %}text-danger{% endif %}">{{ results.certification_level }}</h2>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                  <h6 class="text-uppercase text-muted">Controls Assessed</h6>
+                  <h2 class="display-5 text-info">{{ results.controls | length }} / 15</h2>
+                  {% if results.critical_failures is defined and results.critical_failures > 0 %}
+                  <p class="mb-0 text-danger fw-semibold"><i class="fas fa-exclamation-triangle me-1"></i>{{ results.critical_failures }} critical failure(s)</p>
+                  {% endif %}
+                </div>
               </div>
             </div>
           </div>
-          {% endif %} {% endfor %}
         </div>
       </div>
 
-      <!-- Manual Controls (C06-C15) -->
-      <div class="card shadow mb-4">
-        <div class="card-header bg-warning text-dark">
-          <h5 class="mb-0">
-            <i class="fas fa-pen-to-square me-2"></i>
-            Administrative &amp; Physical Controls (C06–C15)
-          </h5>
+      <div class="card shadow-soft mb-4">
+        <div class="card-header bg-secondary text-white">
+          <h5 class="mb-0"><i class="fas fa-robot me-2"></i>Automated Technical Controls (C01–C05)</h5>
         </div>
         <div class="card-body">
-          {% set has_manual = [] %} {% for control_id, control in
-          results.controls.items() %} {% if control.verification is defined and
-          control.verification != 'automated' %} {% if has_manual.append(1) %}{%
-          endif %}
-          <div class="mb-3 p-3 border rounded">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <h6 class="mb-0">
-                <span class="badge bg-dark me-1"
-                  >{{ control.control_id if control.control_id is defined else
-                  control_id }}</span
-                >
-                {{ control.name }}
-              </h6>
-              <span
-                class="badge {% if control.status == 'PASS' %}bg-success{% elif control.status == 'WARNING' %}bg-warning{% elif control.status == 'NOT_ASSESSED' %}bg-secondary{% else %}bg-danger{% endif %}"
-              >
-                {{ control.status }}
-              </span>
-            </div>
-            <div class="row">
-              <div class="col-md-3">
-                <small class="text-muted">Score</small>
-                <div class="fw-bold">
-                  {{ control.score }}/{{ control.weight }}
+          {% for control_id, control in results.controls.items() %}
+            {% if control.verification is defined and control.verification == 'automated' %}
+              <div class="card border-0 shadow-sm mb-3">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                      <h6 class="mb-1">{{ control.control_id if control.control_id is defined else control_id }} — {{ control.name }}</h6>
+                      <small class="text-muted">{{ control.description if control.description is defined else 'Automated verification result' }}</small>
+                    </div>
+                    <span class="badge {% if control.status == 'PASS' %}bg-success{% elif control.status == 'WARNING' %}bg-warning text-dark{% elif control.status == 'NOT_ASSESSED' %}bg-secondary{% else %}bg-danger{% endif %}">{{ control.status }}</span>
+                  </div>
+                  <div class="row">
+                    <div class="col-md-3 mb-3 mb-md-0">
+                      <small class="text-muted">Score</small>
+                      <div class="fw-semibold">{{ control.score }}/{{ control.weight }}</div>
+                    </div>
+                    <div class="col-md-9">
+                      <small class="text-muted">Details</small>
+                      <div>{{ control.details }}</div>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div class="col-md-9">
-                <small class="text-muted">Details</small>
-                <div>{{ control.details }}</div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="card shadow-soft mb-4">
+        <div class="card-header bg-warning text-dark">
+          <h5 class="mb-0"><i class="fas fa-pen-to-square me-2"></i>Administrative &amp; Physical Controls (C06–C15)</h5>
+        </div>
+        <div class="card-body">
+          {% set has_manual = [] %}
+          {% for control_id, control in results.controls.items() %}
+            {% if control.verification is defined and control.verification != 'automated' %}
+              {% if has_manual.append(1) %}{% endif %}
+              <div class="card border-0 shadow-sm mb-3">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                      <h6 class="mb-1">{{ control.control_id if control.control_id is defined else control_id }} — {{ control.name }}</h6>
+                      <small class="text-muted">{{ control.description if control.description is defined else 'Manual control assessment result' }}</small>
+                    </div>
+                    <span class="badge {% if control.status == 'PASS' %}bg-success{% elif control.status == 'WARNING' %}bg-warning text-dark{% elif control.status == 'NOT_ASSESSED' %}bg-secondary{% else %}bg-danger{% endif %}">{{ control.status }}</span>
+                  </div>
+                  <div class="row">
+                    <div class="col-md-3 mb-3 mb-md-0">
+                      <small class="text-muted">Score</small>
+                      <div class="fw-semibold">{{ control.score }}/{{ control.weight }}</div>
+                    </div>
+                    <div class="col-md-9">
+                      <small class="text-muted">Details</small>
+                      <div>{{ control.details }}</div>
+                    </div>
+                  </div>
+                </div>
               </div>
+            {% endif %}
+          {% endfor %}
+          {% if not has_manual %}
+            <div class="text-center text-muted py-4 border rounded">
+              <i class="fas fa-info-circle me-2"></i>
+              Manual controls were not assessed. Select "Full" assessment tier to include C06–C15.
             </div>
-          </div>
-          {% endif %} {% endfor %} {% if not has_manual %}
-          <div class="text-center text-muted py-3">
-            <i class="fas fa-info-circle me-2"></i>
-            Manual controls were not assessed. Select "Full" assessment tier to
-            include C06–C15.
-          </div>
           {% endif %}
         </div>
       </div>
 
       {% if results.recommendations %}
-      <div class="card shadow mt-4">
-        <div class="card-header bg-info text-white">
-          <h5 class="mb-0">
-            <i class="fas fa-lightbulb me-2"></i>
-            Recommendations
-          </h5>
+        <div class="card shadow-soft mb-4">
+          <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="fas fa-lightbulb me-2"></i>Recommendations</h5>
+          </div>
+          <div class="card-body">
+            <ul class="list-group list-group-flush">
+              {% for recommendation in results.recommendations %}
+                <li class="list-group-item {% if recommendation.startswith('[CRITICAL]') %}text-danger fw-semibold{% endif %}">
+                  <i class="fas fa-{% if recommendation.startswith('[CRITICAL]') %}exclamation-triangle text-danger{% else %}check-circle text-success{% endif %} me-2"></i>
+                  {{ recommendation }}
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
         </div>
-        <div class="card-body">
-          <ul class="list-group list-group-flush">
-            {% for recommendation in results.recommendations %}
-            <li
-              class="list-group-item {% if recommendation.startswith('[CRITICAL]') %}text-danger fw-bold{% endif %}"
-            >
-              <i
-                class="fas fa-{% if recommendation.startswith('[CRITICAL]') %}exclamation-triangle text-danger{% else %}check-circle text-success{% endif %} me-2"
-              ></i>
-              {{ recommendation }}
-            </li>
-            {% endfor %}
-          </ul>
-        </div>
-      </div>
       {% endif %}
 
-      <!-- Certification Thresholds Reference -->
-      <div class="card shadow mt-4">
+      <div class="card shadow-soft">
         <div class="card-header">
-          <h5 class="mb-0">
-            <i class="fas fa-award me-2"></i>Certification Thresholds
-          </h5>
+          <h5 class="mb-0"><i class="fas fa-award me-2"></i>Certification Thresholds</h5>
         </div>
         <div class="card-body p-0">
           <table class="table mb-0">
@@ -193,31 +156,36 @@ Hygiene{% endblock %} {% block content %}
             </thead>
             <tbody>
               <tr>
-                <td>
-                  <span class="badge" style="background: #ffd700; color: #333"
-                    >GOLD</span
-                  >
-                </td>
+                <td><span class="badge bg-warning text-dark">GOLD</span></td>
                 <td>&ge; 80% (&ge;96/120)</td>
                 <td>0</td>
                 <td>12 months</td>
               </tr>
               <tr>
-                <td>
-                  <span class="badge" style="background: #c0c0c0; color: #333"
-                    >SILVER</span
-                  >
-                </td>
+                <td><span class="badge bg-secondary text-dark">SILVER</span></td>
                 <td>&ge; 60% (&ge;72/120)</td>
                 <td>&le; 1</td>
                 <td>12 months</td>
               </tr>
               <tr>
-                <td>
-                  <span class="badge" style="background: #cd7f32; color: white"
-                    >BRONZE</span
-                  >
-                </td>
+                <td><span class="badge bg-danger text-white">BRONZE</span></td>
+                <td>&ge; 40% (&ge;48/120)</td>
+                <td>&le; 2</td>
+                <td>12 months</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="text-end mt-4">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-primary">Back to Dashboard</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
                 <td>&ge; 40% (&ge;48/120)</td>
                 <td>&le; 2</td>
                 <td>6 months</td>
