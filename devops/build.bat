@@ -34,7 +34,7 @@ echo.
 
 REM ── 4. Run PyInstaller ───────────────────────────────────────
 echo [3/3] Building executable...
-pyinstaller devops\build.spec --distpath dist --workpath build --noconfirm
+pyinstaller --onefile devops\build.spec --distpath dist --workpath build --noconfirm
 if %errorlevel% neq 0 (
     echo [ERROR] Build failed. Check output above.
     pause & exit /b 1
