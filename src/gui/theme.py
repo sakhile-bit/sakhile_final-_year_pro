@@ -10,6 +10,8 @@ CLR_ACCENT    = "#00C896"   # green accent (brand)
 CLR_ACCENT2   = "#1E90FF"   # blue secondary accent
 CLR_TEXT      = "#E6F1FF"   # primary text
 CLR_MUTED     = "#7A8FA6"   # muted / secondary text
+CLR_SURFACE_ALT = "#243447" # lighter surface tone
+CLR_BORDER    = "#324659"   # subtle border accent
 CLR_SUCCESS   = "#00C896"
 CLR_WARNING   = "#FFB800"
 CLR_DANGER    = "#FF4C4C"
@@ -19,6 +21,7 @@ CLR_BRONZE    = "#CD7F32"
 
 # Fonts
 FONT_TITLE    = ("Segoe UI", 26, "bold")
+FONT_SUBHEADING = ("Segoe UI", 18, "semibold")
 FONT_SUBTITLE = ("Segoe UI", 14)
 FONT_HEADING  = ("Segoe UI", 16, "bold")
 FONT_BODY     = ("Segoe UI", 12)

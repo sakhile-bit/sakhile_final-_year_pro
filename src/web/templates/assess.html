@@ -1,20 +1,21 @@
-{% extends "base.html" %} {% block title %}Assessment - Zambia Digital Hygiene{%
-endblock %} {% block content %}
+{% extends 'base.html' %}
+{% block title %}Assessment - Zambia Digital Hygiene{% endblock %}
+{% block content %}
 <div class="container py-5">
   <div class="row justify-content-center">
     <div class="col-lg-10">
+      <div class="section-heading mb-3">
+        <i class="fas fa-clipboard-check"></i>
+        Digital Hygiene Assessment
+      </div>
+      <p class="text-muted mb-4">Complete the assessment workflow in three clear steps: business details, assessment tier, and manual control evaluation.</p>
 
-      <!-- Step 1: Business Information -->
-      <div class="card shadow mb-4">
-        <div class="card-header bg-primary text-white">
-          <h3 class="card-title mb-0">
-            <i class="fas fa-clipboard-check me-2"></i>
-            Step 1: Business Information
-          </h3>
-        </div>
-        <div class="card-body">
-          <form method="POST" id="assessmentForm">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <form method="POST" id="assessmentForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="card card-surface shadow mb-4">
+          <div class="card-body">
+            <div class="section-heading">Step 1: Business Information</div>
             <div class="row">
               <div class="col-md-6 mb-3">
                 <label for="business_name" class="form-label">Business Name *</label>
@@ -84,216 +85,250 @@ endblock %} {% block content %}
                 <input type="text" class="form-control" id="address" name="address" />
               </div>
             </div>
-      </div></div>
-
-      <!-- Step 2: Assessment Tier -->
-      <div class="card shadow mb-4">
-        <div class="card-header bg-info text-white">
-          <h3 class="card-title mb-0">
-            <i class="fas fa-layer-group me-2"></i>
-            Step 2: Assessment Tier
-          </h3>
+          </div>
         </div>
-        <div class="card-body">
-          <div class="row">
-            <div class="col-md-4 mb-3">
-              <div class="card h-100 border-primary">
-                <div class="card-body text-center">
-                  <input type="radio" class="btn-check" name="assessment_tier" id="tier_auto" value="automated" checked />
-                  <label class="btn btn-outline-primary w-100 h-100 d-flex flex-column justify-content-center" for="tier_auto">
-                    <i class="fas fa-robot fa-2x mb-2"></i>
-                    <strong>Tier 2: Automated</strong>
-                    <small class="d-block mt-1">Only automated checks (C01-C05). Quick scan, 55 points max.</small>
-                  </label>
+
+        <div class="card card-surface shadow mb-4">
+          <div class="card-body">
+            <div class="section-heading">Step 2: Assessment Tier</div>
+            <div class="row g-3">
+              <div class="col-md-4">
+                <div class="card feature-card h-100 p-3">
+                  <div class="form-check">
+                    <input type="radio" class="btn-check" name="assessment_tier" id="tier_auto" value="automated" checked />
+                    <label class="btn btn-outline-primary w-100 h-100 p-4 text-start" for="tier_auto">
+                      <div class="d-flex align-items-center gap-3">
+                        <i class="fas fa-robot fa-2x"></i>
+                        <div>
+                          <strong>Tier 2: Automated</strong>
+                          <div class="text-muted small mt-1">Only automated checks (C01–C05). Quick scan, 55 points max.</div>
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="card feature-card h-100 p-3">
+                  <div class="form-check">
+                    <input type="radio" class="btn-check" name="assessment_tier" id="tier_full" value="full" />
+                    <label class="btn btn-outline-success w-100 h-100 p-4 text-start" for="tier_full">
+                      <div class="d-flex align-items-center gap-3">
+                        <i class="fas fa-clipboard-list fa-2x"></i>
+                        <div>
+                          <strong>Tier 2+3: Full</strong>
+                          <div class="text-muted small mt-1">Automated + manual controls (C01–C15). All 120 points.</div>
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="card feature-card h-100 p-3">
+                  <div class="form-check">
+                    <input type="radio" class="btn-check" name="assessment_tier" id="tier_manual" value="manual_only" />
+                    <label class="btn btn-outline-secondary w-100 h-100 p-4 text-start" for="tier_manual">
+                      <div class="d-flex align-items-center gap-3">
+                        <i class="fas fa-pen-fancy fa-2x"></i>
+                        <div>
+                          <strong>Tier 3: Manual Only</strong>
+                          <div class="text-muted small mt-1">Manual/on-site controls only (C06–C15). 65 points max.</div>
+                        </div>
+                      </div>
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>
-            <div class="col-md-4 mb-3">
-              <div class="card h-100 border-success">
-                <div class="card-body text-center">
-                  <input type="radio" class="btn-check" name="assessment_tier" id="tier_full" value="full" />
-                  <label class="btn btn-outline-success w-100 h-100 d-flex flex-column justify-content-center" for="tier_full">
-                    <i class="fas fa-clipboard-list fa-2x mb-2"></i>
-                    <strong>Tier 2+3: Full</strong>
-                    <small class="d-block mt-1">Automated + manual controls (C01-C15). All 120 points.</small>
-                  </label>
-                </div>
+          </div>
+        </div>
+
+        <div class="card card-surface shadow mb-4" id="manualControlsCard" style="display:none">
+          <div class="card-body">
+            <div class="section-heading">Step 3: Manual Control Self-Assessment (C06–C15)</div>
+            <div class="alert alert-warning">
+              <i class="fas fa-info-circle me-2"></i>
+              <strong>Instructions:</strong> Rate each control from 0 (not implemented) to the maximum shown.
+              Provide honest answers – inaccurate responses will affect certification validity.
+            </div>
+
+            <div class="row row-cols-1 g-3">
+              {% for control in [
+                ('C06_security_training','Security Awareness Training','8','Does your organisation provide security awareness training to staff?',[
+                  (0,'0 – No training programme'),(2,'2 – Ad-hoc / informal training'),(5,'5 – Annual training programme exists'),(8,'8 – Regular training with phishing simulations & records')
+                ]),
+                ('C07_access_control','Access Control Policy','7','Is there a documented access control/least-privilege policy?',[
+                  (0,'0 – No access control policy'),(2,'2 – Informal role-based access'),(5,'5 – Documented policy, partially enforced'),(7,'7 – Enforced least-privilege with regular reviews')
+                ]),
+                ('C08_incident_response','Incident Response Plan','7','Does the business have an incident response plan?',[
+                  (0,'0 – No incident response plan'),(2,'2 – Informal process exists'),(5,'5 – Documented plan, not tested'),(7,'7 – Documented and tested plan with ZICTA/CERT contacts')
+                ]),
+                ('C09_encryption','Data Encryption','7','Is sensitive data encrypted at rest and in transit?',[
+                  (0,'0 – No encryption used'),(2,'2 – Some encryption (e.g. HTTPS only)'),(5,'5 – Encryption at rest or in transit'),(7,'7 – Full-disk encryption + TLS/HTTPS for all data')
+                ]),
+                ('C10_mobile_security','Mobile Device Security','5','Are mobile devices used for business secured?',[
+                  (0,'0 – No mobile device policy'),(2,'2 – Basic screen lock required'),(3,'3 – Screen lock + trusted apps only'),(5,'5 – Full MDM/MAM policy with encryption & remote wipe')
+                ]),
+                ('C11_physical_security','Physical Security','5','Are physical access controls in place for IT equipment?',[
+                  (0,'0 – No physical security measures'),(2,'2 – Locked office only'),(3,'3 – Locked office + restricted server area'),(5,'5 – Access-controlled server room, visitor logs, CCTV')
+                ]),
+                ('C12_network_security','Network Security','5','Are Wi-Fi networks secured and segmented?',[
+                  (0,'0 – Open or default Wi-Fi'),(2,'2 – Password-protected Wi-Fi'),(3,'3 – WPA2/3 + changed default credentials'),(5,'5 – WPA2/3 + guest network + network segmentation')
+                ]),
+                ('C13_acceptable_use','Acceptable Use Policy','5','Is there a documented acceptable use policy (AUP)?',[
+                  (0,'0 – No AUP exists'),(2,'2 – Informal rules communicated verbally'),(3,'3 – Written AUP, not signed by staff'),(5,'5 – Signed AUP with regular awareness reminders')
+                ]),
+                ('C14_vendor_risk','Vendor / Third-Party Risk','8','Does the business assess third-party / vendor security risks?',[
+                  (0,'0 – No vendor risk management'),(3,'3 – Informal awareness of vendor risks'),(5,'5 – Vendor contracts include security clauses'),(8,'8 – Formal vendor risk assessment & regular reviews')
+                ]),
+                ('C15_regulatory_compliance','Regulatory Compliance','8','Is the business aware of and compliant with Zambian ICT regulations?',[
+                  (0,'0 – No awareness of regulations'),(3,'3 – Aware but no compliance measures'),(5,'5 – Partially compliant (some measures in place)'),(8,'8 – Fully compliant with Data Protection Act & ZICTA regulations')
+                ])
+              ] %}
+              <div class="col" style="display:none"></div>
+            {% endfor %}
+            <div class="col">
+              <div class="card feature-card p-4">
+                <h6 class="mb-2"><span class="badge bg-primary me-2">C06</span> Security Awareness Training <span class="badge bg-secondary">8 pts</span></h6>
+                <p class="text-muted small mb-3">Does your organisation provide security awareness training to staff?</p>
+                <select class="form-select" name="C06_security_training">
+                  <option value="0">0 – No training programme</option>
+                  <option value="2">2 – Ad-hoc / informal training</option>
+                  <option value="5">5 – Annual training programme exists</option>
+                  <option value="8">8 – Regular training with phishing simulations & records</option>
+                </select>
               </div>
             </div>
-            <div class="col-md-4 mb-3">
-              <div class="card h-100 border-secondary">
-                <div class="card-body text-center">
-                  <input type="radio" class="btn-check" name="assessment_tier" id="tier_manual" value="manual_only" />
-                  <label class="btn btn-outline-secondary w-100 h-100 d-flex flex-column justify-content-center" for="tier_manual">
-                    <i class="fas fa-pen-fancy fa-2x mb-2"></i>
-                    <strong>Tier 3: Manual Only</strong>
-                    <small class="d-block mt-1">Manual/on-site controls only (C06-C15). 65 points max.</small>
-                  </label>
-                </div>
+            <div class="col">
+              <div class="card feature-card p-4">
+                <h6 class="mb-2"><span class="badge bg-primary me-2">C07</span> Access Control Policy <span class="badge bg-secondary">7 pts</span></h6>
+                <p class="text-muted small mb-3">Is there a documented access control/least-privilege policy?</p>
+                <select class="form-select" name="C07_access_control">
+                  <option value="0">0 – No access control policy</option>
+                  <option value="2">2 – Informal role-based access</option>
+                  <option value="5">5 – Documented policy, partially enforced</option>
+                  <option value="7">7 – Enforced least-privilege with regular reviews</option>
+                </select>
+              </div>
+            </div>
+            <div class="col">
+              <div class="card feature-card p-4">
+                <h6 class="mb-2"><span class="badge bg-primary me-2">C08</span> Incident Response Plan <span class="badge bg-secondary">7 pts</span></h6>
+                <p class="text-muted small mb-3">Does the business have an incident response plan?</p>
+                <select class="form-select" name="C08_incident_response">
+                  <option value="0">0 – No incident response plan</option>
+                  <option value="2">2 – Informal process exists</option>
+                  <option value="5">5 – Documented plan, not tested</option>
+                  <option value="7">7 – Documented and tested plan with ZICTA/CERT contacts</option>
+                </select>
+              </div>
+            </div>
+            <div class="col">
+              <div class="card feature-card p-4">
+                <h6 class="mb-2"><span class="badge bg-primary me-2">C09</span> Data Encryption <span class="badge bg-secondary">7 pts</span></h6>
+                <p class="text-muted small mb-3">Is sensitive data encrypted at rest and in transit?</p>
+                <select class="form-select" name="C09_encryption">
+                  <option value="0">0 – No encryption used</option>
+                  <option value="2">2 – Some encryption (e.g. HTTPS only)</option>
+                  <option value="5">5 – Encryption at rest or in transit</option>
+                  <option value="7">7 – Full-disk encryption + TLS/HTTPS for all data</option>
+                </select>
+              </div>
+            </div>
+            <div class="col">
+              <div class="card feature-card p-4">
+                <h6 class="mb-2"><span class="badge bg-primary me-2">C10</span> Mobile Device Security <span class="badge bg-secondary">5 pts</span></h6>
+                <p class="text-muted small mb-3">Are mobile devices used for business secured?</p>
+                <select class="form-select" name="C10_mobile_security">
+                  <option value="0">0 – No mobile device policy</option>
+                  <option value="2">2 – Basic screen lock required</option>
+                  <option value="3">3 – Screen lock + trusted apps only</option>
+                  <option value="5">5 – Full MDM/MAM policy with encryption & remote wipe</option>
+                </select>
+              </div>
+            </div>
+            <div class="col">
+              <div class="card feature-card p-4">
+                <h6 class="mb-2"><span class="badge bg-primary me-2">C11</span> Physical Security <span class="badge bg-secondary">5 pts</span></h6>
+                <p class="text-muted small mb-3">Are physical access controls in place for IT equipment?</p>
+                <select class="form-select" name="C11_physical_security">
+                  <option value="0">0 – No physical security measures</option>
+                  <option value="2">2 – Locked office only</option>
+                  <option value="3">3 – Locked office + restricted server area</option>
+                  <option value="5">5 – Access-controlled server room, visitor logs, CCTV</option>
+                </select>
+              </div>
+            </div>
+            <div class="col">
+              <div class="card feature-card p-4">
+                <h6 class="mb-2"><span class="badge bg-primary me-2">C12</span> Network Security <span class="badge bg-secondary">5 pts</span></h6>
+                <p class="text-muted small mb-3">Are Wi-Fi networks secured and segmented?</p>
+                <select class="form-select" name="C12_network_security">
+                  <option value="0">0 – Open or default Wi-Fi</option>
+                  <option value="2">2 – Password-protected Wi-Fi</option>
+                  <option value="3">3 – WPA2/3 + changed default credentials</option>
+                  <option value="5">5 – WPA2/3 + guest network + network segmentation</option>
+                </select>
+              </div>
+            </div>
+            <div class="col">
+              <div class="card feature-card p-4">
+                <h6 class="mb-2"><span class="badge bg-primary me-2">C13</span> Acceptable Use Policy <span class="badge bg-secondary">5 pts</span></h6>
+                <p class="text-muted small mb-3">Is there a documented acceptable use policy (AUP)?</p>
+                <select class="form-select" name="C13_acceptable_use">
+                  <option value="0">0 – No AUP exists</option>
+                  <option value="2">2 – Informal rules communicated verbally</option>
+                  <option value="3">3 – Written AUP, not signed by staff</option>
+                  <option value="5">5 – Signed AUP with regular awareness reminders</option>
+                </select>
+              </div>
+            </div>
+            <div class="col">
+              <div class="card feature-card p-4">
+                <h6 class="mb-2"><span class="badge bg-primary me-2">C14</span> Vendor / Third-Party Risk <span class="badge bg-secondary">8 pts</span></h6>
+                <p class="text-muted small mb-3">Does the business assess third-party / vendor security risks?</p>
+                <select class="form-select" name="C14_vendor_risk">
+                  <option value="0">0 – No vendor risk management</option>
+                  <option value="3">3 – Informal awareness of vendor risks</option>
+                  <option value="5">5 – Vendor contracts include security clauses</option>
+                  <option value="8">8 – Formal vendor risk assessment & regular reviews</option>
+                </select>
+              </div>
+            </div>
+            <div class="col">
+              <div class="card feature-card p-4">
+                <h6 class="mb-2"><span class="badge bg-primary me-2">C15</span> Regulatory Compliance <span class="badge bg-secondary">8 pts</span></h6>
+                <p class="text-muted small mb-3">Is the business aware of and compliant with Zambian ICT regulations?</p>
+                <select class="form-select" name="C15_regulatory_compliance">
+                  <option value="0">0 – No awareness of regulations</option>
+                  <option value="3">3 – Aware but no compliance measures</option>
+                  <option value="5">5 – Partially compliant (some measures in place)</option>
+                  <option value="8">8 – Fully compliant with Data Protection Act & ZICTA regulations</option>
+                </select>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- Step 3: Manual Controls (shown when tier is full or manual_only) -->
-      <div class="card shadow mb-4" id="manualControlsCard" style="display:none">
-        <div class="card-header bg-warning text-dark">
-          <h3 class="card-title mb-0">
-            <i class="fas fa-pen-to-square me-2"></i>
-            Step 3: Manual Control Self-Assessment (C06–C15)
-          </h3>
+        <div class="card card-surface shadow">
+          <div class="card-body">
+            <div class="alert alert-info mb-3">
+              <i class="fas fa-info-circle me-2"></i>
+              <strong>Automated Controls (C01–C05):</strong> OS updates, antivirus, firewall,
+              password policy, and backup systems are checked automatically on your machine.
+            </div>
+            <div class="d-flex flex-column flex-md-row gap-2 justify-content-md-end">
+              <button type="button" class="btn btn-secondary" onclick="window.history.back()">
+                <i class="fas fa-arrow-left me-2"></i>Back
+              </button>
+              <button type="submit" class="btn btn-brand btn-lg">
+                <i class="fas fa-play-circle me-2"></i>Run Assessment
+              </button>
+            </div>
+          </div>
         </div>
-        <div class="card-body">
-          <div class="alert alert-warning">
-            <i class="fas fa-info-circle me-2"></i>
-            <strong>Instructions:</strong> Rate each control from 0 (not implemented) to the maximum shown.
-            Provide honest answers – inaccurate responses will affect certification validity.
-          </div>
-
-          <!-- C06: Security Awareness Training -->
-          <div class="mb-4 p-3 border rounded">
-            <h6><span class="badge bg-primary me-2">C06</span> Security Awareness Training <span class="badge bg-secondary">8 pts</span></h6>
-            <p class="text-muted small mb-2">Does your organisation provide security awareness training to staff?</p>
-            <select class="form-select" name="C06_security_training">
-              <option value="0">0 – No training programme</option>
-              <option value="2">2 – Ad-hoc / informal training</option>
-              <option value="5">5 – Annual training programme exists</option>
-              <option value="8">8 – Regular training with phishing simulations & records</option>
-            </select>
-          </div>
-
-          <!-- C07: Access Control Policy -->
-          <div class="mb-4 p-3 border rounded">
-            <h6><span class="badge bg-primary me-2">C07</span> Access Control Policy <span class="badge bg-secondary">7 pts</span></h6>
-            <p class="text-muted small mb-2">Is there a documented access control/least-privilege policy?</p>
-            <select class="form-select" name="C07_access_control">
-              <option value="0">0 – No access control policy</option>
-              <option value="2">2 – Informal role-based access</option>
-              <option value="5">5 – Documented policy, partially enforced</option>
-              <option value="7">7 – Enforced least-privilege with regular reviews</option>
-            </select>
-          </div>
-
-          <!-- C08: Incident Response Plan -->
-          <div class="mb-4 p-3 border rounded">
-            <h6><span class="badge bg-primary me-2">C08</span> Incident Response Plan <span class="badge bg-secondary">7 pts</span></h6>
-            <p class="text-muted small mb-2">Does the business have an incident response plan?</p>
-            <select class="form-select" name="C08_incident_response">
-              <option value="0">0 – No incident response plan</option>
-              <option value="2">2 – Informal process exists</option>
-              <option value="5">5 – Documented plan, not tested</option>
-              <option value="7">7 – Documented and tested plan with ZICTA/CERT contacts</option>
-            </select>
-          </div>
-
-          <!-- C09: Data Encryption -->
-          <div class="mb-4 p-3 border rounded">
-            <h6><span class="badge bg-primary me-2">C09</span> Data Encryption <span class="badge bg-secondary">7 pts</span></h6>
-            <p class="text-muted small mb-2">Is sensitive data encrypted at rest and in transit?</p>
-            <select class="form-select" name="C09_encryption">
-              <option value="0">0 – No encryption used</option>
-              <option value="2">2 – Some encryption (e.g. HTTPS only)</option>
-              <option value="5">5 – Encryption at rest or in transit</option>
-              <option value="7">7 – Full-disk encryption + TLS/HTTPS for all data</option>
-            </select>
-          </div>
-
-          <!-- C10: Mobile Device Security -->
-          <div class="mb-4 p-3 border rounded">
-            <h6><span class="badge bg-primary me-2">C10</span> Mobile Device Security <span class="badge bg-secondary">5 pts</span></h6>
-            <p class="text-muted small mb-2">Are mobile devices used for business secured?</p>
-            <select class="form-select" name="C10_mobile_security">
-              <option value="0">0 – No mobile device policy</option>
-              <option value="2">2 – Basic screen lock required</option>
-              <option value="3">3 – Screen lock + trusted apps only</option>
-              <option value="5">5 – Full MDM/MAM policy with encryption & remote wipe</option>
-            </select>
-          </div>
-
-          <!-- C11: Physical Security -->
-          <div class="mb-4 p-3 border rounded">
-            <h6><span class="badge bg-primary me-2">C11</span> Physical Security <span class="badge bg-secondary">5 pts</span></h6>
-            <p class="text-muted small mb-2">Are physical access controls in place for IT equipment?</p>
-            <select class="form-select" name="C11_physical_security">
-              <option value="0">0 – No physical security measures</option>
-              <option value="2">2 – Locked office only</option>
-              <option value="3">3 – Locked office + restricted server area</option>
-              <option value="5">5 – Access-controlled server room, visitor logs, CCTV</option>
-            </select>
-          </div>
-
-          <!-- C12: Network Security -->
-          <div class="mb-4 p-3 border rounded">
-            <h6><span class="badge bg-primary me-2">C12</span> Network Security <span class="badge bg-secondary">5 pts</span></h6>
-            <p class="text-muted small mb-2">Are Wi-Fi networks secured and segmented?</p>
-            <select class="form-select" name="C12_network_security">
-              <option value="0">0 – Open or default Wi-Fi</option>
-              <option value="2">2 – Password-protected Wi-Fi</option>
-              <option value="3">3 – WPA2/3 + changed default credentials</option>
-              <option value="5">5 – WPA2/3 + guest network + network segmentation</option>
-            </select>
-          </div>
-
-          <!-- C13: Acceptable Use Policy -->
-          <div class="mb-4 p-3 border rounded">
-            <h6><span class="badge bg-primary me-2">C13</span> Acceptable Use Policy <span class="badge bg-secondary">5 pts</span></h6>
-            <p class="text-muted small mb-2">Is there a documented acceptable use policy (AUP)?</p>
-            <select class="form-select" name="C13_acceptable_use">
-              <option value="0">0 – No AUP exists</option>
-              <option value="2">2 – Informal rules communicated verbally</option>
-              <option value="3">3 – Written AUP, not signed by staff</option>
-              <option value="5">5 – Signed AUP with regular awareness reminders</option>
-            </select>
-          </div>
-
-          <!-- C14: Vendor / Third-Party Risk -->
-          <div class="mb-4 p-3 border rounded">
-            <h6><span class="badge bg-primary me-2">C14</span> Vendor / Third-Party Risk <span class="badge bg-secondary">8 pts</span></h6>
-            <p class="text-muted small mb-2">Does the business assess third-party / vendor security risks?</p>
-            <select class="form-select" name="C14_vendor_risk">
-              <option value="0">0 – No vendor risk management</option>
-              <option value="3">3 – Informal awareness of vendor risks</option>
-              <option value="5">5 – Vendor contracts include security clauses</option>
-              <option value="8">8 – Formal vendor risk assessment & regular reviews</option>
-            </select>
-          </div>
-
-          <!-- C15: Regulatory Compliance -->
-          <div class="mb-4 p-3 border rounded">
-            <h6><span class="badge bg-primary me-2">C15</span> Regulatory Compliance <span class="badge bg-secondary">8 pts</span></h6>
-            <p class="text-muted small mb-2">Is the business aware of and compliant with Zambian ICT regulations?</p>
-            <select class="form-select" name="C15_regulatory_compliance">
-              <option value="0">0 – No awareness of regulations</option>
-              <option value="3">3 – Aware but no compliance measures</option>
-              <option value="5">5 – Partially compliant (some measures in place)</option>
-              <option value="8">8 – Fully compliant with Data Protection Act & ZICTA regulations</option>
-            </select>
-          </div>
-
-        </div>
-      </div>
-
-      <!-- Submit -->
-      <div class="card shadow">
-        <div class="card-body">
-          <div class="alert alert-info mb-3">
-            <i class="fas fa-info-circle me-2"></i>
-            <strong>Automated Controls (C01–C05):</strong> OS updates, antivirus, firewall,
-            password policy, and backup systems are checked automatically on your machine.
-          </div>
-          <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-            <button type="button" class="btn btn-secondary me-md-2" onclick="window.history.back()">
-              <i class="fas fa-arrow-left me-2"></i>Back
-            </button>
-            <button type="submit" class="btn btn-primary btn-lg">
-              <i class="fas fa-play-circle me-2"></i>Run Assessment
-            </button>
-          </div>
-          </form>
-        </div>
-      </div>
-
+      </form>
     </div>
   </div>
 </div>

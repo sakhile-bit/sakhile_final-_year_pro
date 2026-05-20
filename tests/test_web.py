@@ -3,6 +3,7 @@ Unit tests for the web application (Phase 2 — full platform)
 """
 
 import pytest
+from unittest.mock import patch
 from src.web.app import create_app, db as _db
 
 
@@ -66,6 +67,24 @@ class TestWebApp:
         response = client.get('/assess', follow_redirects=False)
         assert response.status_code in (302, 401)
 
+    def test_infrastructure_scan_page(self, client):
+        """Infrastructure scan page should be accessible"""
+        response = client.get('/infrastructure-scan')
+        assert response.status_code == 302 or response.status_code == 401
+
+    @patch('src.web.app.InfrastructureAssessor.run_checks')
+    def test_infrastructure_scan_post(self, mock_run_checks, client):
+        mock_run_checks.return_value = {
+            'dns_resolution': 'Resolves to 127.0.0.1',
+            'ssl_certificate': 'SSL/TLS enabled',
+            'https_redirect': 'HTTP redirects to HTTPS (https://localhost)',
+            'external_ip': '127.0.0.1',
+            'open_ports': [80, 443],
+        }
+        response = client.post('/infrastructure-scan', data={'domain': 'localhost'})
+        assert response.status_code in (200, 302)
+        assert b'Infrastructure Scan Results' in response.data or b'SSL/TLS enabled' in response.data
+
     def test_404_error(self, client):
         """Test 404 error page"""
         response = client.get('/nonexistent')
@@ -81,4 +100,18 @@ class TestWebApp:
         """Admin routes must deny unauthenticated access"""
         response = client.get('/admin/', follow_redirects=False)
         assert response.status_code in (302, 401, 403)
+
+
+def test_check_dns_resolution_for_localhost():
+    from src.web.app import check_dns_resolution
+
+    result = check_dns_resolution('localhost')
+    assert 'Resolves to' in result or 'DNS resolution failed' not in result
+
+
+def test_http_to_https_localhost():
+    from src.web.app import check_http_to_https
+
+    result = check_http_to_https('localhost')
+    assert 'Local host' in result
 
