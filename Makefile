@@ -123,7 +123,7 @@ pre-commit-run:
 # Building
 build:
 	@echo "Building Windows executable..."
-	$(PYTHON) -m PyInstaller devops/build.spec
+	$(PYTHON) -m PyInstaller --onefile devops/build.spec
 	@echo "✓ Build complete! Executable: dist/ZambiaDigitalHygiene.exe"
 
 # Running
