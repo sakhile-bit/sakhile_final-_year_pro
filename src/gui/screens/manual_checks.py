@@ -2,62 +2,93 @@
 
 import customtkinter as ctk
 from src.gui.theme import (
-    CLR_BG, CLR_SURFACE, CLR_ACCENT, CLR_TEXT, CLR_MUTED,
+    CLR_BG, CLR_SURFACE, CLR_SURFACE_ALT, CLR_ACCENT, CLR_TEXT, CLR_MUTED,
     CLR_BORDER, CLR_SUCCESS, CLR_WARNING, CLR_DANGER,
     FONT_HEADING, FONT_BODY, FONT_SMALL, PAD,
 )
 
-# (control_key, id, name, question)
+# (control_key, id, name, question, plain_hint)
+# plain_hint is shown in simple, everyday language for non-technical users.
 MANUAL_CONTROLS = [
     (
         "C06_security_training", "C06", "Security Awareness Training",
         "Do ALL staff receive at least annual cybersecurity awareness training "
         "(including phishing simulations)?",
+        "💡 In plain terms: Have all your employees learned how to spot fake emails "
+        "(phishing), create strong passwords, and handle customer data safely — "
+        "at least once in the past 12 months?",
     ),
     (
         "C07_access_control", "C07", "Access Control Policy",
         "Is there a documented least-privilege access control policy, "
         "reviewed at least annually?",
+        "💡 In plain terms: Do you control who can see and edit what on your computers? "
+        "For example, does only your accountant access financial files, and do you "
+        "remove access when staff leave?",
     ),
     (
         "C08_incident_response", "C08", "Incident Response Plan",
         "Do you have a documented incident response plan that has been tested "
         "in the past 12 months and includes ZICTA/CERT-ZM contacts?",
+        "💡 In plain terms: If your business were hacked or data stolen today, "
+        "do you have a written step-by-step plan of what to do and who to call? "
+        "ZICTA is Zambia's communications regulator — you should have their contact.",
     ),
     (
         "C09_encryption", "C09", "Data Encryption",
         "Is all sensitive data encrypted at rest (e.g. BitLocker/VeraCrypt) "
         "and in transit (TLS/HTTPS) on all systems?",
+        "💡 In plain terms: Is customer and business data scrambled/locked so only "
+        "authorised people can read it? For example: does your website address start "
+        "with https:// and are laptops password-protected if lost or stolen?",
     ),
     (
         "C10_mobile_security", "C10", "Mobile Device Security",
         "Are all business mobile devices protected with screen locks, "
         "encryption, and a mobile device management (MDM) policy?",
+        "💡 In plain terms: Do all company phones and tablets have a PIN or "
+        "fingerprint lock, auto-lock after a few minutes of inactivity, and rules "
+        "about what staff can install on them?",
     ),
     (
         "C11_physical_security", "C11", "Physical Security",
         "Is the server/IT area access-controlled, with visitor logs "
         "and CCTV in place?",
+        "💡 In plain terms: Is your router, server, or main computer kept in a "
+        "locked room or cabinet? Can you tell who has been in that area, and is "
+        "there a security camera covering it?",
     ),
     (
         "C12_network_security", "C12", "Network Security",
         "Does the business use WPA2/WPA3 Wi-Fi with a separate guest "
         "network and network segmentation?",
+        "💡 In plain terms: Is your Wi-Fi password strong and changed regularly? "
+        "Do visitors connect to a different Wi-Fi from your staff, so they cannot "
+        "access your business files or printers?",
     ),
     (
         "C13_acceptable_use", "C13", "Acceptable Use Policy",
         "Is there a documented acceptable use policy (AUP) signed "
         "by all staff with regular awareness reminders?",
+        "💡 In plain terms: Do your employees have written rules about how to use "
+        "company computers, phones, and internet — and have they signed to confirm "
+        "they understand? For example: no personal downloads on work devices.",
     ),
     (
         "C14_vendor_risk", "C14", "Vendor / Third-Party Risk",
         "Do all vendor contracts include security clauses with formal "
         "risk assessments and regular reviews?",
+        "💡 In plain terms: Do the companies you hire (IT support, cloud storage, "
+        "payment processors) have security obligations in their contracts? Do you "
+        "check that they are keeping your data safe?",
     ),
     (
         "C15_regulatory_compliance", "C15", "Regulatory Compliance",
         "Is the business fully compliant with Zambia's Data Protection Act "
         "and ZICTA cybersecurity regulations?",
+        "💡 In plain terms: Are you following Zambia's laws about protecting "
+        "customer data (Data Protection Act 2021) and cybersecurity (Cyber Security "
+        "and Cyber Crimes Act 2021)? If unsure, consider consulting a legal adviser.",
     ),
 ]
 
@@ -108,11 +139,11 @@ class ManualChecksScreen(ctk.CTkFrame):
         info_card.grid(row=0, column=0, padx=PAD, pady=(PAD, 10), sticky="ew")
         ctk.CTkLabel(
             info_card,
-            text="Complete the manual questions to finish your certification assessment. Choose the option that best matches your current controls.",
+            text="Answer each question as honestly as possible — choose the option that best describes your business right now.",
             font=FONT_BODY, text_color=CLR_MUTED, wraplength=760, justify="left",
         ).grid(row=0, column=0, padx=PAD, pady=PAD)
 
-        for q_idx, (ctrl_key, cid, cname, question) in enumerate(MANUAL_CONTROLS):
+        for q_idx, (ctrl_key, cid, cname, question, hint) in enumerate(MANUAL_CONTROLS):
             var = ctk.StringVar(value="No")
             self._answers[ctrl_key] = var
 
@@ -120,6 +151,7 @@ class ManualChecksScreen(ctk.CTkFrame):
             card.grid(row=q_idx + 1, column=0, padx=PAD, pady=8, sticky="ew")
             card.grid_columnconfigure(0, weight=1)
 
+            # Control ID badge + name
             top = ctk.CTkFrame(card, fg_color="transparent")
             top.grid(row=0, column=0, padx=18, pady=(16, 4), sticky="ew")
             top.grid_columnconfigure(1, weight=1)
@@ -137,14 +169,26 @@ class ManualChecksScreen(ctk.CTkFrame):
                 font=("Segoe UI", 13, "bold"), text_color=CLR_TEXT, anchor="w",
             ).grid(row=0, column=1, sticky="w")
 
+            # Formal question text
             ctk.CTkLabel(
                 card, text=question,
-                font=FONT_BODY, text_color=CLR_MUTED,
+                font=FONT_BODY, text_color=CLR_TEXT,
                 wraplength=760, justify="left", anchor="w",
-            ).grid(row=1, column=0, padx=18, pady=(0, 14), sticky="w")
+            ).grid(row=1, column=0, padx=18, pady=(0, 6), sticky="w")
 
+            # Plain-language hint (always visible)
+            hint_frame = ctk.CTkFrame(card, fg_color=CLR_SURFACE_ALT, corner_radius=10, border_width=1, border_color=CLR_BORDER)
+            hint_frame.grid(row=2, column=0, padx=18, pady=(0, 10), sticky="ew")
+            hint_frame.grid_columnconfigure(0, weight=1)
+            ctk.CTkLabel(
+                hint_frame, text=hint,
+                font=FONT_SMALL, text_color=CLR_MUTED,
+                wraplength=740, justify="left", anchor="w",
+            ).grid(row=0, column=0, padx=12, pady=10, sticky="w")
+
+            # Radio buttons
             radio_row = ctk.CTkFrame(card, fg_color="transparent")
-            radio_row.grid(row=2, column=0, padx=18, pady=(0, 18), sticky="w")
+            radio_row.grid(row=3, column=0, padx=18, pady=(0, 18), sticky="w")
             for choice in ("Yes – Fully", "Partially", "No"):
                 colour = {"Yes – Fully": CLR_SUCCESS, "Partially": CLR_WARNING, "No": CLR_DANGER}[choice]
                 ctk.CTkRadioButton(

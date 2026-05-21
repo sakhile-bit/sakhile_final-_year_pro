@@ -28,7 +28,15 @@ class ResultsScreen(ctk.CTkFrame):
         super().__init__(master, fg_color=CLR_BG, corner_radius=0)
         self._results = results
         self._on_restart = on_restart
+        self._auto_save()
         self._build()
+
+    def _auto_save(self):
+        try:
+            from src.utils.local_db import save_assessment
+            save_assessment(self._results)
+        except Exception:
+            pass  # Never block the UI if storage fails
 
     # ------------------------------------------------------------------ build
     def _build(self):
@@ -79,17 +87,29 @@ class ResultsScreen(ctk.CTkFrame):
             font=("Segoe UI", 22, "bold"), text_color=tier_colour,
         ).grid(row=1, column=0)
 
+        TIER_MSG = {
+            "GOLD":          "Excellent! Your business meets a high standard of cybersecurity. Keep it up and review annually.",
+            "SILVER":        "Good work — your business has solid security foundations. Fix the highlighted issues to reach Gold.",
+            "BRONZE":        "You have made a start on cybersecurity. Address the urgent items below to better protect your business.",
+            "NOT CERTIFIED": "Your business has significant security gaps. Please work through the recommendations below as soon as possible.",
+        }
+        ctk.CTkLabel(
+            badge, text=TIER_MSG.get(tier, ""),
+            font=FONT_SMALL, text_color=CLR_MUTED,
+            wraplength=560, justify="center",
+        ).grid(row=2, column=0, padx=PAD, pady=(4, 0))
+
         ctk.CTkLabel(
             badge,
             text=f"{r.business_info.name}  •  {r.business_info.id}",
             font=FONT_BODY, text_color=CLR_TEXT,
-        ).grid(row=2, column=0, pady=(8, 0))
+        ).grid(row=3, column=0, pady=(8, 0))
 
         ctk.CTkLabel(
             badge,
             text=f"Score: {r.score} / {r.total_possible}  ({pct}%)",
             font=("Segoe UI", 14, "bold"), text_color=tier_colour,
-        ).grid(row=3, column=0, pady=(4, 10))
+        ).grid(row=4, column=0, pady=(4, 10))
 
         # Score bar
         bar = ctk.CTkProgressBar(
@@ -97,7 +117,7 @@ class ResultsScreen(ctk.CTkFrame):
             height=14, corner_radius=7,
         )
         bar.set(pct / 100)
-        bar.grid(row=4, column=0, padx=PAD * 2, pady=(0, 22), sticky="ew")
+        bar.grid(row=5, column=0, padx=PAD * 2, pady=(0, 22), sticky="ew")
 
         metrics = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE, corner_radius=18, border_width=1, border_color=CLR_BORDER)
         metrics.grid(row=1, column=0, padx=PAD, pady=(0, 16), sticky="ew")
@@ -151,17 +171,26 @@ class ResultsScreen(ctk.CTkFrame):
             ctk.CTkLabel(
                 row_f, text=icon, font=("Segoe UI", 14),
                 text_color=clr, width=32,
-            ).grid(row=0, column=0, padx=(14, 8), pady=18)
+            ).grid(row=0, column=0, padx=(14, 8), pady=(14, 2), sticky="n")
 
             ctk.CTkLabel(
                 row_f, text=f"{ctrl.control_id}  {ctrl.name}",
                 font=FONT_BODY, text_color=CLR_TEXT, anchor="w",
-            ).grid(row=0, column=1, sticky="w")
+            ).grid(row=0, column=1, sticky="w", pady=(14, 2))
 
             ctk.CTkLabel(
                 row_f, text=f"{ctrl.score}/{ctrl.weight}",
                 font=("Segoe UI", 11, "bold"), text_color=clr, anchor="e",
-            ).grid(row=0, column=2, padx=14, sticky="e")
+            ).grid(row=0, column=2, padx=14, sticky="ne", pady=(14, 2))
+
+            # Show the detail/finding for FAIL and WARNING in plain language
+            if ctrl.status in ("FAIL", "WARNING", "ERROR") and ctrl.details:
+                detail_text = ctrl.details[:120] + "…" if len(ctrl.details) > 120 else ctrl.details
+                ctk.CTkLabel(
+                    row_f, text=f"Finding: {detail_text}",
+                    font=FONT_SMALL, text_color=CLR_MUTED,
+                    wraplength=680, justify="left", anchor="w",
+                ).grid(row=1, column=0, columnspan=3, padx=(54, 14), pady=(0, 12), sticky="w")
 
         base_row = len(r.controls) + 3
 
