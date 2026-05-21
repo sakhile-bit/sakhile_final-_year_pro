@@ -29,6 +29,7 @@ from src.web.app import (  # noqa: F401
     Certificate,
     AuditLog,
     AssessmentRequest,
+    Remediation,
     # Helpers / utilities
     login_attempts,
     load_user,

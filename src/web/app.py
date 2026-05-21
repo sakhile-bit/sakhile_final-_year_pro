@@ -225,6 +225,29 @@ class AuditLog(db.Model):
     user = db.relationship('User')
 
 
+class Remediation(db.Model):
+    """Tracks remediation actions for failed/warning controls in an assessment."""
+    __tablename__ = 'remediations'
+
+    id = db.Column(db.Integer, primary_key=True)
+    assessment_id = db.Column(db.Integer, db.ForeignKey('assessments.id'), nullable=False)
+    control_id = db.Column(db.String(10), nullable=False)   # e.g. C03
+    control_name = db.Column(db.String(100))
+    status = db.Column(db.String(20), default='open')       # open | in_progress | resolved
+    priority = db.Column(db.String(10), default='medium')   # low | medium | high | critical
+    assigned_to = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    notes = db.Column(db.Text)
+    due_date = db.Column(db.Date, nullable=True)
+    resolved_at = db.Column(db.DateTime, nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    assessment = db.relationship('Assessment', backref=db.backref('remediations', lazy='dynamic'))
+    assignee = db.relationship('User', foreign_keys=[assigned_to])
+    creator = db.relationship('User', foreign_keys=[created_by])
+
+
 class AssessmentRequest(db.Model):
     """Business owners request assessments; assessors pick them up."""
     __tablename__ = 'assessment_requests'
@@ -244,6 +267,13 @@ class AssessmentRequest(db.Model):
     requester = db.relationship('User', foreign_keys=[requested_by])
     assessor = db.relationship('User', foreign_keys=[assigned_to])
 
+def _generate_cert_number() -> str:
+    """Generate a unique certificate number: ZDH-YYYY-XXXXXX."""
+    year = datetime.utcnow().year
+    token = secrets.token_hex(3).upper()
+    return f"ZDH-{year}-{token}"
+
+
 def check_password_strength(password):
     """Check if password meets strength requirements."""
     if len(password) < 12:
@@ -261,6 +291,11 @@ def check_password_strength(password):
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
+
+
+@app.context_processor
+def inject_now():
+    return {'now': datetime.utcnow}
 
 def create_app(db_uri=None):
     """Create and configure the Flask application.
@@ -779,6 +814,37 @@ def assess():
             db.session.add(assessment)
             db.session.commit()
 
+            # Auto-issue certificate for passing assessments
+            if results.certification_level != 'NOT CERTIFIED':
+                cert_num = _generate_cert_number()
+                months = 6 if results.certification_level == 'BRONZE' else 12
+                from datetime import date
+                cert = Certificate(
+                    assessment_id=assessment.id,
+                    certificate_number=cert_num,
+                    issued_date=date.today(),
+                    expiry_date=(datetime.utcnow() + timedelta(days=months * 30)).date(),
+                    certificate_data={
+                        'business_name': business.name,
+                        'level': results.certification_level,
+                        'score': results.score,
+                        'total_possible': results.total_possible,
+                        'assessor': current_user.username,
+                    },
+                    is_active=True,
+                )
+                db.session.add(cert)
+                db.session.commit()
+                log = AuditLog(
+                    user_id=current_user.id, action='certificate_issued',
+                    resource_type='certificate', resource_id=cert.id,
+                    details={'cert_number': cert_num, 'level': results.certification_level,
+                             'business': business.name, 'ip': request.remote_addr},
+                )
+                db.session.add(log)
+                db.session.commit()
+                flash(f'Certificate {cert_num} issued ({results.certification_level})!', 'success')
+
             flash('Assessment completed successfully!', 'success')
             return redirect(url_for('results', assessment_id=assessment.id))
 
@@ -827,7 +893,11 @@ def results(assessment_id):
         address=assessment.business.address if assessment.business else ''
     )
 
-    return render_template('results.html', results=result_obj, business_info=business_info, assessment_id=assessment_id)
+    # Fetch associated certificate (if any)
+    certificate = Certificate.query.filter_by(assessment_id=assessment_id, is_active=True).first()
+
+    return render_template('results.html', results=result_obj, business_info=business_info,
+                           assessment_id=assessment_id, certificate=certificate)
 
 @app.route('/download/<int:assessment_id>/<format>')
 @login_required
@@ -1123,6 +1193,118 @@ def report_zambia_incident():
         flash('Incident report submitted. For urgent cases, contact ZICTA or CERT.', 'info')
         return redirect(zicta_url)
     return render_template('report_zambia_incident.html', zicta_url=zicta_url, cert_url=cert_url)
+
+# ------------------------------------------------------------------
+# Remediation Tracking
+# ------------------------------------------------------------------
+
+@app.route('/remediation/<int:assessment_id>')
+@login_required
+def remediation_list(assessment_id):
+    """View and manage remediation tasks for an assessment."""
+    query = Assessment.query
+    if current_user.role == 'admin':
+        query = query.filter_by(id=assessment_id)
+    elif current_user.role == 'business_owner' and current_user.business_id:
+        query = query.filter_by(id=assessment_id, business_id=current_user.business_id)
+    else:
+        query = query.filter_by(id=assessment_id, assessor_id=current_user.id)
+    assessment = query.first_or_404()
+
+    remediations = Remediation.query.filter_by(assessment_id=assessment_id).order_by(
+        Remediation.created_at.desc()
+    ).all()
+
+    # Controls that failed or had warnings – auto-suggest remediations
+    data = assessment.controls_results or {}
+    controls = data.get('controls', {})
+    gap_controls = [
+        (k, v) for k, v in controls.items()
+        if v.get('status') in ('FAIL', 'WARNING', 'ERROR')
+    ]
+
+    return render_template(
+        'remediation.html',
+        assessment=assessment,
+        remediations=remediations,
+        gap_controls=gap_controls,
+        now=datetime.utcnow(),
+    )
+
+
+@app.route('/remediation/<int:assessment_id>/create', methods=['POST'])
+@login_required
+def remediation_create(assessment_id):
+    """Create a remediation task for a failed/warning control."""
+    query = Assessment.query
+    if current_user.role == 'admin':
+        query = query.filter_by(id=assessment_id)
+    elif current_user.role == 'business_owner' and current_user.business_id:
+        query = query.filter_by(id=assessment_id, business_id=current_user.business_id)
+    else:
+        query = query.filter_by(id=assessment_id, assessor_id=current_user.id)
+    assessment = query.first_or_404()
+
+    control_id = request.form.get('control_id', '').strip()
+    control_name = request.form.get('control_name', '').strip()
+    notes = request.form.get('notes', '').strip()
+    priority = request.form.get('priority', 'medium')
+    due_str = request.form.get('due_date', '')
+    due_date = None
+    if due_str:
+        try:
+            from datetime import date
+            due_date = datetime.strptime(due_str, '%Y-%m-%d').date()
+        except ValueError:
+            pass
+
+    if not control_id:
+        flash('Control ID is required.', 'error')
+        return redirect(url_for('remediation_list', assessment_id=assessment_id))
+
+    rem = Remediation(
+        assessment_id=assessment_id,
+        control_id=control_id,
+        control_name=control_name,
+        notes=notes,
+        priority=priority,
+        due_date=due_date,
+        status='open',
+        created_by=current_user.id,
+    )
+    db.session.add(rem)
+    log = AuditLog(
+        user_id=current_user.id, action='remediation_created',
+        resource_type='remediation', resource_id=None,
+        details={'control_id': control_id, 'assessment_id': assessment_id, 'ip': request.remote_addr},
+    )
+    db.session.add(log)
+    db.session.commit()
+    flash(f'Remediation task created for {control_id}.', 'success')
+    return redirect(url_for('remediation_list', assessment_id=assessment_id))
+
+
+@app.route('/remediation/update/<int:rem_id>', methods=['POST'])
+@login_required
+def remediation_update(rem_id):
+    """Update status/notes of a remediation task."""
+    rem = Remediation.query.get_or_404(rem_id)
+    new_status = request.form.get('status', rem.status)
+    new_notes = request.form.get('notes', rem.notes)
+    rem.status = new_status
+    rem.notes = new_notes
+    if new_status == 'resolved' and not rem.resolved_at:
+        rem.resolved_at = datetime.utcnow()
+    log = AuditLog(
+        user_id=current_user.id, action='remediation_updated',
+        resource_type='remediation', resource_id=rem.id,
+        details={'status': new_status, 'ip': request.remote_addr},
+    )
+    db.session.add(log)
+    db.session.commit()
+    flash('Remediation task updated.', 'success')
+    return redirect(url_for('remediation_list', assessment_id=rem.assessment_id))
+
 
 def check_outdated_software():
     """Check for outdated Python packages."""

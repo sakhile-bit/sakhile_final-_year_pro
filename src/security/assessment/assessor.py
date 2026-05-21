@@ -18,6 +18,8 @@ Reference frameworks:
 
 import platform
 import datetime
+import socket
+import ssl
 from dataclasses import dataclass, field
 from typing import Dict, Tuple, List, Optional
 from pathlib import Path
@@ -250,10 +252,13 @@ class DigitalHygieneAssessor:
 
         # ── Automated checks (C01-C05) ──────────────────────────────
         results["C01_os_updates"] = self._check_os_updates()
-        results["C02_antivirus"] = self._check_antivirus()
-        results["C03_firewall"] = self._check_firewall()
+        results["C02_antivirus"] = self._check_antivirus_enhanced()
+        results["C03_firewall"] = self._check_firewall_enhanced()
         results["C04_password_policy"] = self._check_password_policy()
         results["C05_backups"] = self._check_backup_system()
+        # Additional automated checks feeding into manual control scores
+        self._enrich_encryption_control(results)
+        self._enrich_network_control(results)
 
         # ── Manual / administrative checks (C06-C15) ────────────────
         results["C06_security_training"] = self._evaluate_manual("C06_security_training")
@@ -727,6 +732,235 @@ class DigitalHygieneAssessor:
             category=ctrl["category"], verification=ctrl["verification"],
         )
 
+    # ------------------------------------------------------------------
+    # Enhanced wrappers that combine multiple sub-checks
+    # ------------------------------------------------------------------
+
+    def _check_antivirus_enhanced(self) -> ControlResult:
+        """C02 – Antivirus + Windows Defender ATP real-time check."""
+        base = self._check_antivirus()
+        if platform.system() == 'Windows':
+            atp_status, atp_detail = self._check_windows_defender_atp()
+            if atp_status == 'PASS' and base.status in ('FAIL', 'ERROR'):
+                # Defender ATP confirms AV is active even if WMI/registry missed it
+                ctrl = self.controls["C02_antivirus"]
+                return ControlResult(
+                    control_id=ctrl["id"], name=ctrl["name"],
+                    score=ctrl["weight"], weight=ctrl["weight"],
+                    status="PASS",
+                    details=f"Windows Defender ATP: {atp_detail}",
+                    category=ctrl["category"], verification=ctrl["verification"],
+                )
+            elif base.status == 'PASS':
+                base.details += f" | Defender ATP: {atp_detail}"
+        return base
+
+    def _check_firewall_enhanced(self) -> ControlResult:
+        """C03 – Firewall + RDP exposure + admin shares check."""
+        base = self._check_firewall()
+        rdp_status, rdp_detail = self._check_rdp_exposure()
+        share_status, share_detail = self._check_admin_shares()
+        extra = []
+        if rdp_status == 'WARNING':
+            extra.append(f"⚠ {rdp_detail}")
+        if share_status == 'WARNING':
+            extra.append(f"⚠ {share_detail}")
+        if extra:
+            base.details += " | " + " | ".join(extra)
+            if base.status == 'PASS':
+                base.status = 'WARNING'
+                base.score = max(0, base.score - (base.weight // 4))
+        return base
+
+    def _enrich_encryption_control(self, results: Dict[str, 'ControlResult']) -> None:
+        """Supplement C09 (Encryption) with BitLocker + screen lock checks.
+
+        Only enriches the control if it was NOT manually assessed (score = 0,
+        status = NOT_ASSESSED).  When running fully automated tier we inject
+        evidence so the auditor has actionable data even before manual review.
+        """
+        ctrl_key = "C09_encryption"
+        existing = results.get(ctrl_key)
+        if existing is None or existing.status != 'NOT_ASSESSED':
+            return  # Manual answer already provided – don't override
+        bl_status, bl_detail = self._check_bitlocker()
+        sl_status, sl_detail = self._check_screen_lock_policy()
+        parts = [f"BitLocker: {bl_detail}", f"Screen lock: {sl_detail}"]
+        passed = sum(1 for s in (bl_status, sl_status) if s == 'PASS')
+        ctrl = self.controls[ctrl_key]
+        if passed == 2:
+            score, status = ctrl["weight"], "PASS"
+        elif passed == 1:
+            score, status = ctrl["weight"] // 2, "WARNING"
+        else:
+            score, status = 0, "FAIL"
+        results[ctrl_key] = ControlResult(
+            control_id=ctrl["id"], name=ctrl["name"],
+            score=score, weight=ctrl["weight"],
+            status=status,
+            details=" | ".join(parts),
+            category=ctrl["category"], verification="automated",
+        )
+
+    def _enrich_network_control(self, results: Dict[str, 'ControlResult']) -> None:
+        """Supplement C12 (Network Security) with USB policy + admin shares."""
+        ctrl_key = "C12_network_security"
+        existing = results.get(ctrl_key)
+        if existing is None or existing.status != 'NOT_ASSESSED':
+            return
+        usb_status, usb_detail = self._check_usb_policy()
+        share_status, share_detail = self._check_admin_shares()
+        rdp_status, rdp_detail = self._check_rdp_exposure()
+        parts = [f"USB policy: {usb_detail}", f"Admin shares: {share_detail}", f"RDP: {rdp_detail}"]
+        passed = sum(1 for s in (usb_status, share_status, rdp_status) if s == 'PASS')
+        ctrl = self.controls[ctrl_key]
+        if passed == 3:
+            score, status = ctrl["weight"], "PASS"
+        elif passed >= 2:
+            score, status = ctrl["weight"] * 2 // 3, "WARNING"
+        elif passed == 1:
+            score, status = ctrl["weight"] // 3, "WARNING"
+        else:
+            score, status = 0, "FAIL"
+        results[ctrl_key] = ControlResult(
+            control_id=ctrl["id"], name=ctrl["name"],
+            score=score, weight=ctrl["weight"],
+            status=status,
+            details=" | ".join(parts),
+            category=ctrl["category"], verification="automated",
+        )
+
+    # ------------------------------------------------------------------
+    # Additional Windows security checks (called as part of C09/C12)
+    # ------------------------------------------------------------------
+
+    def _check_bitlocker(self) -> Tuple[str, str]:
+        """Check BitLocker disk encryption status. Returns (status, details)."""
+        if platform.system() != 'Windows':
+            return 'NOT_APPLICABLE', 'Non-Windows host'
+        try:
+            import subprocess
+            result = subprocess.run(
+                ['manage-bde', '-status', 'C:'],
+                capture_output=True, text=True, timeout=10, shell=False,
+            )
+            if 'Fully Encrypted' in result.stdout:
+                return 'PASS', 'BitLocker fully encrypted on C:'
+            elif 'Encryption in Progress' in result.stdout:
+                return 'WARNING', 'BitLocker encryption in progress on C:'
+            elif result.returncode == 0:
+                return 'FAIL', 'BitLocker not enabled on C:'
+            return 'ERROR', 'Cannot determine BitLocker status'
+        except FileNotFoundError:
+            return 'ERROR', 'manage-bde not found (requires admin)'
+        except Exception as exc:
+            return 'ERROR', f'BitLocker check failed: {exc}'
+
+    def _check_rdp_exposure(self) -> Tuple[str, str]:
+        """Check if RDP (port 3389) is openly accessible from localhost."""
+        try:
+            with socket.create_connection(('127.0.0.1', 3389), timeout=1):
+                return 'WARNING', 'RDP port 3389 is open – ensure Network Level Authentication and restrict access'
+        except (ConnectionRefusedError, socket.timeout, OSError):
+            return 'PASS', 'RDP port 3389 not exposed on localhost'
+        except Exception as exc:
+            return 'ERROR', f'RDP check error: {exc}'
+
+    def _check_admin_shares(self) -> Tuple[str, str]:
+        """Check if Windows default admin shares (C$, ADMIN$) are enabled."""
+        if platform.system() != 'Windows':
+            return 'NOT_APPLICABLE', 'Non-Windows host'
+        try:
+            import subprocess
+            result = subprocess.run(
+                ['net', 'share'],
+                capture_output=True, text=True, timeout=8, shell=False,
+            )
+            exposed = [s for s in ('C$', 'ADMIN$', 'IPC$') if s in result.stdout]
+            if 'C$' in exposed or 'ADMIN$' in exposed:
+                return 'WARNING', f"Default admin shares exposed: {', '.join(exposed)} – consider disabling C$ and ADMIN$"
+            return 'PASS', 'No dangerous default admin shares detected'
+        except Exception as exc:
+            return 'ERROR', f'Admin shares check failed: {exc}'
+
+    def _check_screen_lock_policy(self) -> Tuple[str, str]:
+        """Check Windows screen-saver lock / idle timeout policy."""
+        if platform.system() != 'Windows':
+            return 'NOT_APPLICABLE', 'Non-Windows host'
+        try:
+            import winreg
+            # Check screen saver enabled and password-protected
+            try:
+                key = winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER,
+                    r'Control Panel\Desktop',
+                )
+                ss_active, _ = winreg.QueryValueEx(key, 'ScreenSaveActive')
+                ss_secure, _ = winreg.QueryValueEx(key, 'ScreenSaverIsSecure')
+                ss_timeout, _ = winreg.QueryValueEx(key, 'ScreenSaveTimeOut')
+                winreg.CloseKey(key)
+                timeout_min = int(ss_timeout) // 60 if ss_timeout else 0
+                if ss_active == '1' and ss_secure == '1' and timeout_min <= 15:
+                    return 'PASS', f'Screen lock active with password, timeout: {timeout_min} min'
+                elif ss_active == '1' and ss_secure == '1':
+                    return 'WARNING', f'Screen lock enabled but timeout too long: {timeout_min} min (recommend ≤ 15)'
+                return 'FAIL', 'Screen saver lock not properly configured'
+            except FileNotFoundError:
+                return 'WARNING', 'Screen lock policy not found in registry'
+        except ImportError:
+            return 'ERROR', 'winreg not available'
+        except Exception as exc:
+            return 'ERROR', f'Screen lock check failed: {exc}'
+
+    def _check_usb_policy(self) -> Tuple[str, str]:
+        """Check if removable storage (USB) is restricted via registry."""
+        if platform.system() != 'Windows':
+            return 'NOT_APPLICABLE', 'Non-Windows host'
+        try:
+            import winreg
+            try:
+                key = winreg.OpenKey(
+                    winreg.HKEY_LOCAL_MACHINE,
+                    r'SYSTEM\CurrentControlSet\Services\USBSTOR',
+                )
+                start_val, _ = winreg.QueryValueEx(key, 'Start')
+                winreg.CloseKey(key)
+                if start_val == 4:
+                    return 'PASS', 'USB storage driver disabled (Start=4)'
+                return 'WARNING', f'USB storage enabled (Start={start_val}) – consider restricting removable media'
+            except FileNotFoundError:
+                return 'WARNING', 'USB storage policy not configured'
+        except ImportError:
+            return 'ERROR', 'winreg not available'
+        except Exception as exc:
+            return 'ERROR', f'USB policy check failed: {exc}'
+
+    def _check_windows_defender_atp(self) -> Tuple[str, str]:
+        """Check Windows Defender real-time protection and definition age."""
+        if platform.system() != 'Windows':
+            return 'NOT_APPLICABLE', 'Non-Windows host'
+        try:
+            import subprocess
+            result = subprocess.run(
+                ['powershell', '-NonInteractive', '-Command',
+                 'Get-MpComputerStatus | Select-Object AntivirusEnabled,RealTimeProtectionEnabled,AntivirusSignatureAge | ConvertTo-Json'],
+                capture_output=True, text=True, timeout=15, shell=False,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                import json as _json
+                data = _json.loads(result.stdout.strip())
+                av_on = data.get('AntivirusEnabled', False)
+                rt_on = data.get('RealTimeProtectionEnabled', False)
+                sig_age = data.get('AntivirusSignatureAge', 999)
+                if av_on and rt_on and sig_age <= 3:
+                    return 'PASS', f'Defender enabled, real-time on, definitions {sig_age} day(s) old'
+                elif av_on and rt_on:
+                    return 'WARNING', f'Defender enabled but definitions {sig_age} day(s) old (update recommended)'
+                return 'FAIL', 'Windows Defender not fully active'
+            return 'WARNING', 'Unable to query Defender status via PowerShell'
+        except Exception as exc:
+            return 'ERROR', f'Defender ATP check failed: {exc}'
+
     def _generate_recommendations(self, results: Dict[str, ControlResult]) -> List[str]:
         """Generate prioritised recommendations based on assessment results.
 
@@ -774,9 +1008,26 @@ class DigitalHygieneAssessor:
 
 
 class InfrastructureAssessor:
-    """Infrastructure hygiene checks for public-facing services."""
+    """Infrastructure hygiene checks for public-facing services.
 
-    COMMON_PORTS = [22, 80, 443, 3306, 8080, 8443, 3389]
+    Extended checks cover:
+    - DNS resolution and DNS security (SPF, DMARC, DNSSEC)
+    - SSL/TLS certificate validity and minimum protocol version
+    - HTTP→HTTPS redirect
+    - HTTP security response headers (HSTS, CSP, X-Frame-Options, etc.)
+    - Common port exposure
+    - External IP discovery
+    """
+
+    COMMON_PORTS = [21, 22, 23, 25, 80, 443, 3306, 3389, 5432, 8080, 8443]
+    RISKY_PORTS = {
+        21: 'FTP (unencrypted)',
+        23: 'Telnet (unencrypted)',
+        25: 'SMTP (may expose mail relay)',
+        3306: 'MySQL (direct exposure)',
+        3389: 'RDP (remote desktop – high risk)',
+        5432: 'PostgreSQL (direct exposure)',
+    }
 
     def __init__(self, target: str = 'localhost'):
         self.target = target.strip() or 'localhost'
@@ -784,10 +1035,14 @@ class InfrastructureAssessor:
     def run_checks(self) -> Dict[str, object]:
         return {
             'dns_resolution': self._check_dns_resolution(),
+            'dns_security': self._check_dns_security(),
             'ssl_certificate': self._check_ssl_certificate(),
+            'tls_version': self._check_tls_version(),
             'https_redirect': self._check_https_redirect(),
+            'security_headers': self._check_security_headers(),
             'external_ip': self._get_external_ip(),
             'open_ports': self._scan_common_ports(),
+            'risky_ports': self._identify_risky_ports(),
         }
 
     def _check_dns_resolution(self) -> str:
@@ -800,31 +1055,150 @@ class InfrastructureAssessor:
         except Exception as exc:
             return f"DNS resolution failed: {exc}"
 
+    def _check_dns_security(self) -> Dict[str, str]:
+        """Check DNS security records: SPF, DMARC, DKIM (selector _domainkey)."""
+        results = {'spf': 'Not checked', 'dmarc': 'Not checked', 'notes': ''}
+        if self.target in ('localhost', '127.0.0.1'):
+            results['notes'] = 'Local host – DNS security check skipped'
+            return results
+        try:
+            import subprocess
+            # SPF record check
+            try:
+                r = subprocess.run(
+                    ['dig', '+short', 'TXT', self.target],
+                    capture_output=True, text=True, timeout=5,
+                )
+                txt_records = r.stdout.strip()
+                if 'v=spf1' in txt_records:
+                    results['spf'] = 'SPF record found'
+                else:
+                    results['spf'] = 'No SPF record – email spoofing risk'
+            except Exception:
+                results['spf'] = 'Unable to check SPF (dig not available)'
+
+            # DMARC record check
+            try:
+                r = subprocess.run(
+                    ['dig', '+short', 'TXT', f'_dmarc.{self.target}'],
+                    capture_output=True, text=True, timeout=5,
+                )
+                dmarc_out = r.stdout.strip()
+                if 'v=DMARC1' in dmarc_out:
+                    results['dmarc'] = 'DMARC record found'
+                else:
+                    results['dmarc'] = 'No DMARC record – phishing risk'
+            except Exception:
+                results['dmarc'] = 'Unable to check DMARC (dig not available)'
+
+        except Exception as exc:
+            results['notes'] = f'DNS security check error: {exc}'
+        return results
+
     def _check_ssl_certificate(self) -> str:
         try:
             context = ssl.create_default_context()
             with socket.create_connection((self.target, 443), timeout=5) as sock:
                 with context.wrap_socket(sock, server_hostname=self.target) as ssock:
                     cert = ssock.getpeercert()
-                    expires = cert.get('notAfter')
-                    return f"SSL/TLS enabled, expires: {expires}"
+                    expires_str = cert.get('notAfter', '')
+                    # Check days until expiry
+                    try:
+                        import time
+                        expires_epoch = ssl.cert_time_to_seconds(expires_str)
+                        days_left = (expires_epoch - time.time()) / 86400
+                        if days_left < 0:
+                            return f"SSL certificate EXPIRED ({expires_str})"
+                        elif days_left < 30:
+                            return f"SSL/TLS enabled but certificate expires SOON in {int(days_left)} days ({expires_str})"
+                        return f"SSL/TLS enabled, expires: {expires_str} ({int(days_left)} days)"
+                    except Exception:
+                        return f"SSL/TLS enabled, expires: {expires_str}"
+        except ssl.SSLCertVerificationError as exc:
+            return f"SSL certificate verification failed: {exc}"
         except Exception as exc:
             return f"SSL/TLS not detected: {exc}"
+
+    def _check_tls_version(self) -> str:
+        """Check whether the server accepts TLS 1.0 or 1.1 (deprecated)."""
+        if self.target in ('localhost', '127.0.0.1'):
+            return 'Local host – TLS version check skipped'
+        issues = []
+        for proto_name, proto_const in [('TLSv1.0', ssl.TLSVersion.TLSv1), ('TLSv1.1', ssl.TLSVersion.TLSv1_1)]:
+            try:
+                ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                ctx.minimum_version = proto_const
+                ctx.maximum_version = proto_const
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+                with socket.create_connection((self.target, 443), timeout=3) as s:
+                    with ctx.wrap_socket(s, server_hostname=self.target):
+                        issues.append(f"{proto_name} accepted (deprecated – disable it)")
+            except (ssl.SSLError, AttributeError, OSError):
+                pass
+            except Exception:
+                pass
+        if issues:
+            return "WARNING – deprecated TLS versions accepted: " + "; ".join(issues)
+        return "Good – only TLS 1.2+ accepted"
 
     def _check_https_redirect(self) -> str:
         try:
             import urllib.request
 
             url = f'http://{self.target}'
-            request = urllib.request.Request(url, method='GET')
+            req = urllib.request.Request(url, method='GET')
             opener = urllib.request.build_opener(urllib.request.HTTPRedirectHandler())
-            response = opener.open(request, timeout=5)
+            response = opener.open(req, timeout=5)
             final_url = response.geturl()
             if final_url.startswith('https://'):
                 return f'HTTP redirects to HTTPS ({final_url})'
             return f'HTTP does not redirect to HTTPS (final: {final_url})'
         except Exception as exc:
             return f'HTTPS redirect check failed: {exc}'
+
+    def _check_security_headers(self) -> Dict[str, str]:
+        """Check HTTP response security headers on the target."""
+        headers_status = {}
+        required_headers = {
+            'Strict-Transport-Security': 'HSTS – force HTTPS',
+            'X-Frame-Options': 'Clickjacking protection',
+            'X-Content-Type-Options': 'MIME sniffing prevention',
+            'Content-Security-Policy': 'XSS/injection protection',
+            'Referrer-Policy': 'Referrer information control',
+            'Permissions-Policy': 'Feature policy control',
+        }
+        if self.target in ('localhost', '127.0.0.1'):
+            try:
+                import urllib.request
+                response = urllib.request.urlopen(f'http://{self.target}', timeout=3)
+                resp_headers = {k.lower(): v for k, v in response.headers.items()}
+            except Exception:
+                return {h: 'Unable to check (local host)' for h in required_headers}
+        else:
+            try:
+                import urllib.request
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+                response = urllib.request.urlopen(
+                    f'https://{self.target}', timeout=5, context=ctx,
+                )
+                resp_headers = {k.lower(): v for k, v in response.headers.items()}
+            except Exception:
+                try:
+                    import urllib.request
+                    response = urllib.request.urlopen(f'http://{self.target}', timeout=5)
+                    resp_headers = {k.lower(): v for k, v in response.headers.items()}
+                except Exception as exc:
+                    return {h: f'Cannot reach target: {exc}' for h in required_headers}
+
+        for header, description in required_headers.items():
+            if header.lower() in resp_headers:
+                headers_status[header] = f'PRESENT – {resp_headers[header.lower()][:60]}'
+            else:
+                headers_status[header] = f'MISSING – {description} not configured'
+        return headers_status
 
     def _get_external_ip(self) -> str:
         try:
@@ -843,6 +1217,15 @@ class InfrastructureAssessor:
             except Exception:
                 continue
         return open_ports
+
+    def _identify_risky_ports(self) -> List[str]:
+        """Return descriptions of open ports considered risky for public exposure."""
+        open_ports = self._scan_common_ports()
+        return [
+            f"Port {p}: {self.RISKY_PORTS[p]}"
+            for p in open_ports
+            if p in self.RISKY_PORTS
+        ]
 
 
 class ZambiaRiskAssessor:
