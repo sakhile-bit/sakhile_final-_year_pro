@@ -6,10 +6,9 @@ from src.gui.theme import (
     CLR_ACCENT, CLR_ACCENT_HOV, CLR_ACCENT_DIM,
     CLR_BLUE, CLR_BLUE_DIM, CLR_AMBER, CLR_AMBER_DIM,
     CLR_TEXT, CLR_TEXT_SEC, CLR_MUTED, CLR_BORDER, CLR_DIVIDER,
-    CLR_GOLD, CLR_SILVER, CLR_BRONZE, CLR_DANGER,
-    FONT_DISPLAY, FONT_TITLE, FONT_SUBHEAD, FONT_SUBTITLE,
-    FONT_BODY, FONT_SMALL, FONT_CAPTION,
-    PAD, PAD_SM, PAD_LG, BTN_H, BTN_H_LG, BTN_R, APP_NAME, APP_VERSION,
+    CLR_SUCCESS, CLR_WARNING, CLR_DANGER,
+    FONT_DISPLAY, FONT_SUBHEAD, FONT_SUBTITLE, FONT_SMALL, FONT_CAPTION,
+    PAD_LG, BTN_H_LG, BTN_R, APP_NAME, APP_VERSION,
     TIER_COLOURS,
 )
 
@@ -20,13 +19,16 @@ TIER_ICON = {"GOLD": "🥇", "SILVER": "🥈", "BRONZE": "🥉", "NOT CERTIFIED"
 class WelcomeScreen(ctk.CTkFrame):
 
     def __init__(self, master, on_start, on_history=None, on_infra=None,
-                 on_zambia_risk=None, on_policies=None):
+                 on_zambia_risk=None, on_policies=None,
+                 on_network=None, on_deploy=None):
         super().__init__(master, fg_color=CLR_BG, corner_radius=0)
         self._on_start = on_start
         self._on_history = on_history or (lambda: None)
         self._on_infra = on_infra or (lambda: None)
         self._on_zambia_risk = on_zambia_risk or (lambda: None)
         self._on_policies = on_policies or (lambda: None)
+        self._on_network = on_network or (lambda: None)
+        self._on_deploy = on_deploy or (lambda: None)
         self._build()
 
     # ------------------------------------------------------------------ build
@@ -289,17 +291,21 @@ class WelcomeScreen(ctk.CTkFrame):
 
         grid = ctk.CTkFrame(parent, fg_color="transparent")
         grid.grid(row=row, column=0, sticky="ew")
-        grid.grid_columnconfigure((0, 1), weight=1)
+        grid.grid_columnconfigure((0, 1, 2), weight=1)
 
         tools = [
             (f"📋  History{' (' + str(count) + ')' if count else ''}",
-             CLR_ACCENT, CLR_ACCENT_DIM, self._on_history, 0, 0),
+             CLR_ACCENT,  CLR_ACCENT_DIM, self._on_history,      0, 0),
+            ("🌐  Network Scan",
+             "#00B0D0",   "#001A20",      self._on_network,       0, 1),
             ("🔍  Infra Scan",
-             CLR_BLUE, CLR_BLUE_DIM, self._on_infra, 0, 1),
+             CLR_BLUE,    CLR_BLUE_DIM,   self._on_infra,         0, 2),
             ("🇿🇲  Zambia Risk",
-             CLR_AMBER, CLR_AMBER_DIM, self._on_zambia_risk, 1, 0),
+             CLR_AMBER,   CLR_AMBER_DIM,  self._on_zambia_risk,   1, 0),
             ("📄  Policy Docs",
-             "#CD8A3A", "#1A0E00", self._on_policies, 1, 1),
+             "#CD8A3A",   "#1A0E00",      self._on_policies,      1, 1),
+            ("🚀  Deploy Check",
+             CLR_SUCCESS, "#003D28",      self._on_deploy,        1, 2),
         ]
         for label, clr, hov, cmd, r, c in tools:
             btn = ctk.CTkFrame(grid, fg_color=CLR_SURFACE, corner_radius=12,

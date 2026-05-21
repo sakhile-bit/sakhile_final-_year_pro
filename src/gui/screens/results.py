@@ -326,13 +326,25 @@ class ResultsScreen(ctk.CTkFrame):
         nav.grid_columnconfigure(1, weight=1)
         nav.grid_propagate(False)
 
+        # Home / New Assessment button
+        left_btns = ctk.CTkFrame(nav, fg_color="transparent")
+        left_btns.grid(row=0, column=0, padx=PAD, pady=14)
+
         ctk.CTkButton(
-            nav, text="New Assessment", font=FONT_BODY,
+            left_btns, text="<- Home", font=FONT_BODY,
             fg_color="transparent", border_color=CLR_BORDER, border_width=1,
             text_color=CLR_TEXT_SEC, hover_color=CLR_SURFACE_ALT,
             height=BTN_H, corner_radius=BTN_R,
             command=self._on_restart,
-        ).grid(row=0, column=0, padx=PAD, pady=14)
+        ).pack(side="left", padx=(0, 8))
+
+        ctk.CTkButton(
+            left_btns, text="+ New Assessment", font=FONT_BODY,
+            fg_color="transparent", border_color=CLR_ACCENT, border_width=1,
+            text_color=CLR_ACCENT, hover_color=CLR_SURFACE_ALT,
+            height=BTN_H, corner_radius=BTN_R,
+            command=self._on_restart,
+        ).pack(side="left")
 
         export_btns = [
             ("💾  JSON",         CLR_ACCENT, CLR_ACCENT_HOV, "#000000",
