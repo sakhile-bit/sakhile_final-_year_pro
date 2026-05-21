@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+{% block title %}Remediation Plan – {{ assessment.business.name }}{% endblock %}
+{% block content %}
+<div class="container-fluid py-4">
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="fw-bold mb-1" style="color:var(--brand)">
+        <i class="fas fa-tools me-2"></i>Remediation Plan
+      </h2>
+      <p class="text-muted mb-0">
+        {{ assessment.business.name }} &nbsp;·&nbsp;
+        Assessment #{{ assessment.id }} &nbsp;·&nbsp;
+        Score: {{ assessment.total_score }} &nbsp;·&nbsp;
+        <span class="badge
+          {% if assessment.certification_level == 'GOLD' %}bg-warning text-dark
+          {% elif assessment.certification_level == 'SILVER' %}bg-secondary
+          {% elif assessment.certification_level == 'BRONZE' %}bg-danger
+          {% else %}bg-dark{% endif %}">
+          {{ assessment.certification_level }}
+        </span>
+      </p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('results', assessment_id=assessment.id) }}" class="btn btn-outline-light btn-sm">
+        <i class="fas fa-arrow-left me-1"></i>Back to Results
+      </a>
+    </div>
+  </div>
+
+  <div class="row g-4">
+
+    <!-- Left: Create new task -->
+    <div class="col-lg-4">
+      <div class="card bg-dark border-secondary">
+        <div class="card-header border-secondary">
+          <h6 class="mb-0 fw-bold" style="color:var(--brand)">
+            <i class="fas fa-plus-circle me-1"></i>Add Remediation Task
+          </h6>
+        </div>
+        <div class="card-body">
+          <!-- Quick-add from gap controls -->
+          {% if gap_controls %}
+          <p class="small text-muted mb-2">Detected gaps requiring action:</p>
+          <form method="POST" action="{{ url_for('remediation_create', assessment_id=assessment.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="mb-2">
+              <label class="form-label small text-muted">Control</label>
+              <select name="control_id" class="form-select form-select-sm bg-dark text-light border-secondary" id="ctrl-select" onchange="updateCtrlName(this)">
+                {% for key, ctrl in gap_controls %}
+                <option value="{{ ctrl.control_id }}" data-name="{{ ctrl.name }}">
+                  {{ ctrl.control_id }} – {{ ctrl.name }} ({{ ctrl.status }})
+                </option>
+                {% endfor %}
+                <option value="OTHER" data-name="Other">Other</option>
+              </select>
+              <input type="hidden" name="control_name" id="ctrl-name-hidden">
+            </div>
+            <div class="mb-2">
+              <label class="form-label small text-muted">Priority</label>
+              <select name="priority" class="form-select form-select-sm bg-dark text-light border-secondary">
+                <option value="critical">🔴 Critical</option>
+                <option value="high">🟠 High</option>
+                <option value="medium" selected>🟡 Medium</option>
+                <option value="low">🟢 Low</option>
+              </select>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small text-muted">Due Date</label>
+              <input type="date" name="due_date" class="form-control form-control-sm bg-dark text-light border-secondary">
+            </div>
+            <div class="mb-3">
+              <label class="form-label small text-muted">Notes / Action Plan</label>
+              <textarea name="notes" rows="3" class="form-control form-control-sm bg-dark text-light border-secondary"
+                placeholder="Describe remediation steps..."></textarea>
+            </div>
+            <button type="submit" class="btn btn-sm w-100" style="background:var(--brand);color:#000;font-weight:600">
+              <i class="fas fa-plus me-1"></i>Create Task
+            </button>
+          </form>
+          {% else %}
+          <div class="text-center py-4 text-muted">
+            <i class="fas fa-check-circle fa-2x mb-2" style="color:var(--brand)"></i>
+            <p class="small mb-0">No failed or warning controls detected.</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Summary stats -->
+      <div class="card bg-dark border-secondary mt-3">
+        <div class="card-header border-secondary">
+          <h6 class="mb-0 fw-bold text-muted">
+            <i class="fas fa-chart-bar me-1"></i>Progress Summary
+          </h6>
+        </div>
+        <div class="card-body">
+          {% set open_count = remediations | selectattr('status', 'eq', 'open') | list | length %}
+          {% set inprog_count = remediations | selectattr('status', 'eq', 'in_progress') | list | length %}
+          {% set resolved_count = remediations | selectattr('status', 'eq', 'resolved') | list | length %}
+          {% set total = remediations | length %}
+          <div class="row text-center g-2">
+            <div class="col-4">
+              <div class="p-2 rounded" style="background:rgba(220,53,69,0.15)">
+                <div class="h4 mb-0 text-danger">{{ open_count }}</div>
+                <small class="text-muted">Open</small>
+              </div>
+            </div>
+            <div class="col-4">
+              <div class="p-2 rounded" style="background:rgba(255,193,7,0.15)">
+                <div class="h4 mb-0 text-warning">{{ inprog_count }}</div>
+                <small class="text-muted">In Progress</small>
+              </div>
+            </div>
+            <div class="col-4">
+              <div class="p-2 rounded" style="background:rgba(0,209,155,0.15)">
+                <div class="h4 mb-0" style="color:var(--brand)">{{ resolved_count }}</div>
+                <small class="text-muted">Resolved</small>
+              </div>
+            </div>
+          </div>
+          {% if total > 0 %}
+          <div class="mt-3">
+            <div class="d-flex justify-content-between small text-muted mb-1">
+              <span>Completion</span>
+              <span>{{ (resolved_count / total * 100) | round(0) | int }}%</span>
+            </div>
+            <div class="progress" style="height:8px;background:rgba(255,255,255,0.1)">
+              <div class="progress-bar" style="width:{{ (resolved_count / total * 100) | round(0) | int }}%;background:var(--brand)"></div>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Tasks list -->
+    <div class="col-lg-8">
+      <div class="card bg-dark border-secondary">
+        <div class="card-header border-secondary d-flex justify-content-between align-items-center">
+          <h6 class="mb-0 fw-bold text-light">
+            <i class="fas fa-list-check me-1"></i>Remediation Tasks ({{ remediations | length }})
+          </h6>
+          <div class="d-flex gap-2">
+            <select id="filter-status" class="form-select form-select-sm bg-dark text-light border-secondary" style="width:auto" onchange="filterTasks(this.value)">
+              <option value="all">All</option>
+              <option value="open">Open</option>
+              <option value="in_progress">In Progress</option>
+              <option value="resolved">Resolved</option>
+            </select>
+          </div>
+        </div>
+        <div class="card-body p-0">
+          {% if remediations %}
+          <div class="list-group list-group-flush" id="task-list">
+            {% for rem in remediations %}
+            <div class="list-group-item bg-dark border-secondary task-item" data-status="{{ rem.status }}">
+              <div class="d-flex justify-content-between align-items-start">
+                <div class="flex-grow-1 me-3">
+                  <div class="d-flex align-items-center gap-2 mb-1">
+                    <span class="badge bg-secondary font-monospace">{{ rem.control_id }}</span>
+                    <strong class="text-light small">{{ rem.control_name or rem.control_id }}</strong>
+                    <span class="badge
+                      {% if rem.priority == 'critical' %}bg-danger
+                      {% elif rem.priority == 'high' %}bg-warning text-dark
+                      {% elif rem.priority == 'medium' %}bg-info text-dark
+                      {% else %}bg-success{% endif %}">
+                      {{ rem.priority | capitalize }}
+                    </span>
+                    <span class="badge
+                      {% if rem.status == 'open' %}bg-danger
+                      {% elif rem.status == 'in_progress' %}bg-warning text-dark
+                      {% else %}bg-success{% endif %}">
+                      {{ rem.status | replace('_', ' ') | title }}
+                    </span>
+                  </div>
+                  {% if rem.notes %}
+                  <p class="small text-muted mb-1">{{ rem.notes }}</p>
+                  {% endif %}
+                  <div class="small text-muted">
+                    Created {{ rem.created_at.strftime('%d %b %Y') }} by {{ rem.creator.username if rem.creator else 'unknown' }}
+                    {% if rem.due_date %}
+                    &nbsp;·&nbsp;
+                    <span class="{% if rem.due_date < now.date() and rem.status != 'resolved' %}text-danger{% endif %}">
+                      Due: {{ rem.due_date.strftime('%d %b %Y') }}
+                    </span>
+                    {% endif %}
+                    {% if rem.resolved_at %}
+                    &nbsp;·&nbsp; Resolved {{ rem.resolved_at.strftime('%d %b %Y') }}
+                    {% endif %}
+                  </div>
+                </div>
+                <!-- Quick update form -->
+                <form method="POST" action="{{ url_for('remediation_update', rem_id=rem.id) }}" class="d-flex gap-1 align-items-center">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="notes" value="{{ rem.notes or '' }}">
+                  <select name="status" class="form-select form-select-sm bg-dark text-light border-secondary" style="width:130px">
+                    <option value="open" {% if rem.status == 'open' %}selected{% endif %}>Open</option>
+                    <option value="in_progress" {% if rem.status == 'in_progress' %}selected{% endif %}>In Progress</option>
+                    <option value="resolved" {% if rem.status == 'resolved' %}selected{% endif %}>Resolved</option>
+                  </select>
+                  <button type="submit" class="btn btn-sm btn-outline-light" title="Save">
+                    <i class="fas fa-save"></i>
+                  </button>
+                </form>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="text-center py-5 text-muted">
+            <i class="fas fa-clipboard-list fa-3x mb-3 opacity-25"></i>
+            <p>No remediation tasks yet. Add tasks from the failed controls on the left.</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function updateCtrlName(sel) {
+  const opt = sel.options[sel.selectedIndex];
+  document.getElementById('ctrl-name-hidden').value = opt.dataset.name || opt.text;
+}
+// Init on load
+document.addEventListener('DOMContentLoaded', function() {
+  const sel = document.getElementById('ctrl-select');
+  if (sel) updateCtrlName(sel);
+});
+
+function filterTasks(status) {
+  document.querySelectorAll('.task-item').forEach(el => {
+    el.style.display = (status === 'all' || el.dataset.status === status) ? '' : 'none';
+  });
+}
+</script>
+
+{% endblock %}

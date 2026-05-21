@@ -199,20 +199,28 @@ class ResultsScreen(ctk.CTkFrame):
         ).grid(row=0, column=0, padx=PAD, pady=14)
 
         ctk.CTkButton(
-            nav, text="💾  Save JSON Report",
+            nav, text="💾  Save JSON",
             font=FONT_BODY,
             fg_color=CLR_ACCENT, hover_color="#00A87A",
             text_color="#000000", height=36, corner_radius=18,
             command=self._save_json,
-        ).grid(row=0, column=2, padx=(0, 8), pady=14)
+        ).grid(row=0, column=2, padx=(0, 6), pady=14)
 
         ctk.CTkButton(
-            nav, text="📄  Save HTML Report",
+            nav, text="📄  Save HTML",
             font=FONT_BODY,
             fg_color=CLR_ACCENT, hover_color="#00A87A",
             text_color="#000000", height=36, corner_radius=18,
             command=self._save_html,
-        ).grid(row=0, column=3, padx=(0, PAD), pady=14)
+        ).grid(row=0, column=3, padx=(0, 6), pady=14)
+
+        ctk.CTkButton(
+            nav, text="📑  Save PDF",
+            font=FONT_BODY,
+            fg_color="#1a5276", hover_color="#2471a3",
+            text_color="#ffffff", height=36, corner_radius=18,
+            command=self._save_pdf,
+        ).grid(row=0, column=4, padx=(0, PAD), pady=14)
 
     # ----------------------------------------------------------------- export
     def _to_dict(self):
@@ -267,12 +275,40 @@ class ResultsScreen(ctk.CTkFrame):
             with open(path, "w", encoding="utf-8") as f:
                 f.write(html)
             self._show_saved(path)
-            # Open in browser automatically
             import subprocess
             try:
                 os.startfile(path)   # Windows
             except AttributeError:
                 subprocess.Popen(["xdg-open", path])
+
+    def _save_pdf(self):
+        path = filedialog.asksaveasfilename(
+            defaultextension=".pdf",
+            filetypes=[("PDF files", "*.pdf"), ("All files", "*.*")],
+            initialfile=f"assessment_{self._results.business_info.id}.pdf",
+        )
+        if not path:
+            return
+        try:
+            from src.reporting.generator import ReportGenerator
+            gen = ReportGenerator(output_dir=str(os.path.dirname(path)))
+            report_name = os.path.splitext(os.path.basename(path))[0]
+            out = gen.generate_pdf_report(self._results, self._results.business_info, report_name)
+            # Move to user-chosen path if different
+            if out != path:
+                import shutil
+                shutil.move(out, path)
+            self._show_saved(path)
+        except Exception as exc:
+            dlg = ctk.CTkToplevel(self)
+            dlg.title("PDF Error")
+            dlg.geometry("440x160")
+            dlg.configure(fg_color="#1B2A3B")
+            ctk.CTkLabel(
+                dlg, text=f"PDF generation failed:\n{exc}",
+                font=("Segoe UI", 11), text_color="#FF4C4C", wraplength=420,
+            ).pack(pady=24)
+            ctk.CTkButton(dlg, text="OK", command=dlg.destroy).pack()
 
     def _show_saved(self, path):
         dlg = ctk.CTkToplevel(self)

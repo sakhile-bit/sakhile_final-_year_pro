@@ -160,25 +160,220 @@ class ReportGenerator:
     def generate_pdf_report(
         self, results: Any, business_info: Any, report_name: str
     ) -> str:
-        """Generate PDF report.
-        
-        Note: PDF generation requires pdfkit and wkhtmltopdf. Falls back to HTML.
-        
-        Args:
-            results: Assessment results object
-            business_info: Business information object
-            report_name: Base name for the report file
-            
+        """Generate a professional PDF report using ReportLab.
+
+        Falls back to HTML export if ReportLab is not installed.
+
         Returns:
-            Path to generated PDF file (or HTML if PDF not available)
+            Path to the generated PDF (or HTML fallback).
         """
         try:
-            import pdfkit
-            html_path = self.generate_html_report(results, business_info, report_name)
+            from reportlab.lib.pagesizes import A4
+            from reportlab.lib import colors
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.units import cm
+            from reportlab.platypus import (
+                SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+                HRFlowable,
+            )
+            from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+
             pdf_path = str(self.output_dir / f"{report_name}.pdf")
-            
-            pdfkit.from_file(html_path, pdf_path)
+            doc = SimpleDocTemplate(
+                pdf_path,
+                pagesize=A4,
+                topMargin=1.5 * cm,
+                bottomMargin=1.5 * cm,
+                leftMargin=2 * cm,
+                rightMargin=2 * cm,
+                title=f"Digital Hygiene Report – {getattr(business_info, 'name', 'Unknown')}",
+            )
+
+            styles = getSampleStyleSheet()
+            # Custom styles
+            title_style = ParagraphStyle(
+                'CustomTitle', parent=styles['Title'],
+                fontSize=18, textColor=colors.HexColor('#1a5276'),
+                spaceAfter=6, alignment=TA_CENTER,
+            )
+            heading2 = ParagraphStyle(
+                'H2', parent=styles['Heading2'],
+                fontSize=12, textColor=colors.HexColor('#1a5276'),
+                spaceBefore=12, spaceAfter=4,
+            )
+            normal = ParagraphStyle(
+                'N', parent=styles['Normal'], fontSize=9, leading=13,
+            )
+            small = ParagraphStyle(
+                'Small', parent=styles['Normal'], fontSize=8,
+                textColor=colors.HexColor('#555555'),
+            )
+            cert_style = ParagraphStyle(
+                'Cert', parent=styles['Normal'],
+                fontSize=14, fontName='Helvetica-Bold', alignment=TA_CENTER,
+            )
+
+            percentage = round(results.score / results.total_possible * 100, 1) if results.total_possible > 0 else 0
+            critical_failures = getattr(results, 'critical_failures', 0)
+            level = results.certification_level
+            level_hex = {
+                'GOLD': '#b8860b', 'SILVER': '#555555',
+                'BRONZE': '#8B4513', 'NOT CERTIFIED': '#c0392b',
+            }.get(level, '#555555')
+
+            status_hex = {
+                'PASS': '#27ae60', 'WARNING': '#e67e22',
+                'FAIL': '#e74c3c', 'ERROR': '#e74c3c', 'NOT_ASSESSED': '#7f8c8d',
+            }
+
+            story = []
+
+            # ── Header banner ──────────────────────────────────────────
+            story.append(Paragraph("Zambia Digital Hygiene Certification Program", title_style))
+            story.append(Paragraph("Infrastructure Security Assessment Report", styles['Heading3']))
+            story.append(HRFlowable(width="100%", thickness=2, color=colors.HexColor('#1a5276')))
+            story.append(Spacer(1, 6))
+
+            # ── Business info table ────────────────────────────────────
+            biz_data = [
+                ['Business Name', getattr(business_info, 'name', 'N/A'),
+                 'Registration', getattr(business_info, 'id', 'N/A')],
+                ['Industry', getattr(business_info, 'industry', 'N/A'),
+                 'Province', getattr(business_info, 'province', 'N/A')],
+                ['Contact Person', getattr(business_info, 'contact_person', 'N/A'),
+                 'Email', getattr(business_info, 'contact_email', 'N/A')],
+                ['Phone', getattr(business_info, 'contact_phone', 'N/A'),
+                 'Address', getattr(business_info, 'address', 'N/A')],
+            ]
+            biz_table = Table(biz_data, colWidths=[3.5 * cm, 6 * cm, 3 * cm, 4.5 * cm])
+            biz_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a5276')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                ('FONTNAME', (2, 0), (2, -1), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#d6e4f0')),
+                ('BACKGROUND', (2, 0), (2, -1), colors.HexColor('#d6e4f0')),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#aaaaaa')),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('PADDING', (0, 0), (-1, -1), 4),
+            ]))
+            story.append(Paragraph("Business Information", heading2))
+            story.append(biz_table)
+            story.append(Spacer(1, 10))
+
+            # ── Score summary ──────────────────────────────────────────
+            score_color = colors.HexColor(level_hex)
+            summary_data = [
+                [Paragraph('<b>Overall Score</b>', normal),
+                 Paragraph(f'<font size="16" color="{level_hex}"><b>{results.score}/{results.total_possible} ({percentage}%)</b></font>', normal),
+                 Paragraph('<b>Certification Level</b>', normal),
+                 Paragraph(f'<font size="14" color="{level_hex}"><b>{level}</b></font>', normal)],
+                [Paragraph('<b>Controls Assessed</b>', normal),
+                 Paragraph(str(len(results.controls)), normal),
+                 Paragraph('<b>Critical Failures</b>', normal),
+                 Paragraph(f'<font color="#e74c3c"><b>{critical_failures}</b></font>' if critical_failures else '0', normal)],
+            ]
+            summary_table = Table(summary_data, colWidths=[4 * cm, 5.5 * cm, 4 * cm, 3.5 * cm])
+            summary_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#f0f4f8')),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cccccc')),
+                ('PADDING', (0, 0), (-1, -1), 6),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ]))
+            story.append(Paragraph("Assessment Summary", heading2))
+            story.append(summary_table)
+            story.append(Spacer(1, 10))
+
+            # ── Controls table ─────────────────────────────────────────
+            story.append(Paragraph("Control Assessment Results (15 Controls)", heading2))
+            ctrl_header = [
+                Paragraph('<font color="white"><b>ID</b></font>', normal),
+                Paragraph('<font color="white"><b>Control Name</b></font>', normal),
+                Paragraph('<font color="white"><b>Score</b></font>', normal),
+                Paragraph('<font color="white"><b>Status</b></font>', normal),
+                Paragraph('<font color="white"><b>Category</b></font>', normal),
+                Paragraph('<font color="white"><b>Details</b></font>', small),
+            ]
+            ctrl_rows = [ctrl_header]
+            for cid, ctrl in results.controls.items():
+                s = getattr(ctrl, 'status', 'NOT_ASSESSED')
+                shex = status_hex.get(s, '#7f8c8d')
+                ctrl_rows.append([
+                    Paragraph(getattr(ctrl, 'control_id', cid), small),
+                    Paragraph(getattr(ctrl, 'name', ''), small),
+                    Paragraph(f"{getattr(ctrl, 'score', 0)}/{getattr(ctrl, 'weight', 0)}", small),
+                    Paragraph(f'<font color="{shex}"><b>{s}</b></font>', small),
+                    Paragraph(getattr(ctrl, 'category', ''), small),
+                    Paragraph((getattr(ctrl, 'details', '') or '')[:80], small),
+                ])
+
+            ctrl_table = Table(ctrl_rows, colWidths=[1.2 * cm, 4.5 * cm, 1.5 * cm, 2 * cm, 2.2 * cm, 5.6 * cm])
+            ctrl_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a5276')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
+                ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#dee2e6')),
+                ('PADDING', (0, 0), (-1, -1), 4),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ]))
+            story.append(ctrl_table)
+            story.append(Spacer(1, 10))
+
+            # ── Recommendations ────────────────────────────────────────
+            story.append(Paragraph("Recommendations", heading2))
+            for rec in results.recommendations:
+                bullet_color = '#c0392b' if rec.startswith('[CRITICAL]') else '#2c3e50'
+                story.append(Paragraph(
+                    f'<font color="{bullet_color}">• {rec}</font>', normal
+                ))
+                story.append(Spacer(1, 2))
+
+            # ── Certification thresholds ───────────────────────────────
+            story.append(Spacer(1, 8))
+            story.append(Paragraph("Certification Thresholds", heading2))
+            thresh_data = [
+                ['Level', 'Min Score', 'Max Critical Failures', 'Validity'],
+                ['GOLD',   '≥ 80% (≥96/120)', '0',    '12 months'],
+                ['SILVER', '≥ 60% (≥72/120)', '≤ 1',  '12 months'],
+                ['BRONZE', '≥ 40% (≥48/120)', '≤ 2',  '6 months'],
+                ['NOT CERTIFIED', '< 40%',    '> 2',  'N/A'],
+            ]
+            thresh_bg = [
+                colors.HexColor('#1a5276'),
+                colors.HexColor('#b8860b'),
+                colors.HexColor('#777777'),
+                colors.HexColor('#8B4513'),
+                colors.HexColor('#c0392b'),
+            ]
+            thresh_table = Table(thresh_data, colWidths=[4 * cm, 5 * cm, 5 * cm, 3 * cm])
+            thresh_style = [
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a5276')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#aaaaaa')),
+                ('PADDING', (0, 0), (-1, -1), 5),
+                ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
+            ]
+            for i, bg in enumerate(thresh_bg[1:], start=1):
+                thresh_style.append(('BACKGROUND', (0, i), (0, i), bg))
+                thresh_style.append(('TEXTCOLOR', (0, i), (0, i), colors.white))
+            thresh_table.setStyle(TableStyle(thresh_style))
+            story.append(thresh_table)
+
+            # ── Footer ─────────────────────────────────────────────────
+            story.append(Spacer(1, 14))
+            story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#1a5276')))
+            story.append(Paragraph(
+                f"Zambia Digital Hygiene Certification Program | "
+                f"Generated: {datetime.now().strftime('%d %B %Y at %H:%M')} | "
+                f"Frameworks: NIST CSF v1.1 · CIS Controls v8 · ISO 27001:2022 · Cyber Essentials",
+                small,
+            ))
+
+            doc.build(story)
             return pdf_path
+
         except ImportError:
             return self.generate_html_report(results, business_info, report_name)
         except Exception:
