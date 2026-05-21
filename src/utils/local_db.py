@@ -142,3 +142,43 @@ def assessment_count() -> int:
     with _connect() as conn:
         row = conn.execute("SELECT COUNT(*) FROM assessments").fetchone()
     return row[0] if row else 0
+
+
+# ── Reassessment reminder ────────────────────────────────────────────────────
+
+def _ensure_settings_table() -> None:
+    with _connect() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+        """)
+        conn.commit()
+
+
+def set_reassessment_date(date_str: str) -> None:
+    """Store a reassessment due date (ISO format YYYY-MM-DD)."""
+    _ensure_settings_table()
+    with _connect() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('reassessment_due', ?)",
+            (date_str,),
+        )
+        conn.commit()
+
+
+def get_reassessment_date():
+    """Return the reassessment due date as a datetime.date, or None."""
+    import datetime
+    try:
+        _ensure_settings_table()
+        with _connect() as conn:
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = 'reassessment_due'"
+            ).fetchone()
+        if row:
+            return datetime.date.fromisoformat(row[0])
+    except Exception:
+        pass
+    return None
