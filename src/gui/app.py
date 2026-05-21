@@ -46,11 +46,26 @@ class DigitalHygieneApp(ctk.CTk):
             self,
             on_start=self._show_business_info,
             on_history=self._show_history,
+            on_infra=self._show_infra_scanner,
+            on_zambia_risk=self._show_zambia_risk,
+            on_policies=self._show_policy_templates,
         ))
 
     def _show_history(self):
         from src.gui.screens.history import HistoryScreen
         self._swap(HistoryScreen(self, on_back=self._show_welcome))
+
+    def _show_infra_scanner(self):
+        from src.gui.screens.infra_scanner import InfraScannerScreen
+        self._swap(InfraScannerScreen(self, on_back=self._show_welcome))
+
+    def _show_zambia_risk(self):
+        from src.gui.screens.zambia_risk import ZambiaRiskScreen
+        self._swap(ZambiaRiskScreen(self, on_back=self._show_welcome))
+
+    def _show_policy_templates(self):
+        from src.gui.screens.policy_templates import PolicyTemplatesScreen
+        self._swap(PolicyTemplatesScreen(self, on_back=self._show_welcome))
 
     def _show_business_info(self):
         from src.gui.screens.business_info import BusinessInfoScreen
@@ -68,6 +83,7 @@ class DigitalHygieneApp(ctk.CTk):
             business_info=business_info,
             on_next=self._show_manual,
             on_back=self._show_business_info,
+            on_skip=self._show_quick_results,
         ))
 
     def _show_manual(self, auto_results):
@@ -79,7 +95,12 @@ class DigitalHygieneApp(ctk.CTk):
             on_back=lambda: self._show_scanning(self._business_info),  # type: ignore[arg-type]
         ))
 
-    def _show_results(self, manual_scores):
+    def _show_quick_results(self, auto_results):
+        """Skip manual questions — score C06-C15 as NOT_ASSESSED."""
+        self._auto_results = auto_results
+        self._show_results({}, {})
+
+    def _show_results(self, manual_scores, evidence=None):
         from src.security.assessment.assessor import (
             DigitalHygieneAssessor, ControlResult, CONTROL_CATALOGUE,
         )
