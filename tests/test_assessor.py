@@ -157,7 +157,7 @@ class TestInfrastructureAssessor:
                             result = assessor.run_checks()
                             assert result['dns_resolution'] == 'Resolves to 93.184.216.34'
                             assert result['ssl_certificate'] == 'SSL/TLS enabled'
-                            assert result['https_redirect'].startswith('HTTP redirects to HTTPS')
+                            assert str(result['https_redirect']).startswith('HTTP redirects to HTTPS')
                             assert result['external_ip'] == '203.0.113.1'
                             assert result['open_ports'] == [80, 443]
 

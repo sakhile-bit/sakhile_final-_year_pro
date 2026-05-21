@@ -21,7 +21,7 @@ import datetime
 import socket
 import ssl
 from dataclasses import dataclass, field
-from typing import Dict, Tuple, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from pathlib import Path
 from enum import Enum
 
@@ -88,7 +88,7 @@ class AssessmentResults:
 # Full 15-control catalogue as defined in Appendix A of the proposal
 # ---------------------------------------------------------------------------
 
-CONTROL_CATALOGUE = {
+CONTROL_CATALOGUE: Dict[str, Dict[str, Any]] = {
     # ── Automated technical controls (C01-C05) ──────────────────────
     "C01_os_updates": {
         "id": "C01", "name": "Operating System Updates",
@@ -379,7 +379,7 @@ class DigitalHygieneAssessor:
 
             # Check if Windows Update service is running
             service_running = False
-            for service in psutil.win_service_iter():
+            for service in psutil.win_service_iter():  # type: ignore[attr-defined]
                 if service.name().lower() == 'wuauserv':
                     if service.status() == 'running':
                         service_running = True
@@ -387,10 +387,10 @@ class DigitalHygieneAssessor:
 
             # Check last update time from registry
             try:
-                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,  # type: ignore[attr-defined]
                                     r"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\Results\Install")
-                last_update, _ = winreg.QueryValueEx(key, "LastSuccessTime")
-                winreg.CloseKey(key)
+                last_update, _ = winreg.QueryValueEx(key, "LastSuccessTime")  # type: ignore[attr-defined]
+                winreg.CloseKey(key)  # type: ignore[attr-defined]
 
                 last_update_date = datetime.datetime.fromtimestamp(last_update)
                 days_since_update = (datetime.datetime.now() - last_update_date).days
@@ -464,12 +464,12 @@ class DigitalHygieneAssessor:
             if not av_installed:
                 key_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"
                 try:
-                    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path) as key:
-                        for i in range(winreg.QueryInfoKey(key)[0]):
+                    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path) as key:  # type: ignore[attr-defined]
+                        for i in range(winreg.QueryInfoKey(key)[0]):  # type: ignore[attr-defined]
                             try:
-                                subkey_name = winreg.EnumKey(key, i)
-                                with winreg.OpenKey(key, subkey_name) as subkey:
-                                    display_name = winreg.QueryValueEx(subkey, "DisplayName")[0]
+                                subkey_name = winreg.EnumKey(key, i)  # type: ignore[attr-defined]
+                                with winreg.OpenKey(key, subkey_name) as subkey:  # type: ignore[attr-defined]
+                                    display_name = winreg.QueryValueEx(subkey, "DisplayName")[0]  # type: ignore[attr-defined]
                                     if any(t in display_name.lower() for t in ['antivirus', 'security', 'defender']):
                                         av_installed = True
                                         av_name = display_name
@@ -665,12 +665,12 @@ class DigitalHygieneAssessor:
 
             for key_path in software_keys:
                 try:
-                    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path) as key:
-                        for i in range(winreg.QueryInfoKey(key)[0]):
+                    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path) as key:  # type: ignore[attr-defined]
+                        for i in range(winreg.QueryInfoKey(key)[0]):  # type: ignore[attr-defined]
                             try:
-                                subkey_name = winreg.EnumKey(key, i)
-                                with winreg.OpenKey(key, subkey_name) as subkey:
-                                    display_name = winreg.QueryValueEx(subkey, "DisplayName")[0]
+                                subkey_name = winreg.EnumKey(key, i)  # type: ignore[attr-defined]
+                                with winreg.OpenKey(key, subkey_name) as subkey:  # type: ignore[attr-defined]
+                                    display_name = winreg.QueryValueEx(subkey, "DisplayName")[0]  # type: ignore[attr-defined]
                                     if any(t in display_name.lower() for t in [
                                         'backup', 'acronis', 'veeam', 'carbonite',
                                         'backblaze', 'crashplan',
@@ -891,14 +891,14 @@ class DigitalHygieneAssessor:
             import winreg
             # Check screen saver enabled and password-protected
             try:
-                key = winreg.OpenKey(
-                    winreg.HKEY_CURRENT_USER,
+                key = winreg.OpenKey(  # type: ignore[attr-defined]
+                    winreg.HKEY_CURRENT_USER,  # type: ignore[attr-defined]
                     r'Control Panel\Desktop',
                 )
-                ss_active, _ = winreg.QueryValueEx(key, 'ScreenSaveActive')
-                ss_secure, _ = winreg.QueryValueEx(key, 'ScreenSaverIsSecure')
-                ss_timeout, _ = winreg.QueryValueEx(key, 'ScreenSaveTimeOut')
-                winreg.CloseKey(key)
+                ss_active, _ = winreg.QueryValueEx(key, 'ScreenSaveActive')  # type: ignore[attr-defined]
+                ss_secure, _ = winreg.QueryValueEx(key, 'ScreenSaverIsSecure')  # type: ignore[attr-defined]
+                ss_timeout, _ = winreg.QueryValueEx(key, 'ScreenSaveTimeOut')  # type: ignore[attr-defined]
+                winreg.CloseKey(key)  # type: ignore[attr-defined]
                 timeout_min = int(ss_timeout) // 60 if ss_timeout else 0
                 if ss_active == '1' and ss_secure == '1' and timeout_min <= 15:
                     return 'PASS', f'Screen lock active with password, timeout: {timeout_min} min'
@@ -919,12 +919,12 @@ class DigitalHygieneAssessor:
         try:
             import winreg
             try:
-                key = winreg.OpenKey(
-                    winreg.HKEY_LOCAL_MACHINE,
+                key = winreg.OpenKey(  # type: ignore[attr-defined]
+                    winreg.HKEY_LOCAL_MACHINE,  # type: ignore[attr-defined]
                     r'SYSTEM\CurrentControlSet\Services\USBSTOR',
                 )
-                start_val, _ = winreg.QueryValueEx(key, 'Start')
-                winreg.CloseKey(key)
+                start_val, _ = winreg.QueryValueEx(key, 'Start')  # type: ignore[attr-defined]
+                winreg.CloseKey(key)  # type: ignore[attr-defined]
                 if start_val == 4:
                     return 'PASS', 'USB storage driver disabled (Start=4)'
                 return 'WARNING', f'USB storage enabled (Start={start_val}) – consider restricting removable media'
@@ -1032,7 +1032,7 @@ class InfrastructureAssessor:
     def __init__(self, target: str = 'localhost'):
         self.target = target.strip() or 'localhost'
 
-    def run_checks(self) -> Dict[str, object]:
+    def run_checks(self) -> Dict[str, Any]:
         return {
             'dns_resolution': self._check_dns_resolution(),
             'dns_security': self._check_dns_security(),
@@ -1051,7 +1051,7 @@ class InfrastructureAssessor:
             addresses = sorted({item[4][0] for item in infos if item and item[4]})
             if not addresses:
                 return 'No DNS records found'
-            return f"Resolves to {', '.join(addresses)}"
+            return f"Resolves to {', '.join(str(a) for a in addresses)}"
         except Exception as exc:
             return f"DNS resolution failed: {exc}"
 
@@ -1101,7 +1101,9 @@ class InfrastructureAssessor:
             with socket.create_connection((self.target, 443), timeout=5) as sock:
                 with context.wrap_socket(sock, server_hostname=self.target) as ssock:
                     cert = ssock.getpeercert()
-                    expires_str = cert.get('notAfter', '')
+                    if cert is None:
+                        return 'SSL/TLS enabled (no certificate data)'
+                    expires_str = str(cert.get('notAfter', ''))
                     # Check days until expiry
                     try:
                         import time

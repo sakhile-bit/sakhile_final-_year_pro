@@ -71,14 +71,14 @@ def dashboard():
 
     total_certs = Certificate.query.filter_by(is_active=True).count()
     expiring_soon = Certificate.query.filter(
-        Certificate.expiry_date <= now + timedelta(days=30),
-        Certificate.is_active == True,
+        Certificate.expiry_date <= now + timedelta(days=30),  # type: ignore[operator]
+        Certificate.is_active == True,  # type: ignore[arg-type]
     ).count()
 
     # ---- Certification distribution ----
     cert_levels = {}
     for a in Assessment.query.with_entities(
-        Assessment.certification_level,
+        Assessment.certification_level,  # type: ignore[arg-type]
         db.func.count(Assessment.id),
     ).group_by(Assessment.certification_level).all():
         cert_levels[a[0]] = a[1]
@@ -146,8 +146,8 @@ def users():
     q = request.args.get('q', '').strip()
     query = User.query
     if q:
-        query = query.filter(
-            User.username.ilike(f'%{q}%') | User.email.ilike(f'%{q}%')
+        query = query.filter(  # type: ignore[arg-type]
+            User.username.ilike(f'%{q}%') | User.email.ilike(f'%{q}%')  # type: ignore[attr-defined]
         )
     users_page = query.order_by(User.created_at.desc()).paginate(
         page=page, per_page=20
@@ -173,7 +173,7 @@ def user_create():
             return render_template('admin/user_form.html', mode='create')
 
         if User.query.filter(
-            (User.username == username) | (User.email == email)
+            (User.username == username) | (User.email == email)  # type: ignore[arg-type]
         ).first():
             flash('Username or email already exists.', 'error')
             return render_template('admin/user_form.html', mode='create')
@@ -287,9 +287,9 @@ def businesses():
     q = request.args.get('q', '').strip()
     query = Business.query
     if q:
-        query = query.filter(
-            Business.name.ilike(f'%{q}%') |
-            Business.registration_number.ilike(f'%{q}%')
+        query = query.filter(  # type: ignore[arg-type]
+            Business.name.ilike(f'%{q}%') |  # type: ignore[attr-defined]
+            Business.registration_number.ilike(f'%{q}%')  # type: ignore[attr-defined]
         )
     page_data = query.order_by(Business.created_at.desc()).paginate(
         page=page, per_page=20
@@ -345,12 +345,12 @@ def certificates():
     if status_filter == 'active':
         query = query.filter_by(is_active=True)
     elif status_filter == 'expired':
-        query = query.filter(Certificate.expiry_date < datetime.utcnow())
+        query = query.filter(Certificate.expiry_date < datetime.utcnow())  # type: ignore[operator]
     elif status_filter == 'expiring':
         query = query.filter(
-            Certificate.expiry_date <= datetime.utcnow() + timedelta(days=30),
-            Certificate.expiry_date >= datetime.utcnow(),
-            Certificate.is_active == True,
+            Certificate.expiry_date <= datetime.utcnow() + timedelta(days=30),  # type: ignore[operator]
+            Certificate.expiry_date >= datetime.utcnow(),  # type: ignore[operator]
+            Certificate.is_active == True,  # type: ignore[arg-type]
         )
     page_data = query.order_by(Certificate.created_at.desc()).paginate(
         page=page, per_page=20
@@ -392,7 +392,7 @@ def audit_logs():
 
     query = AuditLog.query
     if action_filter:
-        query = query.filter(AuditLog.action.ilike(f'%{action_filter}%'))
+        query = query.filter(AuditLog.action.ilike(f'%{action_filter}%'))  # type: ignore[attr-defined, arg-type]
     if user_filter:
         query = query.filter_by(user_id=int(user_filter))
 
@@ -402,7 +402,7 @@ def audit_logs():
 
     # For the filter dropdown
     distinct_actions = [r[0] for r in db.session.query(
-        AuditLog.action
+        AuditLog.action  # type: ignore[arg-type]
     ).distinct().order_by(AuditLog.action).all()]
 
     all_users = User.query.order_by(User.username).all()
@@ -509,7 +509,7 @@ def api_stats():
 
     # Cert-level distribution
     level_counts = dict(
-        db.session.query(Assessment.certification_level, db.func.count(Assessment.id))
+        db.session.query(Assessment.certification_level, db.func.count(Assessment.id))  # type: ignore[call-overload]
         .group_by(Assessment.certification_level).all()
     )
 
@@ -529,7 +529,7 @@ def api_stats():
 
     # Industry breakdown
     industry = dict(
-        db.session.query(Business.industry, db.func.count(Business.id))
+        db.session.query(Business.industry, db.func.count(Business.id))  # type: ignore[call-overload]
         .group_by(Business.industry).all()
     )
 

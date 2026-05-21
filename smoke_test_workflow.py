@@ -1,10 +1,11 @@
 """Smoke test for the new user/business workflow features."""
 import sys, os, re
+from typing import Any
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from src.web.app import create_app, db, login_attempts
 
-def get_csrf(response):
+def get_csrf(response: Any) -> str:
     m = re.search(r'name="csrf_token" value="([^"]+)"', response.data.decode())
     return m.group(1) if m else ''
 

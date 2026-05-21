@@ -17,25 +17,25 @@ Phase 2 features:
 
 # Re-export the entire Phase 2 app surface from the canonical app module
 from src.web.app import (  # noqa: F401
-    app,
-    db,
-    create_app,
-    login_manager,
-    csrf,
+    app as app,
+    db as db,
+    create_app as create_app,
+    login_manager as login_manager,
+    csrf as csrf,
     # Models
-    User,
-    Business,
-    Assessment,
-    Certificate,
-    AuditLog,
-    AssessmentRequest,
-    Remediation,
+    User as User,
+    Business as Business,
+    Assessment as Assessment,
+    Certificate as Certificate,
+    AuditLog as AuditLog,
+    AssessmentRequest as AssessmentRequest,
+    Remediation as Remediation,
     # Helpers / utilities
-    login_attempts,
-    load_user,
-    check_password_strength,
-    admin_required,
-    rate_limit,
+    login_attempts as login_attempts,
+    load_user as load_user,
+    check_password_strength as check_password_strength,
+    admin_required as admin_required,
+    rate_limit as rate_limit,
 )
 
 if __name__ == "__main__":

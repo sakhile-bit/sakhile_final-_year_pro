@@ -10,12 +10,13 @@ Reference: Project Proposal Section 8.2 – Assessment Design
 
 import datetime
 import json
+from typing import Any, Dict
 
 # ──────────────────────────────────────────────────────────────────
 # Total possible score across all 15 controls = 120 points
 # ──────────────────────────────────────────────────────────────────
 
-SCORING_RUBRIC = {
+SCORING_RUBRIC: Dict[str, Any] = {
     "program": {
         "name": "Zambia Digital Hygiene Certification Program",
         "version": "2.0.0",

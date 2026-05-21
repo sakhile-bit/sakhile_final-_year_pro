@@ -68,7 +68,7 @@ class DigitalHygieneApp(ctk.CTk):
         self._swap(ManualChecksScreen(
             self,
             on_next=self._show_results,
-            on_back=lambda: self._show_scanning(self._business_info),
+            on_back=lambda: self._show_scanning(self._business_info),  # type: ignore[arg-type]
         ))
 
     def _show_results(self, manual_scores):
@@ -77,6 +77,7 @@ class DigitalHygieneApp(ctk.CTk):
         )
 
         # Merge automated results + manual scores into a full assessment
+        assert self._business_info is not None, "business_info must be set before showing results"
         assessor = DigitalHygieneAssessor(
             self._business_info,
             manual_answers=manual_scores,
@@ -85,13 +86,14 @@ class DigitalHygieneApp(ctk.CTk):
         # Patch in the already-computed automated results
         results = assessor.run_assessment()
         for cid_key, ctrl_result in self._auto_results.items():
-            full_key = f"C0{cid_key[-1]}_" + {
+            _suffix: str = {
                 "C01": "os_updates",
                 "C02": "antivirus",
                 "C03": "firewall",
                 "C04": "password_policy",
                 "C05": "backups",
-            }.get(cid_key, cid_key)
+            }.get(cid_key) or cid_key
+            full_key = f"C0{cid_key[-1]}_" + _suffix
             if full_key in results.controls:
                 results.controls[full_key] = ctrl_result
 

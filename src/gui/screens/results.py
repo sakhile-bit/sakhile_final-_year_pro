@@ -9,8 +9,7 @@ from tkinter import filedialog
 from src.gui.theme import (
     CLR_BG, CLR_SURFACE, CLR_ACCENT, CLR_TEXT, CLR_MUTED,
     CLR_SUCCESS, CLR_WARNING, CLR_DANGER, CLR_BORDER,
-    CLR_GOLD, CLR_SILVER, CLR_BRONZE,
-    FONT_TITLE, FONT_HEADING, FONT_BODY, FONT_SMALL, PAD,
+    FONT_HEADING, FONT_BODY, FONT_SMALL, PAD,
     TIER_COLOURS,
 )
 
@@ -141,7 +140,7 @@ class ResultsScreen(ctk.CTkFrame):
             "ERROR": "!", "NOT_ASSESSED": "–",
         }
 
-        for i, (key, ctrl) in enumerate(r.controls.items()):
+        for i, (_, ctrl) in enumerate(r.controls.items()):
             row_f = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE, corner_radius=14, border_width=1, border_color=CLR_BORDER)
             row_f.grid(row=i + 3, column=0, padx=PAD, pady=6, sticky="ew")
             row_f.grid_columnconfigure(1, weight=1)
@@ -277,7 +276,7 @@ class ResultsScreen(ctk.CTkFrame):
             self._show_saved(path)
             import subprocess
             try:
-                os.startfile(path)   # Windows
+                os.startfile(path)  # type: ignore[attr-defined]  # Windows-only
             except AttributeError:
                 subprocess.Popen(["xdg-open", path])
 
@@ -344,7 +343,7 @@ class ResultsScreen(ctk.CTkFrame):
         }
 
         controls_html = ""
-        for k, v in d["controls"].items():
+        for _, v in d["controls"].items():
             clr = status_colours.get(v["status"], "#7A8FA6")
             controls_html += f"""
             <tr>
