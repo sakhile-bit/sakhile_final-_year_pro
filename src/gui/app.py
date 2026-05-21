@@ -42,7 +42,15 @@ class DigitalHygieneApp(ctk.CTk):
     # ─────────────────────────────────────── screens
     def _show_welcome(self):
         from src.gui.screens.welcome import WelcomeScreen
-        self._swap(WelcomeScreen(self, on_start=self._show_business_info))
+        self._swap(WelcomeScreen(
+            self,
+            on_start=self._show_business_info,
+            on_history=self._show_history,
+        ))
+
+    def _show_history(self):
+        from src.gui.screens.history import HistoryScreen
+        self._swap(HistoryScreen(self, on_back=self._show_welcome))
 
     def _show_business_info(self):
         from src.gui.screens.business_info import BusinessInfoScreen

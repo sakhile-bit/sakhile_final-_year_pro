@@ -11,9 +11,10 @@ from src.gui.theme import (
 class WelcomeScreen(ctk.CTkFrame):
     """First screen shown when the app launches."""
 
-    def __init__(self, master, on_start):
+    def __init__(self, master, on_start, on_history=None):
         super().__init__(master, fg_color=CLR_BG, corner_radius=0)
         self._on_start = on_start
+        self._on_history = on_history or (lambda: None)
         self._build()
 
     def _build(self):
@@ -75,14 +76,34 @@ class WelcomeScreen(ctk.CTkFrame):
                 font=FONT_BODY, text_color=CLR_TEXT, anchor="w",
             ).grid(row=0, column=1, sticky="w", pady=14)
 
+        btn_row = ctk.CTkFrame(card, fg_color="transparent")
+        btn_row.grid(row=5, column=0, pady=(0, 36))
+        btn_row.grid_columnconfigure((0, 1), weight=1)
+
         start_btn = ctk.CTkButton(
-            card, text="Start Desktop Assessment",
-            font=("Segoe UI", 16, "bold"),
+            btn_row, text="Start New Assessment",
+            font=("Segoe UI", 15, "bold"),
             fg_color=CLR_ACCENT, hover_color="#00A87A",
             text_color="#000000", height=50, corner_radius=24,
             command=self._on_start,
         )
-        start_btn.grid(row=5, column=0, pady=(0, 36), ipadx=10)
+        start_btn.grid(row=0, column=0, padx=(0, 8), ipadx=10)
+
+        from src.utils.local_db import assessment_count
+        try:
+            count = assessment_count()
+        except Exception:
+            count = 0
+        history_label = f"📋  Past Assessments ({count})" if count else "📋  Past Assessments"
+        history_btn = ctk.CTkButton(
+            btn_row, text=history_label,
+            font=("Segoe UI", 13),
+            fg_color="transparent", border_color=CLR_ACCENT, border_width=1,
+            text_color=CLR_ACCENT, hover_color="#0D2B1F",
+            height=50, corner_radius=24,
+            command=self._on_history,
+        )
+        history_btn.grid(row=0, column=1, padx=(8, 0))
 
         footer = ctk.CTkLabel(
             self,

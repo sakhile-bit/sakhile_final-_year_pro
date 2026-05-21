@@ -969,22 +969,89 @@ class DigitalHygieneAssessor:
         """
         recommendations: List[str] = []
 
+        # Plain-English action steps — written for non-technical business owners
         RECS = {
-            "C01_os_updates":        "Enable Windows Automatic Updates and ensure updates are installed within 30 days of release.",
-            "C02_antivirus":         "Install reputable antivirus software (e.g., Windows Defender, ESET, Bitdefender) and enable real-time protection.",
-            "C03_firewall":          "Enable Windows Firewall for all network profiles (Domain, Private, Public) and configure inbound rules.",
-            "C04_password_policy":   "Strengthen password policy: minimum 8 characters, expiry every 90 days, account lockout after 5 failures.",
-            "C05_backups":           "Implement daily automated backups with off-site or cloud storage. Test restores quarterly.",
-            "C06_security_training": "Conduct annual security awareness training for all employees covering phishing, passwords, and data handling.",
-            "C07_access_control":    "Document and enforce a least-privilege access control policy with regular access reviews.",
-            "C08_incident_response": "Document an incident response plan with designated contacts and ZICTA/CERT-ZM reporting. Test annually.",
-            "C09_encryption":        "Encrypt sensitive data at rest (full-disk encryption) and in transit (TLS/HTTPS for all services).",
-            "C10_mobile_security":   "Implement mobile device management: screen locks, trusted app sources, encryption, and remote wipe.",
-            "C11_physical_security": "Lock server rooms and network equipment. Maintain a visitor log and CCTV for sensitive areas.",
-            "C12_network_security":  "Secure Wi-Fi with WPA2/WPA3, change default credentials, and implement network segmentation.",
-            "C13_acceptable_use":    "Create and enforce a documented Acceptable Use Policy signed by all staff.",
-            "C14_vendor_risk":       "Conduct formal vendor risk assessments. Include security clauses in all vendor contracts.",
-            "C15_regulatory_compliance": "Ensure compliance with the Zambia Data Protection Act 2021 and ZICTA regulations.",
+            "C01_os_updates": (
+                "Turn on automatic Windows updates. Go to Settings → Windows Update → "
+                "turn on 'Automatic Updates'. This keeps your computer protected against "
+                "new threats automatically."
+            ),
+            "C02_antivirus": (
+                "Make sure Windows Defender is turned on, or install free antivirus software "
+                "(e.g. Avast Free or AVG Free). Open it and check that real-time protection "
+                "is switched ON and virus definitions are up to date."
+            ),
+            "C03_firewall": (
+                "Turn on Windows Firewall: go to Control Panel → System and Security → "
+                "Windows Defender Firewall → Turn Windows Defender Firewall on. "
+                "Do this for both 'Private' and 'Public' networks."
+            ),
+            "C04_password_policy": (
+                "Require all staff to use strong passwords (at least 8 characters mixing "
+                "letters, numbers and symbols). Change passwords every 3 months, and "
+                "lock accounts after 5 wrong attempts. Use a free password manager "
+                "like Bitwarden to help staff remember them."
+            ),
+            "C05_backups": (
+                "Set up daily automatic backups of your important files. Use an external "
+                "hard drive kept off-site, or a free cloud service like Google Drive or "
+                "OneDrive. Test that you can restore files at least once every 3 months."
+            ),
+            "C06_security_training": (
+                "Book your staff into a short free cybersecurity awareness session. "
+                "ZICTA offers resources at zicta.zm. At minimum, train staff to spot "
+                "fake emails (phishing) and use strong passwords — once per year."
+            ),
+            "C07_access_control": (
+                "Write down who is allowed to access which files or systems. Make sure "
+                "only the people who need access have it. When a staff member leaves, "
+                "remove their access the same day. Review the list every 6 months."
+            ),
+            "C08_incident_response": (
+                "Write a simple one-page plan: what to do if you are hacked or data is "
+                "stolen. Include who to call (IT provider, ZICTA on +260 211 369 000, "
+                "CERT-ZM), what to switch off, and how to inform customers. "
+                "Practise the plan once a year."
+            ),
+            "C09_encryption": (
+                "Enable BitLocker on Windows laptops (search 'BitLocker' in the Start menu) "
+                "to protect data if a device is lost or stolen. Make sure your website "
+                "uses HTTPS — your browser should show a padlock in the address bar."
+            ),
+            "C10_mobile_security": (
+                "Set a PIN or fingerprint lock on all business phones and tablets. "
+                "Set them to lock automatically after 5 minutes of inactivity. "
+                "Enable 'Find My Device' so you can wipe a lost phone remotely. "
+                "Only install apps from the official app store."
+            ),
+            "C11_physical_security": (
+                "Keep your router, server, and main computers in a locked room or "
+                "locked cabinet. Only authorised staff should have the key. "
+                "Keep a simple visitor log (name, time in, time out) and consider "
+                "a basic security camera for the IT area."
+            ),
+            "C12_network_security": (
+                "Change your Wi-Fi password to something strong (at least 12 random "
+                "characters). Set your router to use WPA2 or WPA3 security mode. "
+                "Create a separate guest Wi-Fi for visitors so they cannot access "
+                "your business files — most modern routers support this."
+            ),
+            "C13_acceptable_use": (
+                "Write a short one-page policy stating what staff can and cannot do "
+                "on company computers (e.g. no personal downloads, no sharing passwords). "
+                "Ask all staff to read and sign it. Remind them about it each year."
+            ),
+            "C14_vendor_risk": (
+                "Ask your IT suppliers, cloud providers, and payment processors to "
+                "confirm in writing how they protect your data. Include a security clause "
+                "in any new supplier contracts. Check your key suppliers once a year."
+            ),
+            "C15_regulatory_compliance": (
+                "Register your data processing activities with the Data Protection "
+                "Commission (DPC) under the Zambia Data Protection Act 2021. "
+                "Contact ZICTA (zicta.zm) if unsure about cybersecurity obligations. "
+                "Consider a free legal clinic at UNZA or a local law firm."
+            ),
         }
 
         # Build prioritised list: critical failures first, then warnings
@@ -993,16 +1060,21 @@ class DigitalHygieneAssessor:
 
         for key in critical_keys + non_critical:
             if results[key].status in ("FAIL", "ERROR"):
-                recommendations.append(f"[CRITICAL] {RECS.get(key, 'Address ' + results[key].name)}")
+                prefix = "🔴 Urgent: "
+                recommendations.append(prefix + RECS.get(key, f"Address {results[key].name}."))
             elif results[key].status == "WARNING":
-                recommendations.append(RECS.get(key, f"Improve {results[key].name}"))
+                recommendations.append("🟡 Improve: " + RECS.get(key, f"Improve {results[key].name}."))
             elif results[key].status == "NOT_ASSESSED":
-                recommendations.append(f"[NEEDS VERIFICATION] Complete manual assessment for: {results[key].name}")
+                recommendations.append(f"⚪ Not checked: {results[key].name} — answer the manual questions to assess this.")
 
-        # Zambia-specific recommendations
-        recommendations.append("Register with ZICTA and subscribe to CERT-ZM advisories for threat intelligence.")
-        recommendations.append("Review compliance with the Zambia Data Protection Act No. 3 of 2021.")
-        recommendations.append("Review compliance with the Cyber Security and Cyber Crimes Act, 2021.")
+        # Zambia-specific standing reminders
+        recommendations.append(
+            "📋 Register with ZICTA (zicta.zm) and sign up for CERT-ZM security alerts — it is free."
+        )
+        recommendations.append(
+            "📋 Ensure compliance with the Zambia Data Protection Act No. 3 of 2021 "
+            "and the Cyber Security and Cyber Crimes Act, 2021."
+        )
 
         return recommendations
 
