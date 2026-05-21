@@ -1,23 +1,24 @@
-"""Automated scanning screen — C01-C05 with live progress and one-click fixes."""
+"""Scanning screen — automated C01-C05 checks with live status and one-click fixes."""
 
 import threading
 import subprocess
 import customtkinter as ctk
 from src.gui.theme import (
     CLR_BG, CLR_SURFACE, CLR_SURFACE_ALT,
-    CLR_ACCENT, CLR_ACCENT_HOV, CLR_TEXT, CLR_TEXT_SEC, CLR_MUTED,
+    CLR_ACCENT, CLR_ACCENT_HOV,
+    CLR_TEXT, CLR_TEXT_SEC, CLR_MUTED,
     CLR_SUCCESS, CLR_WARNING, CLR_DANGER, CLR_BORDER, CLR_DIVIDER,
     FONT_TITLE, FONT_SUBHEAD, FONT_BODY, FONT_SMALL, FONT_CAPTION,
-    PAD, PAD_SM, HDR_H, NAV_H, BTN_H, BTN_R,
+    PAD, PAD_SM, NAV_H, BTN_H, BTN_R,
 )
-from src.gui.screens.business_info import _header, _nav  # shared helpers
+from src.gui.screens.business_info import _header
 
 CHECKS = [
-    ("C01", "Operating System Updates",   "Verifies Windows Update is current"),
-    ("C02", "Antivirus / Defender",        "Checks real-time protection status"),
-    ("C03", "Firewall Configuration",      "Tests all firewall profiles"),
-    ("C04", "Password Policy",             "Reads local password requirements"),
-    ("C05", "Backup System",               "Looks for backup software & files"),
+    ("C01", "OS Updates",         "Windows Update service and last patch date"),
+    ("C02", "Antivirus / Defender", "Real-time protection and definition age"),
+    ("C03", "Firewall",           "Domain, Private and Public profile status"),
+    ("C04", "Password Policy",    "Minimum length, expiry and lockout threshold"),
+    ("C05", "Backup System",      "Backup software and recent backup files"),
 ]
 
 STATUS_STYLE = {
@@ -32,10 +33,10 @@ STATUS_STYLE = {
 FIX_ACTIONS = {
     "C01": {
         "label": "Enable Auto-Update",
-        "description": "Set Windows Update service to Automatic and start it.",
+        "description": "Set Windows Update to Automatic and start the service.",
         "commands": [["powershell", "-NonInteractive", "-Command",
-                      "Set-Service -Name wuauserv -StartupType Automatic; "
-                      "Start-Service -Name wuauserv -ErrorAction SilentlyContinue"]],
+                      "Set-Service wuauserv -StartupType Automatic; "
+                      "Start-Service wuauserv -EA SilentlyContinue"]],
     },
     "C02": {
         "label": "Enable Defender",
@@ -47,8 +48,7 @@ FIX_ACTIONS = {
     "C03": {
         "label": "Enable Firewall",
         "description": "Turn on Windows Firewall for all network profiles.",
-        "commands": [["netsh", "advfirewall", "set", "allprofiles",
-                      "state", "on"]],
+        "commands": [["netsh", "advfirewall", "set", "allprofiles", "state", "on"]],
     },
     "C04": {
         "label": "Apply Password Policy",
@@ -74,6 +74,8 @@ class ScanningScreen(ctk.CTkFrame):
         self._on_skip = on_skip
         self._results: dict = {}
         self._row_frames: dict = {}
+        self._status_labels: dict = {}
+        self._icon_labels: dict = {}
         self._fix_btns: dict = {}
         self._build()
         threading.Thread(target=self._run_scan, daemon=True).start()
@@ -90,70 +92,35 @@ class ScanningScreen(ctk.CTkFrame):
         body.grid_columnconfigure(0, weight=1)
 
         # Info banner
-        info = ctk.CTkFrame(body, fg_color=CLR_SURFACE_ALT,
-                            corner_radius=12, border_width=1,
-                            border_color=CLR_BORDER)
-        info.grid(row=0, column=0, sticky="ew", pady=(0, 14))
+        banner = ctk.CTkFrame(body, fg_color=CLR_SURFACE_ALT,
+                              corner_radius=10, border_width=1,
+                              border_color=CLR_BORDER)
+        banner.grid(row=0, column=0, sticky="ew", pady=(0, 14))
         ctk.CTkLabel(
-            info,
-            text="Running 5 automated Windows checks.  "
-                 "After scanning, use 🔧 Fix to automatically "
-                 "remediate any issues found.",
+            banner,
+            text="🔍  Running 5 automated Windows security checks. "
+                 "Click  🔧 Fix  to auto-remediate any issues found.",
             font=FONT_SMALL, text_color=CLR_MUTED,
-            wraplength=800, justify="left",
         ).grid(padx=14, pady=10)
 
         # Overall progress bar
         self._progress = ctk.CTkProgressBar(
             body, fg_color=CLR_SURFACE, progress_color=CLR_ACCENT,
-            height=6, corner_radius=3,
-        )
+            height=5, corner_radius=2)
         self._progress.set(0)
-        self._progress.grid(row=1, column=0, sticky="ew", pady=(0, 16))
+        self._progress.grid(row=1, column=0, sticky="ew", pady=(0, 14))
 
         # Check rows
-        self._check_rows = {}
         for i, (cid, cname, cdesc) in enumerate(CHECKS):
-            row_f = ctk.CTkFrame(body, fg_color=CLR_SURFACE, corner_radius=12,
-                                 border_width=1, border_color=CLR_BORDER)
-            row_f.grid(row=i + 2, column=0, sticky="ew", pady=4)
-            row_f.grid_columnconfigure(1, weight=1)
-            self._row_frames[cid] = row_f
+            self._make_check_row(body, i + 2, cid, cname, cdesc)
 
-            # Status icon
-            icon_lbl = ctk.CTkLabel(
-                row_f, text="…", font=("Segoe UI Emoji", 20),
-                text_color=CLR_MUTED, width=40,
-            )
-            icon_lbl.grid(row=0, column=0, padx=(14, 8), pady=16, sticky="n")
-
-            # Name + description
-            txt_f = ctk.CTkFrame(row_f, fg_color="transparent")
-            txt_f.grid(row=0, column=1, sticky="w", pady=14)
-            ctk.CTkLabel(txt_f, text=f"{cid}  {cname}",
-                         font=FONT_SUBHEAD, text_color=CLR_TEXT, anchor="w",
-                         ).pack(anchor="w")
-            ctk.CTkLabel(txt_f, text=cdesc, font=FONT_CAPTION,
-                         text_color=CLR_MUTED, anchor="w",
-                         ).pack(anchor="w")
-
-            # Score + detail (right side)
-            detail_lbl = ctk.CTkLabel(
-                row_f, text="Pending", font=FONT_SMALL,
-                text_color=CLR_MUTED, anchor="e", wraplength=260,
-            )
-            detail_lbl.grid(row=0, column=2, padx=(0, 14), pady=14, sticky="e")
-
-            self._check_rows[cid] = (icon_lbl, detail_lbl)
-
-        # Status text
-        self._status_var = ctk.StringVar(value="Preparing checks…")
+        self._status_var = ctk.StringVar(value="Initialising…")
         ctk.CTkLabel(body, textvariable=self._status_var,
                      font=FONT_CAPTION, text_color=CLR_MUTED,
                      ).grid(row=len(CHECKS) + 2, column=0,
-                            pady=(10, 0), sticky="w")
+                            pady=(8, 0), sticky="w")
 
-        # Nav
+        # Nav bar
         nav = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0,
                            height=NAV_H)
         nav.grid(row=2, column=0, sticky="ew")
@@ -171,7 +138,7 @@ class ScanningScreen(ctk.CTkFrame):
         self._skip_btn = ctk.CTkButton(
             nav, text="Auto-Only Results  →", font=FONT_SMALL,
             fg_color="transparent", border_color=CLR_ACCENT, border_width=1,
-            text_color=CLR_ACCENT, hover_color="#003D28",
+            text_color=CLR_ACCENT, hover_color=CLR_SURFACE_ALT,
             height=BTN_H, corner_radius=BTN_R,
             state="disabled", command=self._skip,
         )
@@ -185,6 +152,43 @@ class ScanningScreen(ctk.CTkFrame):
             state="disabled", command=self._proceed,
         )
         self._next_btn.grid(row=0, column=3, padx=PAD, pady=14)
+
+    def _make_check_row(self, parent, grid_row, cid, cname, cdesc):
+        # Outer card
+        card = ctk.CTkFrame(parent, fg_color=CLR_SURFACE, corner_radius=12,
+                            border_width=1, border_color=CLR_BORDER)
+        card.grid(row=grid_row, column=0, sticky="ew", pady=4)
+        card.grid_columnconfigure(1, weight=1)
+        self._row_frames[cid] = card
+
+        # Left status stripe (colour updates after scan)
+        stripe = ctk.CTkFrame(card, fg_color=CLR_BORDER, width=5,
+                              corner_radius=0)
+        stripe.grid(row=0, column=0, sticky="ns", padx=(0, 0), pady=0)
+
+        # Status icon
+        icon = ctk.CTkLabel(card, text="…",
+                            font=("Segoe UI Emoji", 22),
+                            text_color=CLR_MUTED, width=44)
+        icon.grid(row=0, column=1, padx=(12, 6), pady=16, sticky="n")
+        self._icon_labels[cid] = (stripe, icon)
+
+        # Name + description
+        txt = ctk.CTkFrame(card, fg_color="transparent")
+        txt.grid(row=0, column=2, sticky="w", pady=14)
+        ctk.CTkLabel(txt, text=f"{cid}  {cname}",
+                     font=FONT_SUBHEAD, text_color=CLR_TEXT, anchor="w",
+                     ).pack(anchor="w")
+        ctk.CTkLabel(txt, text=cdesc, font=FONT_CAPTION,
+                     text_color=CLR_MUTED, anchor="w",
+                     ).pack(anchor="w")
+
+        # Score + detail (right)
+        detail = ctk.CTkLabel(card, text="Pending…",
+                              font=FONT_SMALL, text_color=CLR_MUTED,
+                              anchor="e", wraplength=220)
+        detail.grid(row=0, column=3, padx=(0, 14), pady=14, sticky="e")
+        self._status_labels[cid] = detail
 
     # ------------------------------------------------------------------ scan
     def _run_scan(self):
@@ -204,9 +208,8 @@ class ScanningScreen(ctk.CTkFrame):
             except Exception as exc:
                 from src.security.assessment.assessor import (
                     ControlResult, CONTROL_CATALOGUE)
-                cat_key = next(
-                    k for k in CONTROL_CATALOGUE
-                    if CONTROL_CATALOGUE[k]["id"] == cid)
+                cat_key = next(k for k in CONTROL_CATALOGUE
+                               if CONTROL_CATALOGUE[k]["id"] == cid)
                 ctrl = CONTROL_CATALOGUE[cat_key]
                 result = ControlResult(
                     control_id=cid, name=ctrl["name"],
@@ -219,20 +222,20 @@ class ScanningScreen(ctk.CTkFrame):
         self.after(0, self._scan_complete)
 
     def _update_row(self, cid, result, progress):
-        icon_lbl, detail_lbl = self._check_rows[cid]
         icon_txt, icon_clr = STATUS_STYLE.get(result.status, ("?", CLR_MUTED))
-        icon_lbl.configure(text=icon_txt, text_color=icon_clr)
-        short = (result.details[:72] + "…"
-                 if len(result.details) > 72 else result.details)
-        detail_lbl.configure(
-            text=f"{result.score}/{result.weight} pts  ·  {short}",
-            text_color=icon_clr,
-        )
+        stripe, icon = self._icon_labels[cid]
+        stripe.configure(fg_color=icon_clr)
+        icon.configure(text=icon_txt, text_color=icon_clr)
+        short = (result.details[:65] + "…"
+                 if len(result.details) > 65 else result.details)
+        self._status_labels[cid].configure(
+            text=f"{result.score}/{result.weight} pts\n{short}",
+            text_color=icon_clr)
         self._progress.set(progress)
 
     def _scan_complete(self):
         self._status_var.set(
-            "✔  Scan complete — fix any issues, then proceed.")
+            "✔  All checks complete — fix any issues, then continue")
         self._next_btn.configure(state="normal")
         self._skip_btn.configure(state="normal")
         self._add_fix_buttons()
@@ -244,35 +247,30 @@ class ScanningScreen(ctk.CTkFrame):
                 continue
             if cid not in FIX_ACTIONS:
                 continue
-            row_f = self._row_frames[cid]
-            fix = FIX_ACTIONS[cid]
             btn = ctk.CTkButton(
-                row_f, text="🔧  Fix",
-                font=FONT_CAPTION,
-                fg_color=CLR_SURFACE_ALT,
-                hover_color="#1E3A2F",
+                self._row_frames[cid], text="🔧  Fix",
+                font=("Segoe UI", 10, "bold"),
+                fg_color=CLR_SURFACE_ALT, hover_color="#1A3A2A",
                 border_color=CLR_ACCENT, border_width=1,
-                text_color=CLR_ACCENT,
-                width=78, height=30, corner_radius=8,
-                command=lambda c=cid, f=fix: self._confirm_fix(c, f),
+                text_color=CLR_ACCENT, width=76, height=30, corner_radius=8,
+                command=lambda c=cid, f=FIX_ACTIONS[cid]: self._confirm_fix(c, f),
             )
-            btn.grid(row=0, column=3, padx=(0, 14), pady=14)
+            btn.grid(row=0, column=4, padx=(0, 14), pady=14)
             self._fix_btns[cid] = btn
 
     def _confirm_fix(self, cid, fix):
         dlg = ctk.CTkToplevel(self)
         dlg.title("Apply Fix")
-        dlg.geometry("440x190")
+        dlg.geometry("420x180")
         dlg.resizable(False, False)
         dlg.configure(fg_color=CLR_SURFACE)
         dlg.grab_set()
-
-        ctk.CTkLabel(dlg, text=f"Apply Fix: {fix['label']}",
+        ctk.CTkLabel(dlg, text=f"Apply: {fix['label']}",
                      font=FONT_SUBHEAD, text_color=CLR_ACCENT,
                      ).pack(pady=(22, 6))
         ctk.CTkLabel(dlg, text=fix["description"], font=FONT_SMALL,
-                     text_color=CLR_TEXT_SEC, wraplength=390,
-                     justify="center").pack(pady=(0, 20))
+                     text_color=CLR_TEXT_SEC, wraplength=380,
+                     justify="center").pack(pady=(0, 18))
         row = ctk.CTkFrame(dlg, fg_color="transparent")
         row.pack()
         ctk.CTkButton(row, text="Cancel", width=100,
@@ -290,7 +288,7 @@ class ScanningScreen(ctk.CTkFrame):
         dlg.destroy()
         btn = self._fix_btns.get(cid)
         if btn:
-            btn.configure(text="Applying…", state="disabled")
+            btn.configure(text="Fixing…", state="disabled")
 
         def run():
             try:
@@ -308,24 +306,23 @@ class ScanningScreen(ctk.CTkFrame):
 
     def _recheck(self, cid):
         from src.security.assessment.assessor import DigitalHygieneAssessor
-        assessor = DigitalHygieneAssessor(self._biz, assessment_tier="automated")
-        method_map = {
-            "C01": assessor._check_os_updates,
-            "C02": assessor._check_antivirus_enhanced,
-            "C03": assessor._check_firewall_enhanced,
-            "C04": assessor._check_password_policy,
-            "C05": assessor._check_backup_system,
+        a = DigitalHygieneAssessor(self._biz, assessment_tier="automated")
+        methods = {
+            "C01": a._check_os_updates,
+            "C02": a._check_antivirus_enhanced,
+            "C03": a._check_firewall_enhanced,
+            "C04": a._check_password_policy,
+            "C05": a._check_backup_system,
         }
 
         def run():
             try:
-                result = method_map[cid]()
+                result = methods[cid]()
             except Exception as exc:
                 from src.security.assessment.assessor import (
                     ControlResult, CONTROL_CATALOGUE)
-                cat_key = next(
-                    k for k in CONTROL_CATALOGUE
-                    if CONTROL_CATALOGUE[k]["id"] == cid)
+                cat_key = next(k for k in CONTROL_CATALOGUE
+                               if CONTROL_CATALOGUE[k]["id"] == cid)
                 ctrl = CONTROL_CATALOGUE[cat_key]
                 result = ControlResult(
                     control_id=cid, name=ctrl["name"],
@@ -343,7 +340,7 @@ class ScanningScreen(ctk.CTkFrame):
         if btn:
             if result.status == "PASS":
                 btn.configure(text="✔  Fixed", state="disabled",
-                              fg_color="#0D2A1E", text_color=CLR_SUCCESS,
+                              fg_color="#0A2018", text_color=CLR_SUCCESS,
                               border_color=CLR_SUCCESS)
             else:
                 btn.configure(text="🔧  Retry", state="normal")

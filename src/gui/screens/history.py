@@ -11,13 +11,12 @@ from src.gui.theme import (
     TIER_COLOURS,
 )
 
-TIER_ICON = {
-    "GOLD": "🥇", "SILVER": "🥈",
-    "BRONZE": "🥉", "NOT CERTIFIED": "✕",
-}
+TIER_ICON = {"GOLD": "🥇", "SILVER": "🥈",
+             "BRONZE": "🥉", "NOT CERTIFIED": "✕"}
 STATUS_CLR = {
     "PASS": CLR_SUCCESS, "WARNING": CLR_WARNING,
-    "FAIL": CLR_DANGER, "ERROR": CLR_WARNING, "NOT_ASSESSED": CLR_MUTED,
+    "FAIL": CLR_DANGER,  "ERROR":   CLR_WARNING,
+    "NOT_ASSESSED": CLR_MUTED,
 }
 STATUS_ICON = {
     "PASS": "✔", "WARNING": "⚠", "FAIL": "✖",
@@ -43,11 +42,18 @@ class HistoryScreen(ctk.CTkFrame):
         hdr.grid(row=0, column=0, sticky="ew")
         hdr.grid_columnconfigure(0, weight=1)
         hdr.grid_propagate(False)
+
         ctk.CTkLabel(hdr, text="Past Assessments",
                      font=FONT_TITLE, text_color=CLR_TEXT,
                      ).grid(row=0, column=0, padx=PAD, pady=18, sticky="w")
 
-        scroll = ctk.CTkScrollableFrame(self, fg_color=CLR_BG, corner_radius=0)
+        # Thin accent line at bottom of header
+        ctk.CTkFrame(hdr, fg_color=CLR_ACCENT, height=2,
+                     corner_radius=0).grid(row=1, column=0,
+                                           columnspan=2, sticky="ew")
+
+        scroll = ctk.CTkScrollableFrame(self, fg_color=CLR_BG,
+                                        corner_radius=0)
         scroll.grid(row=1, column=0, sticky="nsew")
         scroll.grid_columnconfigure(0, weight=1)
 
@@ -55,12 +61,16 @@ class HistoryScreen(ctk.CTkFrame):
         rows = list_assessments()
 
         if not rows:
+            empty = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE,
+                                 corner_radius=16, border_width=1,
+                                 border_color=CLR_BORDER)
+            empty.grid(row=0, column=0, padx=PAD, pady=PAD, sticky="ew")
             ctk.CTkLabel(
-                scroll,
-                text="No assessments saved yet.\n"
-                     "Complete an assessment and it will appear here.",
+                empty,
+                text="No assessments yet\n\n"
+                     "Complete your first assessment and it will appear here.",
                 font=FONT_BODY, text_color=CLR_MUTED, justify="center",
-            ).grid(row=0, column=0, pady=80)
+            ).pack(pady=48)
         else:
             for i, row in enumerate(rows):
                 self._add_row(scroll, i, row, delete_assessment)
@@ -70,6 +80,7 @@ class HistoryScreen(ctk.CTkFrame):
                            height=NAV_H)
         nav.grid(row=2, column=0, sticky="ew")
         nav.grid_propagate(False)
+
         ctk.CTkButton(
             nav, text="← Back to Home", font=FONT_BODY,
             fg_color="transparent", border_color=CLR_BORDER, border_width=1,
@@ -81,69 +92,81 @@ class HistoryScreen(ctk.CTkFrame):
     def _add_row(self, parent, idx, row, delete_fn):
         tier = row["tier"]
         tier_clr = TIER_COLOURS.get(tier, CLR_DANGER)
-        icon = TIER_ICON.get(tier, "✕")
         pct = row["pct"]
 
-        card = ctk.CTkFrame(parent, fg_color=CLR_SURFACE, corner_radius=14,
-                            border_width=1, border_color=CLR_BORDER)
+        card = ctk.CTkFrame(parent, fg_color=CLR_SURFACE,
+                            corner_radius=14, border_width=1,
+                            border_color=CLR_BORDER)
         card.grid(row=idx, column=0, padx=PAD, pady=5, sticky="ew")
-        card.grid_columnconfigure(1, weight=1)
+        card.grid_columnconfigure(2, weight=1)
 
-        # Tier badge (coloured left stripe)
-        badge = ctk.CTkFrame(card, fg_color=tier_clr, width=6,
-                             corner_radius=0)
-        badge.grid(row=0, column=0, rowspan=2, sticky="ns",
-                   padx=(0, 0), pady=0)
+        # Coloured left stripe
+        ctk.CTkFrame(card, fg_color=tier_clr, width=5,
+                     corner_radius=0).grid(row=0, column=0,
+                                           rowspan=2, sticky="ns")
 
         # Tier icon
-        ctk.CTkLabel(card, text=icon, font=("Segoe UI Emoji", 24),
+        ctk.CTkLabel(card,
+                     text=TIER_ICON.get(tier, "✕"),
+                     font=("Segoe UI Emoji", 26),
                      ).grid(row=0, column=1, rowspan=2,
-                            padx=(14, 10), pady=14)
+                            padx=(12, 10), pady=16)
 
         # Business name
         ctk.CTkLabel(card, text=row["biz_name"],
                      font=FONT_SUBHEAD, text_color=CLR_TEXT, anchor="w",
-                     ).grid(row=0, column=2, sticky="w", pady=(14, 1))
+                     ).grid(row=0, column=2, sticky="w", pady=(14, 2))
 
-        # Meta line
-        parts = [p for p in [row.get("biz_id"), row.get("province"),
-                              row.get("industry"),
-                              row.get("saved_at", "")[:10]] if p]
-        ctk.CTkLabel(card, text="  ·  ".join(parts),
+        # Meta
+        meta_parts = [p for p in [
+            row.get("biz_id", ""), row.get("province", ""),
+            row.get("industry", ""), row.get("saved_at", "")[:10],
+        ] if p]
+        ctk.CTkLabel(card, text="  ·  ".join(meta_parts),
                      font=FONT_CAPTION, text_color=CLR_MUTED, anchor="w",
                      ).grid(row=1, column=2, sticky="w", pady=(0, 14))
 
-        # Score pill
+        # Score badge
         ctk.CTkLabel(
-            card, text=f"{pct}%  {tier}",
-            font=("Segoe UI", 10, "bold"), text_color=tier_clr,
-            fg_color=CLR_SURFACE_ALT, corner_radius=8,
-            width=100, height=26,
-        ).grid(row=0, column=3, rowspan=2, padx=(0, 8))
+            card,
+            text=f"{pct}%",
+            font=("Segoe UI", 18, "bold"), text_color=tier_clr,
+        ).grid(row=0, column=3, padx=(0, 4), pady=(14, 2))
+
+        ctk.CTkLabel(
+            card, text=tier,
+            font=("Segoe UI", 9, "bold"), text_color=tier_clr,
+            fg_color=CLR_SURFACE_ALT, corner_radius=6,
+            width=90, height=18,
+        ).grid(row=1, column=3, padx=(0, 8), pady=(0, 14))
 
         row_id = row["id"]
 
-        # View button
-        ctk.CTkButton(
-            card, text="👁", width=34, height=34,
-            fg_color="transparent", hover_color="#1B3A5C",
-            text_color=CLR_ACCENT, font=("Segoe UI Emoji", 13),
-            corner_radius=8,
-            command=lambda rid=row_id: self._show_details(rid),
-        ).grid(row=0, column=4, rowspan=2, padx=(0, 4))
+        # Action buttons
+        btn_f = ctk.CTkFrame(card, fg_color="transparent")
+        btn_f.grid(row=0, column=4, rowspan=2, padx=(0, 14), pady=14)
 
-        # Delete button
         ctk.CTkButton(
-            card, text="🗑", width=34, height=34,
-            fg_color="transparent", hover_color="#3A1A1A",
-            text_color=CLR_DANGER, font=("Segoe UI Emoji", 13),
-            corner_radius=8,
+            btn_f, text="👁  View", font=FONT_CAPTION,
+            fg_color=CLR_SURFACE_ALT, hover_color=CLR_SURFACE_ALT,
+            border_color=CLR_ACCENT, border_width=1,
+            text_color=CLR_ACCENT,
+            width=72, height=30, corner_radius=8,
+            command=lambda rid=row_id: self._show_details(rid),
+        ).pack(pady=(0, 6))
+
+        ctk.CTkButton(
+            btn_f, text="🗑  Delete", font=FONT_CAPTION,
+            fg_color="transparent", hover_color=CLR_SURFACE_ALT,
+            border_color=CLR_DANGER, border_width=1,
+            text_color=CLR_DANGER,
+            width=72, height=30, corner_radius=8,
             command=lambda rid=row_id, c=card: self._confirm_delete(
                 rid, c, delete_fn),
-        ).grid(row=0, column=5, rowspan=2, padx=(0, 12))
+        ).pack()
 
     # ----------------------------------------------------------------- details
-    def _show_details(self, row_id: int):
+    def _show_details(self, row_id):
         from src.utils.local_db import get_assessment
         data = get_assessment(row_id)
         if not data:
@@ -155,22 +178,27 @@ class HistoryScreen(ctk.CTkFrame):
         biz = data.get("business", {})
 
         dlg = ctk.CTkToplevel(self)
-        dlg.title("Assessment Details")
-        dlg.geometry("680x540")
+        dlg.title(f"Assessment — {biz.get('name', '')}")
+        dlg.geometry("700x560")
         dlg.configure(fg_color=CLR_BG)
         dlg.grab_set()
 
         # Header
         hdr = ctk.CTkFrame(dlg, fg_color=CLR_SURFACE, corner_radius=0,
-                           height=64)
+                           height=68)
         hdr.pack(fill="x")
         hdr.pack_propagate(False)
+
+        ctk.CTkFrame(hdr, fg_color=tier_clr, width=5,
+                     corner_radius=0).pack(side="left", fill="y")
+
         ctk.CTkLabel(
             hdr,
             text=f"{TIER_ICON.get(tier, '')}  "
                  f"{biz.get('name', '—')}  —  {tier}  ({pct}%)",
             font=FONT_SUBHEAD, text_color=tier_clr,
-        ).pack(side="left", padx=PAD, pady=18)
+        ).pack(side="left", padx=16, pady=18)
+
         ctk.CTkLabel(
             hdr,
             text=f"{biz.get('id', '')}  ·  "
@@ -178,77 +206,91 @@ class HistoryScreen(ctk.CTkFrame):
             font=FONT_CAPTION, text_color=CLR_MUTED,
         ).pack(side="right", padx=PAD)
 
-        # Scrollable breakdown
-        scroll = ctk.CTkScrollableFrame(dlg, fg_color=CLR_BG, corner_radius=0)
-        scroll.pack(fill="both", expand=True, padx=0, pady=0)
+        # Control breakdown
+        scroll = ctk.CTkScrollableFrame(dlg, fg_color=CLR_BG,
+                                        corner_radius=0)
+        scroll.pack(fill="both", expand=True)
         scroll.grid_columnconfigure(0, weight=1)
 
-        for i, (_, ctrl) in enumerate(data.get("controls", {}).items()):
+        for i, (_, ctrl) in enumerate(
+                data.get("controls", {}).items()):
             status = ctrl.get("status", "—")
             clr = STATUS_CLR.get(status, CLR_MUTED)
             icon = STATUS_ICON.get(status, "?")
 
-            rf = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE, corner_radius=10,
-                              border_width=1, border_color=CLR_BORDER)
+            rf = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE,
+                              corner_radius=10, border_width=1,
+                              border_color=CLR_BORDER)
             rf.grid(row=i, column=0, padx=12, pady=3, sticky="ew")
             rf.grid_columnconfigure(1, weight=1)
 
-            ctk.CTkLabel(rf, text=icon, font=("Segoe UI", 12),
-                         text_color=clr, width=26,
-                         ).grid(row=0, column=0, padx=(12, 6),
-                                pady=(10, 2), sticky="n")
+            # Status stripe
+            ctk.CTkFrame(rf, fg_color=clr, width=4,
+                         corner_radius=0).grid(row=0, column=0,
+                                               sticky="ns")
+
+            ctk.CTkLabel(rf, text=icon,
+                         font=("Segoe UI", 12), text_color=clr,
+                         width=24,
+                         ).grid(row=0, column=1,
+                                padx=(8, 4), pady=(10, 2), sticky="n")
             ctk.CTkLabel(rf,
                          text=f"{ctrl.get('id', '')}  {ctrl.get('name', '')}",
-                         font=FONT_SUBHEAD, text_color=CLR_TEXT, anchor="w",
-                         ).grid(row=0, column=1, sticky="w", pady=(10, 2))
+                         font=FONT_SUBHEAD, text_color=CLR_TEXT,
+                         anchor="w",
+                         ).grid(row=0, column=2,
+                                sticky="w", pady=(10, 2))
             ctk.CTkLabel(rf,
-                         text=f"{ctrl.get('score', 0)}/{ctrl.get('weight', 0)} pts",
-                         font=("Segoe UI", 10, "bold"), text_color=clr,
-                         ).grid(row=0, column=2, padx=12, pady=(10, 2), sticky="e")
+                         text=f"{ctrl.get('score', 0)}"
+                              f"/{ctrl.get('weight', 0)} pts",
+                         font=("Segoe UI", 10, "bold"),
+                         text_color=clr,
+                         ).grid(row=0, column=3,
+                                padx=12, pady=(10, 2), sticky="e")
             if ctrl.get("details"):
-                ctk.CTkLabel(rf, text=ctrl["details"], font=FONT_CAPTION,
-                             text_color=CLR_MUTED, wraplength=560,
-                             justify="left", anchor="w",
-                             ).grid(row=1, column=0, columnspan=3,
-                                    padx=(44, 12), pady=(0, 8), sticky="w")
+                ctk.CTkLabel(rf, text=ctrl["details"],
+                             font=FONT_CAPTION, text_color=CLR_MUTED,
+                             wraplength=550, justify="left",
+                             anchor="w",
+                             ).grid(row=1, column=1, columnspan=3,
+                                    padx=(8, 12), pady=(0, 8),
+                                    sticky="w")
 
         ctk.CTkButton(
-            dlg, text="Close", height=BTN_H, corner_radius=BTN_R,
+            dlg, text="Close",
+            height=BTN_H, corner_radius=BTN_R,
             fg_color=CLR_SURFACE_ALT, hover_color=CLR_BORDER,
-            text_color=CLR_TEXT, font=FONT_BODY, command=dlg.destroy,
+            text_color=CLR_TEXT, font=FONT_BODY,
+            command=dlg.destroy,
         ).pack(pady=10)
 
     # ----------------------------------------------------------------- delete
     def _confirm_delete(self, row_id, card, delete_fn):
         dlg = ctk.CTkToplevel(self)
-        dlg.title("Delete Assessment")
-        dlg.geometry("360x150")
+        dlg.title("Delete")
+        dlg.geometry("340x150")
         dlg.resizable(False, False)
         dlg.configure(fg_color=CLR_SURFACE)
         dlg.grab_set()
 
-        ctk.CTkLabel(dlg, text="Delete this assessment record?",
+        ctk.CTkLabel(dlg, text="Delete this assessment?",
                      font=FONT_SUBHEAD, text_color=CLR_TEXT,
                      ).pack(pady=(24, 4))
         ctk.CTkLabel(dlg, text="This cannot be undone.",
                      font=FONT_SMALL, text_color=CLR_MUTED,
                      ).pack(pady=(0, 16))
 
-        row = ctk.CTkFrame(dlg, fg_color="transparent")
-        row.pack()
-        ctk.CTkButton(row, text="Cancel", width=100,
+        r = ctk.CTkFrame(dlg, fg_color="transparent")
+        r.pack()
+        ctk.CTkButton(r, text="Cancel", width=100,
                       fg_color="transparent", border_color=CLR_BORDER,
                       border_width=1, text_color=CLR_TEXT_SEC,
                       hover_color=CLR_SURFACE_ALT,
                       command=dlg.destroy).pack(side="left", padx=8)
-        ctk.CTkButton(row, text="Delete", width=100,
+        ctk.CTkButton(r, text="Delete", width=100,
                       fg_color=CLR_DANGER, hover_color="#B02020",
                       text_color="#ffffff",
-                      command=lambda: self._do_delete(
-                          row_id, card, dlg, delete_fn),
+                      command=lambda: (delete_fn(row_id),
+                                       dlg.destroy(),
+                                       card.destroy()),
                       ).pack(side="left", padx=8)
-
-    def _do_delete(self, row_id, card, dlg, delete_fn):
-        delete_fn(row_id)
-        dlg.destroy()
-        card.destroy()
