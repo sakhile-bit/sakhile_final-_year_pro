@@ -49,6 +49,8 @@ class DigitalHygieneApp(ctk.CTk):
             on_infra=self._show_infra_scanner,
             on_zambia_risk=self._show_zambia_risk,
             on_policies=self._show_policy_templates,
+            on_network=self._show_network_scanner,
+            on_deploy=self._show_deployment_checker,
         ))
 
     def _show_history(self):
@@ -66,6 +68,14 @@ class DigitalHygieneApp(ctk.CTk):
     def _show_policy_templates(self):
         from src.gui.screens.policy_templates import PolicyTemplatesScreen
         self._swap(PolicyTemplatesScreen(self, on_back=self._show_welcome))
+
+    def _show_network_scanner(self):
+        from src.gui.screens.network_scanner import NetworkScannerScreen
+        self._swap(NetworkScannerScreen(self, on_back=self._show_welcome))
+
+    def _show_deployment_checker(self):
+        from src.gui.screens.deployment_screen import DeploymentCheckerScreen
+        self._swap(DeploymentCheckerScreen(self, on_back=self._show_welcome))
 
     def _show_business_info(self):
         from src.gui.screens.business_info import BusinessInfoScreen
