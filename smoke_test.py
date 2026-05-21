@@ -6,7 +6,7 @@ BASE = 'http://127.0.0.1:5000'
 s = requests.Session()
 ok = True
 
-def check(label, condition):
+def check(label: str, condition: bool) -> None:
     global ok
     status = "PASS" if condition else "FAIL"
     if not condition:

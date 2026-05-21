@@ -7,11 +7,9 @@ framework references (NIST, CIS, ISO 27001), certification tiers,
 and Zambia-specific compliance guidance.
 """
 
-import json
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any, Optional
-import os
+from typing import Dict, List, Any
 
 
 class ReportGenerator:
@@ -176,7 +174,7 @@ class ReportGenerator:
                 SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
                 HRFlowable,
             )
-            from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+            from reportlab.lib.enums import TA_CENTER
 
             pdf_path = str(self.output_dir / f"{report_name}.pdf")
             doc = SimpleDocTemplate(
@@ -208,11 +206,6 @@ class ReportGenerator:
                 'Small', parent=styles['Normal'], fontSize=8,
                 textColor=colors.HexColor('#555555'),
             )
-            cert_style = ParagraphStyle(
-                'Cert', parent=styles['Normal'],
-                fontSize=14, fontName='Helvetica-Bold', alignment=TA_CENTER,
-            )
-
             percentage = round(results.score / results.total_possible * 100, 1) if results.total_possible > 0 else 0
             critical_failures = getattr(results, 'critical_failures', 0)
             level = results.certification_level
@@ -263,7 +256,6 @@ class ReportGenerator:
             story.append(Spacer(1, 10))
 
             # ── Score summary ──────────────────────────────────────────
-            score_color = colors.HexColor(level_hex)
             summary_data = [
                 [Paragraph('<b>Overall Score</b>', normal),
                  Paragraph(f'<font size="16" color="{level_hex}"><b>{results.score}/{results.total_possible} ({percentage}%)</b></font>', normal),
@@ -392,7 +384,6 @@ class ReportGenerator:
         auto_rows = []
         manual_rows = []
         for cid, control in results.controls.items():
-            cat = getattr(control, 'category', 'technical')
             ver = getattr(control, 'verification', 'automated')
             ctrl_id = getattr(control, 'control_id', cid)
             row = f'''

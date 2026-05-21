@@ -15,6 +15,7 @@ import io
 import re
 import secrets
 from functools import wraps
+from typing import Any, Optional
 import ssl
 import socket
 import platform
@@ -42,7 +43,7 @@ try:
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
     from reportlab.lib.styles import getSampleStyleSheet
 except ImportError:  # pragma: no cover
-    letter = SimpleDocTemplate = Paragraph = Spacer = getSampleStyleSheet = None
+    letter = SimpleDocTemplate = Paragraph = Spacer = getSampleStyleSheet = None  # type: ignore[misc]
 
 try:
     import pyotp
@@ -84,7 +85,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Initialize extensions without binding to app immediately
 db = SQLAlchemy()
 login_manager = LoginManager()
-login_manager.login_view = 'login'
+login_manager.login_view = 'login'  # type: ignore[assignment]
 csrf = CSRFProtect()
 
 # Initialize scheduler for automation (optional dependency)
@@ -114,10 +115,23 @@ class User(UserMixin, db.Model):
 
     business = db.relationship('Business', backref=db.backref('owners', lazy='dynamic'))
 
-    def set_password(self, password):
+    def __init__(self, username: str, email: str, role: str = 'assessor',
+                 is_active: bool = True, mfa_secret: Optional[str] = None,
+                 mfa_enabled: bool = False, business_id: Optional[int] = None,
+                 **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.username = username
+        self.email = email
+        self.role = role
+        self.is_active = is_active  # type: ignore[assignment]
+        self.mfa_secret = mfa_secret
+        self.mfa_enabled = mfa_enabled
+        self.business_id = business_id
+
+    def set_password(self, password: str) -> None:
         self.password_hash = generate_password_hash(password)
 
-    def check_password(self, password):
+    def check_password(self, password: str) -> bool:
         return check_password_hash(self.password_hash, password)
 
 
@@ -134,6 +148,19 @@ class Business(db.Model):
     industry = db.Column(db.String(100))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __init__(self, name: str, registration_number: Optional[str] = None,
+                 contact_person: Optional[str] = None, contact_email: Optional[str] = None,
+                 contact_phone: Optional[str] = None, industry: Optional[str] = None,
+                 address: Optional[str] = None, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.name = name
+        self.registration_number = registration_number
+        self.contact_person = contact_person
+        self.contact_email = contact_email
+        self.contact_phone = contact_phone
+        self.industry = industry
+        self.address = address
 
 
 class Assessment(db.Model):
@@ -155,6 +182,19 @@ class Assessment(db.Model):
     business = db.relationship('Business')
     assessor = db.relationship('User')
 
+    def __init__(self, business_id: int, controls_results: Any, total_score: int,
+                 certification_level: str, assessor_id: Optional[int] = None,
+                 recommendations: Optional[Any] = None, status: str = 'completed',
+                 **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.business_id = business_id
+        self.controls_results = controls_results
+        self.total_score = total_score
+        self.certification_level = certification_level
+        self.assessor_id = assessor_id
+        self.recommendations = recommendations
+        self.status = status
+
 
 class Certificate(db.Model):
     __tablename__ = 'certificates'
@@ -170,42 +210,58 @@ class Certificate(db.Model):
 
     assessment = db.relationship('Assessment')
 
+    def __init__(self, assessment_id: int, certificate_number: str,
+                 issued_date: Optional[Any] = None, expiry_date: Optional[Any] = None,
+                 certificate_data: Optional[Any] = None, is_active: bool = True,
+                 **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.assessment_id = assessment_id
+        self.certificate_number = certificate_number
+        self.issued_date = issued_date
+        self.expiry_date = expiry_date
+        self.certificate_data = certificate_data
+        self.is_active = is_active
+
     # Backwards-compatible view helpers for templates
     @property
-    def business_name(self):  # pragma: no cover - presentational
-        return self.business.name if self.business else ''
+    def _biz(self):  # pragma: no cover
+        return self.assessment.business if self.assessment else None
 
     @property
-    def business_registration(self):  # pragma: no cover - presentational
-        return self.business.registration_number if self.business else ''
+    def business_name(self) -> str:  # pragma: no cover - presentational
+        return self._biz.name if self._biz else ''
 
     @property
-    def contact_person(self):  # pragma: no cover - presentational
-        return self.business.contact_person if self.business else ''
+    def business_registration(self) -> str:  # pragma: no cover - presentational
+        return self._biz.registration_number if self._biz else ''
 
     @property
-    def contact_email(self):  # pragma: no cover - presentational
-        return self.business.contact_email if self.business else ''
+    def contact_person(self) -> str:  # pragma: no cover - presentational
+        return self._biz.contact_person if self._biz else ''
 
     @property
-    def contact_phone(self):  # pragma: no cover - presentational
-        return self.business.contact_phone if self.business else ''
+    def contact_email(self) -> str:  # pragma: no cover - presentational
+        return self._biz.contact_email if self._biz else ''
 
     @property
-    def industry(self):  # pragma: no cover - presentational
-        return self.business.industry if self.business else ''
+    def contact_phone(self) -> str:  # pragma: no cover - presentational
+        return self._biz.contact_phone if self._biz else ''
 
     @property
-    def address(self):  # pragma: no cover - presentational
-        return self.business.address if self.business else ''
+    def industry(self) -> str:  # pragma: no cover - presentational
+        return self._biz.industry if self._biz else ''
+
+    @property
+    def address(self) -> str:  # pragma: no cover - presentational
+        return self._biz.address if self._biz else ''
 
     @property
     def score(self):  # pragma: no cover - compatibility alias
-        return self.total_score
+        return self.assessment.total_score if self.assessment else 0
 
     @property
     def total_possible(self):  # pragma: no cover - compatibility alias
-        data = self.controls_results or {}
+        data = (self.assessment.controls_results if self.assessment else None) or {}
         return data.get('total_possible', 0)
 
 
@@ -223,6 +279,18 @@ class AuditLog(db.Model):
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
     user = db.relationship('User')
+
+    def __init__(self, user_id: Optional[int] = None, action: str = '',
+                 resource_type: Optional[str] = None, resource_id: Optional[int] = None,
+                 details: Optional[Any] = None, ip_address: Optional[str] = None,
+                 **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.user_id = user_id
+        self.action = action
+        self.resource_type = resource_type
+        self.resource_id = resource_id
+        self.details = details
+        self.ip_address = ip_address
 
 
 class Remediation(db.Model):
@@ -247,6 +315,23 @@ class Remediation(db.Model):
     assignee = db.relationship('User', foreign_keys=[assigned_to])
     creator = db.relationship('User', foreign_keys=[created_by])
 
+    def __init__(self, assessment_id: int, control_id: str, created_by: int,
+                 control_name: Optional[str] = None, status: str = 'open',
+                 priority: str = 'medium', assigned_to: Optional[int] = None,
+                 notes: Optional[str] = None, due_date: Optional[Any] = None,
+                 resolved_at: Optional[Any] = None, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.assessment_id = assessment_id
+        self.control_id = control_id
+        self.created_by = created_by
+        self.control_name = control_name
+        self.status = status
+        self.priority = priority
+        self.assigned_to = assigned_to
+        self.notes = notes
+        self.due_date = due_date
+        self.resolved_at = resolved_at
+
 
 class AssessmentRequest(db.Model):
     """Business owners request assessments; assessors pick them up."""
@@ -266,6 +351,17 @@ class AssessmentRequest(db.Model):
     business = db.relationship('Business')
     requester = db.relationship('User', foreign_keys=[requested_by])
     assessor = db.relationship('User', foreign_keys=[assigned_to])
+
+    def __init__(self, business_id: int, requested_by: int, assessment_tier: str = 'full',
+                 notes: Optional[str] = None, preferred_date: Optional[Any] = None,
+                 status: str = 'pending', **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.business_id = business_id
+        self.requested_by = requested_by
+        self.assessment_tier = assessment_tier
+        self.notes = notes
+        self.preferred_date = preferred_date
+        self.status = status
 
 def _generate_cert_number() -> str:
     """Generate a unique certificate number: ZDH-YYYY-XXXXXX."""
@@ -297,7 +393,7 @@ def load_user(user_id):
 def inject_now():
     return {'now': datetime.utcnow}
 
-def create_app(db_uri=None):
+def create_app(db_uri: str | None = None) -> Flask:
     """Create and configure the Flask application.
 
     Args:
@@ -368,13 +464,13 @@ def create_app(db_uri=None):
     return app
 
 # Simple rate limiting for login
-login_attempts = {}
+login_attempts: dict[str, list[float]] = {}
 
 def rate_limit(max_attempts=5, window=300):  # 5 attempts per 5 minutes
     def decorator(f):
         @wraps(f)
         def wrapper(*args, **kwargs):
-            ip = request.remote_addr
+            ip = request.remote_addr or '0.0.0.0'
             now = time.time()
             if ip not in login_attempts:
                 login_attempts[ip] = []
@@ -475,7 +571,7 @@ def register():
             return render_template('register.html')
         if role not in ('business_owner', 'assessor'):
             role = 'business_owner'
-        if User.query.filter((User.username == username) | (User.email == email)).first():
+        if User.query.filter((User.username == username) | (User.email == email)).first():  # type: ignore[arg-type]
             flash('Username or email already taken.', 'error')
             return render_template('register.html')
 
@@ -557,7 +653,7 @@ def my_business():
     certificates = []
     if business:
         assessments = Assessment.query.filter_by(business_id=business.id).order_by(Assessment.created_at.desc()).all()
-        certificates = Certificate.query.join(Assessment).filter(Assessment.business_id == business.id, Certificate.is_active == True).all()
+        certificates = Certificate.query.join(Assessment).filter(Assessment.business_id == business.id, Certificate.is_active == True).all()  # type: ignore[arg-type]
 
     return render_template('my_business.html', business=business, assessments=assessments, certificates=certificates)
 
@@ -578,6 +674,9 @@ def request_assessment():
         return redirect(url_for('my_business'))
 
     business = Business.query.get(current_user.business_id)
+    if not business:
+        flash('Business not found. Please register your business first.', 'warning')
+        return redirect(url_for('my_business'))
 
     if request.method == 'POST':
         tier = request.form.get('assessment_tier', 'full')
@@ -718,7 +817,7 @@ def dashboard():
     reminders = []
     # Expiring certificates
     soon = datetime.utcnow() + timedelta(days=30)
-    expiring = Certificate.query.filter(Certificate.expiry_date <= soon, Certificate.is_active == True).all()
+    expiring = Certificate.query.filter(Certificate.expiry_date <= soon, Certificate.is_active == True).all()  # type: ignore[arg-type]
     if expiring:
         reminders.append(f"{len(expiring)} certificate(s) expiring within 30 days.")
     # Periodic reassessment (every 6 months)
@@ -1000,7 +1099,7 @@ def change_password():
             flash('Old password incorrect.', 'error')
         elif new_pw != confirm_pw:
             flash('New passwords do not match.', 'error')
-        elif len(new_pw) < 10 or not re.search(r'[A-Z]', new_pw) or not re.search(r'[a-z]', new_pw) or not re.search(r'\d', new_pw) or not re.search(r'[^A-Za-z0-9]', new_pw):
+        elif not new_pw or len(new_pw) < 10 or not re.search(r'[A-Z]', new_pw) or not re.search(r'[a-z]', new_pw) or not re.search(r'\d', new_pw) or not re.search(r'[^A-Za-z0-9]', new_pw):
             flash('New password does not meet hygiene requirements.', 'error')
         else:
             current_user.set_password(new_pw)
@@ -1063,6 +1162,9 @@ def mfa_setup():
         flash('MFA requires pyotp and qrcode packages. Install them via: pip install pyotp qrcode[pil]', 'warning')
         return render_template('mfa_setup.html', mfa_available=False, mfa_enabled=current_user.mfa_enabled)
 
+    assert pyotp is not None
+    assert qrcode is not None
+
     if request.method == 'POST':
         action = request.form.get('action')
         if action == 'enable':
@@ -1083,7 +1185,7 @@ def mfa_setup():
             qr.make(fit=True)
             img = qr.make_image(fill_color='black', back_color='white')
             buf = io.BytesIO()
-            img.save(buf, format='PNG')
+            img.save(buf, format='PNG')  # type: ignore[call-arg]
             qr_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
             return render_template('mfa_setup.html', mfa_available=True, mfa_enabled=False,
                                    qr_code=qr_b64, secret=secret, step='verify')
@@ -1131,7 +1233,7 @@ def mfa_verify():
     if request.method == 'POST':
         code = request.form.get('mfa_code', '').strip()
         user = User.query.get(user_id)
-        if user and user.mfa_secret and _MFA_AVAILABLE:
+        if user and user.mfa_secret and _MFA_AVAILABLE and pyotp is not None:
             totp = pyotp.TOTP(user.mfa_secret)
             if totp.verify(code, valid_window=1):
                 session.pop('mfa_user_id', None)
@@ -1409,7 +1511,8 @@ def check_ssl_tls(domain='localhost'):
         with socket.create_connection((domain, 443), timeout=2) as sock:
             with context.wrap_socket(sock, server_hostname=domain) as ssock:
                 cert = ssock.getpeercert()
-                return f"SSL/TLS enabled, expires: {cert['notAfter']}"
+                expiry = cert['notAfter'] if cert else 'unknown'
+                return f"SSL/TLS enabled, expires: {expiry}"
     except Exception as e:
         return f"SSL/TLS not detected: {e}"
 
@@ -1422,7 +1525,7 @@ def check_dns_resolution(domain='localhost'):
         addresses = sorted({item[4][0] for item in infos})
         if not addresses:
             return 'No DNS records found'
-        return f"Resolves to {', '.join(addresses)}"
+        return f"Resolves to {', '.join(str(a) for a in addresses)}"
     except Exception as e:
         return f"DNS resolution failed: {e}"
 
@@ -1506,10 +1609,10 @@ def check_shodan_exposure(ip=None):
 @app.route('/system-scan', methods=['GET', 'POST'])
 @login_required
 def system_scan():
-    scan_results = {}
-    recommendations = []
-    advanced_results = {}
-    technical_results = {}
+    scan_results: dict[str, Any] = {}
+    recommendations: list[str] = []
+    advanced_results: dict[str, Any] = {}
+    technical_results: dict[str, Any] = {}
     if request.method == 'POST':
         # Basic checks: OS, open ports, firewall, updates, antivirus
         scan_results['os'] = platform.system() + ' ' + platform.release()
@@ -1597,7 +1700,7 @@ def system_scan():
 @login_required
 def infrastructure_scan():
     recommendations = []
-    infra_results = {}
+    infra_results: dict[str, Any] = {}
     if request.method == 'POST':
         target = request.form.get('domain', 'localhost')
         assessor = InfrastructureAssessor(target)
@@ -1634,36 +1737,39 @@ def automated_scan():
 
 def generate_pdf_report(scan_results, recommendations, advanced_results, technical_results):
     """Generate PDF report from scan results."""
-    if SimpleDocTemplate is None or letter is None:
-        # reportlab not installed — return empty buffer with error text
-        buffer = io.BytesIO(b'PDF generation requires the reportlab package.')
-        return buffer
+    try:
+        from reportlab.lib.pagesizes import letter as _letter
+        from reportlab.platypus import SimpleDocTemplate as _Doc, Paragraph as _P, Spacer as _S
+        from reportlab.lib.styles import getSampleStyleSheet as _styles
+    except ImportError:
+        return io.BytesIO(b'PDF generation requires the reportlab package.')
+
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
-    styles = getSampleStyleSheet()
+    doc = _Doc(buffer, pagesize=_letter)
+    styles = _styles()
     story = []
 
-    story.append(Paragraph("Digital Hygiene Scan Report", styles['Title']))
-    story.append(Spacer(1, 12))
+    story.append(_P("Digital Hygiene Scan Report", styles['Title']))
+    story.append(_S(1, 12))
 
-    story.append(Paragraph("Basic Results", styles['Heading2']))
+    story.append(_P("Basic Results", styles['Heading2']))
     for key, value in scan_results.items():
-        story.append(Paragraph(f"{key}: {value}", styles['Normal']))
-    story.append(Spacer(1, 12))
+        story.append(_P(f"{key}: {value}", styles['Normal']))
+    story.append(_S(1, 12))
 
-    story.append(Paragraph("Advanced Results", styles['Heading2']))
+    story.append(_P("Advanced Results", styles['Heading2']))
     for key, value in advanced_results.items():
-        story.append(Paragraph(f"{key}: {value}", styles['Normal']))
-    story.append(Spacer(1, 12))
+        story.append(_P(f"{key}: {value}", styles['Normal']))
+    story.append(_S(1, 12))
 
-    story.append(Paragraph("Technical Results", styles['Heading2']))
+    story.append(_P("Technical Results", styles['Heading2']))
     for key, value in technical_results.items():
-        story.append(Paragraph(f"{key}: {value}", styles['Normal']))
-    story.append(Spacer(1, 12))
+        story.append(_P(f"{key}: {value}", styles['Normal']))
+    story.append(_S(1, 12))
 
-    story.append(Paragraph("Recommendations", styles['Heading2']))
+    story.append(_P("Recommendations", styles['Heading2']))
     for rec in recommendations:
-        story.append(Paragraph(f"- {rec}", styles['Normal']))
+        story.append(_P(f"- {rec}", styles['Normal']))
 
     doc.build(story)
     buffer.seek(0)

@@ -593,8 +593,10 @@ def manual():
         # Import dynamically from the project root
         import importlib.util
         spec = importlib.util.spec_from_file_location("manual_assessment_guide", str(guide_path))
+        if spec is None or spec.loader is None:
+            raise ImportError(f"Cannot load spec for {guide_path}")
         mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
+        spec.loader.exec_module(mod)  # type: ignore[union-attr]
 
         filename = mod.generate_manual_checklist()
         console.print(f"[green]✅ Manual assessment guide generated: {filename}[/green]")
@@ -774,7 +776,8 @@ def _check_ssl_tls(domain: str = 'localhost') -> str:
         with socket.create_connection((domain, 443), timeout=2) as sock:
             with ctx.wrap_socket(sock, server_hostname=domain) as ssock:
                 cert = ssock.getpeercert()
-                return f"SSL/TLS valid, expires: {cert['notAfter']}"
+                expiry = cert['notAfter'] if cert else 'unknown'
+                return f"SSL/TLS valid, expires: {expiry}"
     except Exception as e:
         return f"SSL/TLS not detected: {e}"
 

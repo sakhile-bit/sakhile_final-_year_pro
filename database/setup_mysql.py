@@ -9,20 +9,19 @@ This script:
 4. Verifies the setup
 """
 
-import os
 import sys
 import subprocess
 from pathlib import Path
 
 
-def run_command(cmd, description):
+def run_command(cmd: str, description: str) -> bool:
     """Run a shell command and report results."""
     print(f"\n{'='*60}")
     print(f"▶ {description}")
     print(f"{'='*60}")
     print(f"$ {cmd}")
     print()
-    
+
     result = subprocess.run(cmd, shell=True)
     if result.returncode != 0:
         print(f"\n❌ Failed: {description}")
@@ -115,9 +114,6 @@ def main():
     if not sql_file.exists():
         print(f"❌ SQL file not found: {sql_file}")
         return False
-    
-    with open(sql_file, 'r') as f:
-        sql_content = f.read()
     
     # Execute schema
     sql_cmd = f'mysql -h {db_host} -P {db_port} -u {db_user} -p{db_password} < "{sql_file}"'
