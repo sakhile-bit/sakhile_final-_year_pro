@@ -132,32 +132,50 @@ class Config:
         return self._config['assessment']
 
     def get_database_url(self) -> str:
-        """Generate database connection URL from config.
+        """Generate database connection URL.
 
-        Tries MySQL first.  Falls back to a local SQLite database when the
-        MySQL driver is not installed or the connection details are missing,
-        which is the common case during development and testing.
+        Priority:
+        1. ``DATABASE_URL`` environment variable (explicit override).
+        2. MySQL when the driver is installed AND the server is reachable.
+        3. SQLite fallback for local dev / testing.
         """
+        import socket
+
+        # 1. Explicit override via env var (supports sqlite:/// and postgres:// too)
+        explicit = os.environ.get('DATABASE_URL', '').strip()
+        if explicit:
+            return explicit
+
+        db_config = self.database
+        host = db_config.get('host') or os.getenv('DB_HOST', 'localhost')
+        port = db_config.get('port') or int(os.getenv('DB_PORT', '3306'))
+        user = db_config.get('user') or os.getenv('DB_USER', '')
+        password = db_config.get('password') or os.getenv('DB_PASSWORD', '')
+        name = db_config.get('name') or os.getenv('DB_NAME', 'digital_hygiene')
+
+        # 2. Try MySQL — only if the driver is present AND the server responds
         try:
             import mysql.connector  # noqa: F401
             mysql_available = True
         except ImportError:
             mysql_available = False
 
-        db_config = self.database
-        user = db_config.get('user') or os.getenv('DB_USER', '')
-        password = db_config.get('password') or os.getenv('DB_PASSWORD', '')
-        host = db_config.get('host') or os.getenv('DB_HOST', 'localhost')
-        port = db_config.get('port') or int(os.getenv('DB_PORT', '3306'))
-        name = db_config.get('name') or os.getenv('DB_NAME', 'digital_hygiene')
-
         if mysql_available and user:
-            # Construct MySQL URL for SQLAlchemy (quote password for special chars like @)
-            if password:
-                return f'mysql+mysqlconnector://{user}:{quote_plus(password)}@{host}:{port}/{name}'
-            return f'mysql+mysqlconnector://{user}@{host}:{port}/{name}'
+            # Quick TCP probe — avoids hanging on an unreachable server
+            try:
+                with socket.create_connection((host, int(port)), timeout=2):
+                    pass
+                mysql_reachable = True
+            except OSError:
+                mysql_reachable = False
 
-        # Fallback to SQLite for local dev / testing
+            if mysql_reachable:
+                if password:
+                    return (f'mysql+mysqlconnector://{user}:'
+                            f'{quote_plus(password)}@{host}:{port}/{name}')
+                return f'mysql+mysqlconnector://{user}@{host}:{port}/{name}'
+
+        # 3. SQLite fallback
         db_dir = Path(__file__).parent.parent.parent / 'instance'
         db_dir.mkdir(parents=True, exist_ok=True)
         sqlite_path = db_dir / 'digital_hygiene.db'
