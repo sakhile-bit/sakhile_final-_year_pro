@@ -141,29 +141,58 @@
   </div>
 </section>
 
-<!-- ── Download CTA ──────────────────────────────────────────────────── -->
-<section class="py-5" style="background:var(--surface)">
-  <div class="container" style="max-width:680px">
-    <div class="dl-box">
-      <i class="fab fa-windows mb-3" style="font-size:3.5rem;color:var(--brand)"></i>
-      <h2 class="fw-bold mb-2">Download the Windows App</h2>
-      <p style="color:var(--muted)" class="mb-4">
-        Free, open-source. No account needed. Runs on Windows 10 and 11.<br>
-        Built with Python · PyInstaller · CustomTkinter
-      </p>
-      <a href="{{ download_url }}" class="btn btn-brand btn-lg px-5">
-        <i class="fas fa-download me-2"></i>Download ZambiaDigitalHygiene.exe
-      </a>
-      <div class="mt-4 d-flex justify-content-center gap-4 flex-wrap">
-        <span class="platform-badge"><i class="fab fa-windows"></i> Windows 10 / 11</span>
-        <span class="platform-badge"><i class="fas fa-microchip"></i> x64</span>
-        <span class="platform-badge"><i class="fab fa-github"></i> Open Source</span>
+<!-- ── Get Started ────────────────────────────────────────────────────── -->
+<section class="py-5" style="background:var(--surface)" id="get-started">
+  <div class="container">
+    <h2 class="text-center fw-bold mb-2">Get Started</h2>
+    <p class="text-center mb-5" style="color:var(--muted)">Choose the platform that works for you</p>
+    <div class="row g-4 justify-content-center">
+      <div class="col-md-5">
+        <div class="dl-box h-100 d-flex flex-column align-items-center">
+          <i class="fab fa-windows mb-3" style="font-size:3rem;color:var(--brand)"></i>
+          <h4 class="fw-bold mb-1">Windows Desktop App</h4>
+          <p style="color:var(--muted);font-size:.9rem" class="mb-3 text-center">
+            Free standalone app — no account needed.<br>
+            Runs automated checks directly on your machine.
+          </p>
+          <a href="{{ download_url }}" class="btn btn-brand btn-lg w-100 mb-3">
+            <i class="fas fa-download me-2"></i>Download .exe
+          </a>
+          <div class="d-flex gap-2 flex-wrap justify-content-center">
+            <span class="platform-badge"><i class="fab fa-windows"></i> Windows 10/11</span>
+            <span class="platform-badge"><i class="fas fa-lock"></i> Free &amp; Open Source</span>
+          </div>
+        </div>
       </div>
-      <p class="mt-4 mb-0" style="color:var(--muted);font-size:.8rem">
-        Have a certificate ID to verify?
-        <a href="/verify/YOUR-CERT-ID">Check certificate validity →</a>
-      </p>
+      <div class="col-md-5">
+        <div class="dl-box h-100 d-flex flex-column align-items-center"
+             style="border-color:rgba(36,133,232,.4)">
+          <i class="fas fa-globe mb-3" style="font-size:3rem;color:#2485E8"></i>
+          <h4 class="fw-bold mb-1">Web Portal</h4>
+          <p style="color:var(--muted);font-size:.9rem" class="mb-3 text-center">
+            Full-featured web platform — manage assessments,<br>track remediations and issue certificates.
+          </p>
+          <a href="{{ url_for('register') }}"
+             class="btn btn-lg w-100 mb-2"
+             style="background:#2485E8;color:#fff;border:none;border-radius:999px">
+            <i class="fas fa-user-plus me-2"></i>Create Free Account
+          </a>
+          <a href="{{ url_for('login') }}" class="btn btn-outline-brand btn-lg w-100 mb-3">
+            <i class="fas fa-sign-in-alt me-2"></i>Sign In
+          </a>
+          <div class="d-flex gap-2 flex-wrap justify-content-center">
+            <span class="platform-badge"><i class="fas fa-users"></i> Multi-user</span>
+            <span class="platform-badge"><i class="fas fa-shield-halved"></i> MFA</span>
+            <span class="platform-badge"><i class="fas fa-chart-line"></i> Analytics</span>
+          </div>
+        </div>
+      </div>
     </div>
+    <p class="text-center mt-5 mb-0" style="color:var(--muted);font-size:.85rem">
+      Have a certificate ID?
+      <a href="{{ url_for('verify', certificate_number='ZDH-2024-XXXXXX') }}"
+         style="color:var(--brand)">Verify certificate validity →</a>
+    </p>
   </div>
 </section>
 {% endblock %}
