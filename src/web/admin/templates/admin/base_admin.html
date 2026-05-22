@@ -1,177 +1,155 @@
-{% extends "base.html" %} {% block title %}Admin – {% block admin_title
-%}Dashboard{% endblock %}{% endblock %} {% block content %}
-<div class="container-fluid mt-0">
-  <div class="row">
-    <!-- ─── Admin sidebar ─── -->
-    <nav
-      class="col-md-2 bg-dark text-light min-vh-100 p-0 d-none d-md-block"
-      id="adminSidebar"
-    >
-      <div class="p-3 border-bottom border-secondary">
-        <h5 class="mb-0"><i class="fas fa-cogs me-2"></i>Admin Panel</h5>
-      </div>
-      <ul class="nav flex-column mt-2">
-        <li class="nav-item">
-          <a
-            class="nav-link text-light {{ 'fw-bold bg-primary rounded mx-2' if request.endpoint == 'admin.dashboard' }}"
-            href="{{ url_for('admin.dashboard') }}"
-          >
-            <i class="fas fa-tachometer-alt me-2"></i>Dashboard
-          </a>
-        </li>
-        <li class="nav-item">
-          <a
-            class="nav-link text-light {{ 'fw-bold bg-primary rounded mx-2' if request.endpoint and 'admin.user' in request.endpoint }}"
-            href="{{ url_for('admin.users') }}"
-          >
-            <i class="fas fa-users me-2"></i>Users
-          </a>
-        </li>
-        <li class="nav-item">
-          <a
-            class="nav-link text-light {{ 'fw-bold bg-primary rounded mx-2' if request.endpoint and 'admin.business' in request.endpoint }}"
-            href="{{ url_for('admin.businesses') }}"
-          >
-            <i class="fas fa-building me-2"></i>Businesses
-          </a>
-        </li>
-        <li class="nav-item">
-          <a
-            class="nav-link text-light {{ 'fw-bold bg-primary rounded mx-2' if request.endpoint == 'admin.assessments' }}"
-            href="{{ url_for('admin.assessments') }}"
-          >
-            <i class="fas fa-clipboard-check me-2"></i>Assessments
-          </a>
-        </li>
-        <li class="nav-item">
-          <a
-            class="nav-link text-light {{ 'fw-bold bg-primary rounded mx-2' if request.endpoint and 'admin.certificate' in request.endpoint }}"
-            href="{{ url_for('admin.certificates') }}"
-          >
-            <i class="fas fa-certificate me-2"></i>Certificates
-          </a>
-        </li>
-        <li class="nav-item">
-          <a
-            class="nav-link text-light {{ 'fw-bold bg-primary rounded mx-2' if request.endpoint == 'admin.audit_logs' }}"
-            href="{{ url_for('admin.audit_logs') }}"
-          >
-            <i class="fas fa-clipboard-list me-2"></i>Audit Logs
-          </a>
-        </li>
-        <li class="nav-item">
-          <a
-            class="nav-link text-light {{ 'fw-bold bg-primary rounded mx-2' if request.endpoint == 'admin.system' }}"
-            href="{{ url_for('admin.system') }}"
-          >
-            <i class="fas fa-server me-2"></i>System
-          </a>
-        </li>
-        <li class="nav-item mt-3 border-top border-secondary pt-3">
-          <span class="text-muted small px-3">DATA EXPORT</span>
-        </li>
-        <li class="nav-item">
-          <a
-            class="nav-link text-light"
-            href="{{ url_for('admin.admin_export', resource='users', fmt='csv') }}"
-          >
-            <i class="fas fa-file-csv me-2"></i>Export Users CSV
-          </a>
-        </li>
-        <li class="nav-item">
-          <a
-            class="nav-link text-light"
-            href="{{ url_for('admin.admin_export', resource='assessments', fmt='csv') }}"
-          >
-            <i class="fas fa-file-csv me-2"></i>Export Assessments CSV
-          </a>
-        </li>
-        <li class="nav-item">
-          <a
-            class="nav-link text-light"
-            href="{{ url_for('admin.admin_export', resource='businesses', fmt='csv') }}"
-          >
-            <i class="fas fa-file-csv me-2"></i>Export Businesses CSV
-          </a>
-        </li>
-      </ul>
-    </nav>
+{% extends "base.html" %}
+{% block title %}Admin · {% block admin_title %}Dashboard{% endblock %} – ZDH{% endblock %}
 
-    <!-- ─── Main content ─── -->
-    <div class="col-md-10 p-4">
-      <!-- Mobile sidebar toggler -->
-      <div class="d-md-none mb-3">
-        <button
-          class="btn btn-dark"
-          type="button"
-          data-bs-toggle="offcanvas"
-          data-bs-target="#adminOffcanvas"
-        >
-          <i class="fas fa-bars me-1"></i> Admin Menu
-        </button>
-      </div>
+{% block head %}
+<style>
+  .admin-wrap { display: flex; min-height: calc(100vh - 72px); }
+  .admin-sidebar {
+    width: 220px; flex-shrink: 0;
+    background: rgba(6,12,20,.98);
+    border-right: 1px solid rgba(255,255,255,.06);
+    display: flex; flex-direction: column;
+    position: sticky; top: 72px;
+    height: calc(100vh - 72px); overflow-y: auto;
+  }
+  .admin-sidebar::-webkit-scrollbar { width: 3px; }
+  .admin-sidebar::-webkit-scrollbar-thumb { background: rgba(0,209,155,.2); }
+  .sb-brand {
+    padding: .9rem 1.2rem .7rem;
+    border-bottom: 1px solid rgba(255,255,255,.05);
+    font-size: .7rem; text-transform: uppercase; letter-spacing: .12em;
+    color: var(--muted); font-weight: 800;
+    display: flex; align-items: center; gap: .5rem;
+  }
+  .sb-brand i { color: #F5C518; }
+  .sb-sec { padding: .3rem 0; }
+  .sb-lbl {
+    font-size: .6rem; text-transform: uppercase; letter-spacing: .12em;
+    color: rgba(148,166,192,.3); padding: .55rem 1.2rem .2rem; font-weight: 800;
+  }
+  .sl {
+    display: flex; align-items: center; gap: .6rem;
+    padding: .48rem 1.2rem; color: var(--muted);
+    text-decoration: none; font-size: .845rem;
+    transition: all .14s; border-left: 2px solid transparent;
+  }
+  .sl:hover { color: var(--text); background: rgba(255,255,255,.03); }
+  .sl.active { color: var(--brand); background: rgba(0,209,155,.07); border-left-color: var(--brand); font-weight: 600; }
+  .sl i { width: 14px; text-align: center; font-size: .8rem; }
+  .admin-main { flex: 1; min-width: 0; padding: 1.6rem 1.8rem; }
+  /* KPI */
+  .kpi { background: var(--panel); border: 1px solid var(--border); border-radius: 1rem; padding: 1.15rem 1.35rem; transition: transform .18s, box-shadow .18s; }
+  .kpi:hover { transform: translateY(-2px); box-shadow: 0 14px 36px rgba(0,0,0,.28); }
+  .kpi-lbl { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .15rem; }
+  .kpi-val { font-size: 1.9rem; font-weight: 800; line-height: 1.1; }
+  .kpi-sub { font-size: .73rem; color: var(--muted); margin-top: .2rem; }
+  /* Card */
+  .ac { background: var(--panel); border: 1px solid var(--border); border-radius: 1rem; overflow: hidden; }
+  .ac-hdr { padding: .8rem 1.2rem; border-bottom: 1px solid rgba(255,255,255,.06); display: flex; align-items: center; justify-content: space-between; font-weight: 600; font-size: .88rem; color: var(--text); }
+  /* Table */
+  .at { width: 100%; border-collapse: collapse; }
+  .at th { font-size: .66rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 700; padding: .6rem 1rem; border-bottom: 1px solid rgba(255,255,255,.07); text-align: left; }
+  .at td { padding: .68rem 1rem; border-bottom: 1px solid rgba(255,255,255,.04); font-size: .855rem; vertical-align: middle; }
+  .at tbody tr:hover { background: rgba(255,255,255,.02); }
+  .at tbody tr:last-child td { border-bottom: none; }
+  /* Pills */
+  .sp { display: inline-flex; align-items: center; border-radius: 999px; padding: .2rem .6rem; font-size: .7rem; font-weight: 700; }
+  .sp-green  { background: rgba(0,209,155,.12);  color: #00C896; }
+  .sp-red    { background: rgba(232,64,64,.12);   color: #E84040; }
+  .sp-amber  { background: rgba(240,165,0,.12);   color: #F0A500; }
+  .sp-blue   { background: rgba(36,133,232,.12);  color: #2485E8; }
+  .sp-gray   { background: rgba(148,166,192,.09); color: var(--muted); }
+  .sp-gold   { background: rgba(245,197,24,.12);  color: #F5C518; }
+  .sp-silver { background: rgba(192,205,216,.09); color: #C0CDD8; }
+  .sp-bronze { background: rgba(212,135,58,.12);  color: #D4873A; }
+  /* Btns */
+  .ab { display: inline-flex; align-items: center; gap: .3rem; padding: .28rem .7rem; border-radius: .55rem; font-size: .75rem; font-weight: 600; cursor: pointer; text-decoration: none; border: 1px solid; transition: all .14s; }
+  .ab-ghost { border-color: var(--border); color: var(--muted); background: transparent; }
+  .ab-ghost:hover { border-color: var(--brand); color: var(--brand); }
+  .ab-primary { border-color: var(--brand); color: #07101a; background: var(--brand); }
+  .ab-primary:hover { background: var(--brand-dark); color: #fff; }
+  .ab-danger { border-color: #E84040; color: #E84040; background: transparent; }
+  .ab-danger:hover { background: rgba(232,64,64,.1); }
+  .ab-warn { border-color: #F0A500; color: #F0A500; background: transparent; }
+  .ab-warn:hover { background: rgba(240,165,0,.1); }
+  /* Pagination */
+  .apg { display: flex; gap: .28rem; justify-content: center; margin-top: .9rem; }
+  .apg a, .apg span { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: .5rem; font-size: .8rem; text-decoration: none; border: 1px solid var(--border); color: var(--muted); background: var(--panel); transition: all .14s; }
+  .apg a:hover { border-color: var(--brand); color: var(--brand); }
+  .apg .cur { background: var(--brand); color: #07101a; border-color: var(--brand); font-weight: 700; }
+  .apg .dis { opacity: .28; pointer-events: none; }
+  /* Inputs */
+  .ai { background: var(--surface); border: 1px solid var(--border); border-radius: .7rem; color: var(--text); padding: .42rem .9rem; font-size: .855rem; }
+  .ai:focus { outline: none; border-color: rgba(0,209,155,.5); box-shadow: 0 0 0 .15rem rgba(0,209,155,.12); }
+  .ai::placeholder { color: var(--muted); }
+  .as { background: var(--surface); border: 1px solid var(--border); border-radius: .7rem; color: var(--text); padding: .42rem .9rem; font-size: .855rem; cursor: pointer; }
+  .as option { background: #152030; }
+  @media (max-width: 767px) { .admin-sidebar { display: none !important; } .admin-main { padding: 1rem; } }
+</style>
+{% block admin_head %}{% endblock %}
+{% endblock %}
 
-      {% block admin_content %}{% endblock %}
+{% block content %}
+<div class="admin-wrap">
+  <!-- Sidebar -->
+  <nav class="admin-sidebar d-none d-md-flex flex-column">
+    <div class="sb-brand"><i class="fas fa-crown"></i>Admin Panel</div>
+    <div class="sb-sec">
+      <a href="{{ url_for('admin.dashboard') }}" class="sl {% if request.endpoint == 'admin.dashboard' %}active{% endif %}"><i class="fas fa-gauge-high"></i>Overview</a>
     </div>
-  </div>
+    <div class="sb-sec">
+      <div class="sb-lbl">Management</div>
+      <a href="{{ url_for('admin.users') }}" class="sl {% if request.endpoint and 'admin.user' in request.endpoint %}active{% endif %}"><i class="fas fa-users"></i>Users</a>
+      <a href="{{ url_for('admin.businesses') }}" class="sl {% if request.endpoint and 'admin.business' in request.endpoint %}active{% endif %}"><i class="fas fa-building"></i>Businesses</a>
+      <a href="{{ url_for('admin.assessments') }}" class="sl {% if request.endpoint == 'admin.assessments' %}active{% endif %}"><i class="fas fa-clipboard-check"></i>Assessments</a>
+      <a href="{{ url_for('admin.certificates') }}" class="sl {% if request.endpoint and 'admin.certificate' in request.endpoint %}active{% endif %}"><i class="fas fa-certificate"></i>Certificates</a>
+    </div>
+    <div class="sb-sec">
+      <div class="sb-lbl">Operations</div>
+      <a href="{{ url_for('admin.audit_logs') }}" class="sl {% if request.endpoint == 'admin.audit_logs' %}active{% endif %}"><i class="fas fa-scroll"></i>Audit Logs</a>
+      <a href="{{ url_for('admin.system') }}" class="sl {% if request.endpoint == 'admin.system' %}active{% endif %}"><i class="fas fa-server"></i>System Health</a>
+    </div>
+    <div class="sb-sec">
+      <div class="sb-lbl">Export</div>
+      <a href="{{ url_for('admin.admin_export', resource='users', fmt='csv') }}" class="sl"><i class="fas fa-file-csv"></i>Users CSV</a>
+      <a href="{{ url_for('admin.admin_export', resource='assessments', fmt='csv') }}" class="sl"><i class="fas fa-file-csv"></i>Assessments CSV</a>
+      <a href="{{ url_for('admin.admin_export', resource='businesses', fmt='csv') }}" class="sl"><i class="fas fa-file-csv"></i>Businesses CSV</a>
+    </div>
+    <div class="mt-auto p-3" style="border-top:1px solid rgba(255,255,255,.05)">
+      <a href="{{ url_for('dashboard') }}" class="sl" style="font-size:.78rem"><i class="fas fa-arrow-left"></i>Back to App</a>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <main class="admin-main">
+    <div class="d-md-none mb-3">
+      <button class="ab ab-ghost" type="button" data-bs-toggle="offcanvas" data-bs-target="#adminMob">
+        <i class="fas fa-bars"></i>Menu
+      </button>
+    </div>
+    {% block admin_content %}{% endblock %}
+  </main>
 </div>
 
-<!-- ─── Mobile offcanvas sidebar ─── -->
-<div
-  class="offcanvas offcanvas-start bg-dark text-light"
-  tabindex="-1"
-  id="adminOffcanvas"
->
-  <div class="offcanvas-header border-bottom border-secondary">
-    <h5><i class="fas fa-cogs me-2"></i>Admin</h5>
-    <button
-      type="button"
-      class="btn-close btn-close-white"
-      data-bs-dismiss="offcanvas"
-    ></button>
+<!-- Mobile -->
+<div class="offcanvas offcanvas-start" tabindex="-1" id="adminMob"
+     style="background:rgba(6,12,20,.98);color:var(--text);width:218px;border-right:1px solid rgba(255,255,255,.06)">
+  <div class="offcanvas-header pb-2" style="border-bottom:1px solid rgba(255,255,255,.06)">
+    <span style="color:#F5C518;font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em"><i class="fas fa-crown me-2"></i>Admin</span>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
   </div>
   <div class="offcanvas-body p-0">
-    <ul class="nav flex-column">
-      <li class="nav-item">
-        <a class="nav-link text-light" href="{{ url_for('admin.dashboard') }}"
-          ><i class="fas fa-tachometer-alt me-2"></i>Dashboard</a
-        >
-      </li>
-      <li class="nav-item">
-        <a class="nav-link text-light" href="{{ url_for('admin.users') }}"
-          ><i class="fas fa-users me-2"></i>Users</a
-        >
-      </li>
-      <li class="nav-item">
-        <a class="nav-link text-light" href="{{ url_for('admin.businesses') }}"
-          ><i class="fas fa-building me-2"></i>Businesses</a
-        >
-      </li>
-      <li class="nav-item">
-        <a class="nav-link text-light" href="{{ url_for('admin.assessments') }}"
-          ><i class="fas fa-clipboard-check me-2"></i>Assessments</a
-        >
-      </li>
-      <li class="nav-item">
-        <a
-          class="nav-link text-light"
-          href="{{ url_for('admin.certificates') }}"
-          ><i class="fas fa-certificate me-2"></i>Certificates</a
-        >
-      </li>
-      <li class="nav-item">
-        <a class="nav-link text-light" href="{{ url_for('admin.audit_logs') }}"
-          ><i class="fas fa-clipboard-list me-2"></i>Audit Logs</a
-        >
-      </li>
-      <li class="nav-item">
-        <a class="nav-link text-light" href="{{ url_for('admin.system') }}"
-          ><i class="fas fa-server me-2"></i>System</a
-        >
-      </li>
-    </ul>
+    <a href="{{ url_for('admin.dashboard') }}" class="sl"><i class="fas fa-gauge-high"></i>Overview</a>
+    <a href="{{ url_for('admin.users') }}" class="sl"><i class="fas fa-users"></i>Users</a>
+    <a href="{{ url_for('admin.businesses') }}" class="sl"><i class="fas fa-building"></i>Businesses</a>
+    <a href="{{ url_for('admin.assessments') }}" class="sl"><i class="fas fa-clipboard-check"></i>Assessments</a>
+    <a href="{{ url_for('admin.certificates') }}" class="sl"><i class="fas fa-certificate"></i>Certificates</a>
+    <a href="{{ url_for('admin.audit_logs') }}" class="sl"><i class="fas fa-scroll"></i>Audit Logs</a>
+    <a href="{{ url_for('admin.system') }}" class="sl"><i class="fas fa-server"></i>System Health</a>
+    <div style="border-top:1px solid rgba(255,255,255,.06);margin:.3rem 0"></div>
+    <a href="{{ url_for('dashboard') }}" class="sl"><i class="fas fa-arrow-left"></i>Back to App</a>
   </div>
 </div>
 
-{% block scripts %} {{ super() }} {% block admin_scripts %}{% endblock %} {%
-endblock %} {% endblock %}
+{% block scripts %}{{ super() }}{% block admin_scripts %}{% endblock %}{% endblock %}
+{% endblock %}

@@ -1,94 +1,72 @@
 {% extends "admin/base_admin.html" %}
 {% block admin_title %}Assessments{% endblock %}
-
 {% block admin_content %}
-<h2 class="mb-4"><i class="fas fa-clipboard-check me-2"></i>Assessments</h2>
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <h1 class="mb-0" style="font-size:1.3rem;font-weight:700;color:var(--text)">
+    <i class="fas fa-clipboard-check me-2" style="color:var(--brand)"></i>Assessments
+  </h1>
+  <a href="{{ url_for('admin.admin_export', resource='assessments', fmt='csv') }}" class="ab ab-ghost"><i class="fas fa-download"></i>Export CSV</a>
+</div>
 
-<!-- Filter -->
-<form class="row g-2 mb-3" method="get">
-  <div class="col-md-3">
-    <select class="form-select" name="level" onchange="this.form.submit()">
-      <option value="">All Levels</option>
-      <option value="Gold" {{ 'selected' if level == 'Gold' }}>Gold</option>
-      <option value="Silver" {{ 'selected' if level == 'Silver' }}>Silver</option>
-      <option value="Bronze" {{ 'selected' if level == 'Bronze' }}>Bronze</option>
-      <option value="Non-compliant" {{ 'selected' if level == 'Non-compliant' }}>Non-compliant</option>
-    </select>
-  </div>
-  {% if level %}
-  <div class="col-auto">
-    <a href="{{ url_for('admin.assessments') }}" class="btn btn-outline-danger">Clear</a>
-  </div>
-  {% endif %}
+<form class="d-flex gap-2 mb-3 flex-wrap" method="get">
+  <select class="as" name="level" onchange="this.form.submit()">
+    <option value="">All Levels</option>
+    <option value="GOLD" {{ 'selected' if level == 'GOLD' }}>🥇 Gold</option>
+    <option value="SILVER" {{ 'selected' if level == 'SILVER' }}>🥈 Silver</option>
+    <option value="BRONZE" {{ 'selected' if level == 'BRONZE' }}>🥉 Bronze</option>
+    <option value="NOT CERTIFIED" {{ 'selected' if level == 'NOT CERTIFIED' }}>✕ Not Certified</option>
+  </select>
+  {% if level %}<a href="{{ url_for('admin.assessments') }}" class="ab ab-danger"><i class="fas fa-times"></i>Clear</a>{% endif %}
 </form>
 
-<div class="card border-0 shadow-sm">
-  <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0">
-      <thead class="table-light">
-        <tr>
-          <th>ID</th>
-          <th>Business</th>
-          <th>Score</th>
-          <th>Level</th>
-          <th>Status</th>
-          <th>Assessor</th>
-          <th>Date</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for a in assessments.items %}
-        <tr>
-          <td>{{ a.id }}</td>
-          <td>
-            {% if a.business %}
-              <a href="{{ url_for('admin.business_detail', biz_id=a.business.id) }}">{{ a.business.name }}</a>
-            {% else %}
-              —
-            {% endif %}
-          </td>
-          <td><strong>{{ a.total_score }}</strong></td>
-          <td>
-            <span class="badge bg-{{ 'success' if a.certification_level == 'Gold' else ('warning text-dark' if a.certification_level == 'Silver' else ('info' if a.certification_level == 'Bronze' else 'danger')) }}">
-              {{ a.certification_level }}
-            </span>
-          </td>
-          <td>{{ a.status }}</td>
-          <td>{{ a.assessor.username if a.assessor else '—' }}</td>
-          <td><small>{{ a.created_at.strftime('%Y-%m-%d') if a.created_at else '' }}</small></td>
-        </tr>
-        {% else %}
-        <tr><td colspan="7" class="text-center py-3 text-muted">No assessments found.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-
-<!-- Pagination -->
-{% if assessments.pages > 1 %}
-<nav class="mt-3">
-  <ul class="pagination justify-content-center">
-    {% if assessments.has_prev %}
-    <li class="page-item"><a class="page-link" href="{{ url_for('admin.assessments', page=assessments.prev_num, level=level) }}">&laquo;</a></li>
-    {% endif %}
-    {% for p in assessments.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
-      {% if p %}
-        <li class="page-item {{ 'active' if p == assessments.page }}"><a class="page-link" href="{{ url_for('admin.assessments', page=p, level=level) }}">{{ p }}</a></li>
+<div class="ac">
+  <table class="at">
+    <thead><tr><th>#</th><th>Business</th><th>Score</th><th>Level</th><th>Status</th><th>Assessor</th><th>Date</th><th>Actions</th></tr></thead>
+    <tbody>
+      {% for a in assessments.items %}
+      <tr>
+        <td style="color:var(--muted);font-size:.78rem">{{ a.id }}</td>
+        <td>
+          {% if a.business %}<a href="{{ url_for('admin.business_detail', biz_id=a.business.id) }}" style="color:var(--brand);text-decoration:none;font-weight:600">{{ a.business.name }}</a>
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          <div class="d-flex align-items-center gap-2">
+            <div style="flex:1;background:rgba(255,255,255,.07);border-radius:999px;height:5px;width:60px">
+              <div style="height:5px;border-radius:999px;width:{{ (a.total_score/120*100)|round|int }}%;background:{% if a.certification_level=='GOLD' %}#F5C518{% elif a.certification_level=='SILVER' %}#C0CDD8{% elif a.certification_level=='BRONZE' %}#D4873A{% else %}#E84040{% endif %}"></div>
+            </div>
+            <span style="font-size:.8rem;color:var(--muted)">{{ a.total_score }}/120</span>
+          </div>
+        </td>
+        <td>
+          {% if a.certification_level == 'GOLD' %}<span class="sp sp-gold">🥇 Gold</span>
+          {% elif a.certification_level == 'SILVER' %}<span class="sp sp-silver">🥈 Silver</span>
+          {% elif a.certification_level == 'BRONZE' %}<span class="sp sp-bronze">🥉 Bronze</span>
+          {% else %}<span class="sp sp-red">✕ Not Certified</span>{% endif %}
+        </td>
+        <td><span class="sp sp-gray">{{ a.status }}</span></td>
+        <td style="color:var(--muted);font-size:.82rem">{{ a.assessor.username if a.assessor else '—' }}</td>
+        <td style="color:var(--muted);font-size:.78rem">{{ a.created_at.strftime('%d %b %Y') if a.created_at else '—' }}</td>
+        <td>
+          <a href="{{ url_for('results', assessment_id=a.id) }}" class="ab ab-ghost"><i class="fas fa-eye"></i>View</a>
+        </td>
+      </tr>
       {% else %}
-        <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
-      {% endif %}
-    {% endfor %}
-    {% if assessments.has_next %}
-    <li class="page-item"><a class="page-link" href="{{ url_for('admin.assessments', page=assessments.next_num, level=level) }}">&raquo;</a></li>
-    {% endif %}
-  </ul>
-</nav>
-{% endif %}
-
-<div class="mt-2 text-muted small">
-  Showing {{ assessments.items | length }} of {{ assessments.total }} assessments
-  &middot;
-  <a href="{{ url_for('admin.admin_export', resource='assessments', fmt='csv') }}"><i class="fas fa-download me-1"></i>Export CSV</a>
+      <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:2rem">No assessments found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
+
+{% if assessments.pages > 1 %}
+<div class="apg">
+  {% if assessments.has_prev %}<a href="{{ url_for('admin.assessments', page=assessments.prev_num, level=level) }}">&laquo;</a>{% else %}<span class="dis">&laquo;</span>{% endif %}
+  {% for p in assessments.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+    {% if p %}<a class="{{ 'cur' if p == assessments.page }}" href="{{ url_for('admin.assessments', page=p, level=level) }}">{{ p }}</a>
+    {% else %}<span class="dis">…</span>{% endif %}
+  {% endfor %}
+  {% if assessments.has_next %}<a href="{{ url_for('admin.assessments', page=assessments.next_num, level=level) }}">&raquo;</a>{% else %}<span class="dis">&raquo;</span>{% endif %}
+</div>
+{% endif %}
+<div class="mt-2" style="font-size:.75rem;color:var(--muted)">{{ assessments.total }} total assessments</div>
 {% endblock %}

@@ -1,109 +1,59 @@
 {% extends "admin/base_admin.html" %}
 {% block admin_title %}Audit Logs{% endblock %}
-
 {% block admin_content %}
-<h2 class="mb-4"><i class="fas fa-clipboard-list me-2"></i>Audit Logs</h2>
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <h1 class="mb-0" style="font-size:1.3rem;font-weight:700;color:var(--text)">
+    <i class="fas fa-scroll me-2" style="color:var(--brand)"></i>Audit Logs
+  </h1>
+  <a href="{{ url_for('admin.admin_export', resource='users', fmt='json') }}" class="ab ab-ghost"><i class="fas fa-download"></i>Export</a>
+</div>
 
-<!-- Filters -->
-<form class="row g-2 mb-3" method="get">
-  <div class="col-md-3">
-    <select class="form-select" name="action">
-      <option value="">All Actions</option>
-      {% for a in distinct_actions %}
-      <option value="{{ a }}" {{ 'selected' if action_filter == a }}>{{ a }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div class="col-md-3">
-    <select class="form-select" name="user_id">
-      <option value="">All Users</option>
-      {% for u in all_users %}
-      <option value="{{ u.id }}" {{ 'selected' if user_filter == u.id|string }}>{{ u.username }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div class="col-auto">
-    <button class="btn btn-outline-primary"><i class="fas fa-filter me-1"></i>Filter</button>
-  </div>
-  {% if action_filter or user_filter %}
-  <div class="col-auto">
-    <a href="{{ url_for('admin.audit_logs') }}" class="btn btn-outline-danger">Clear</a>
-  </div>
-  {% endif %}
+<form class="d-flex gap-2 mb-3 flex-wrap" method="get">
+  <select class="as" name="action" style="width:200px">
+    <option value="">All Actions</option>
+    {% for a in distinct_actions %}<option value="{{ a }}" {{ 'selected' if action_filter == a }}>{{ a }}</option>{% endfor %}
+  </select>
+  <select class="as" name="user_id" style="width:180px">
+    <option value="">All Users</option>
+    {% for u in all_users %}<option value="{{ u.id }}" {{ 'selected' if user_filter == u.id|string }}>{{ u.username }}</option>{% endfor %}
+  </select>
+  <button type="submit" class="ab ab-ghost"><i class="fas fa-filter"></i>Filter</button>
+  {% if action_filter or user_filter %}<a href="{{ url_for('admin.audit_logs') }}" class="ab ab-danger"><i class="fas fa-times"></i>Clear</a>{% endif %}
 </form>
 
-<div class="card border-0 shadow-sm">
-  <div class="table-responsive">
-    <table class="table table-hover table-sm align-middle mb-0">
-      <thead class="table-light">
-        <tr>
-          <th>ID</th>
-          <th>Timestamp</th>
-          <th>User</th>
-          <th>Action</th>
-          <th>Resource</th>
-          <th>IP</th>
-          <th>Details</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for log in logs.items %}
-        <tr>
-          <td>{{ log.id }}</td>
-          <td class="text-nowrap"><small>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') if log.timestamp else '' }}</small></td>
-          <td>{{ log.user.username if log.user else '—' }}</td>
-          <td><span class="badge bg-secondary">{{ log.action }}</span></td>
-          <td>{{ log.resource_type or '' }} <strong>{{ log.resource_id or '' }}</strong></td>
-          <td><small>{{ log.ip_address or '' }}</small></td>
-          <td>
-            {% if log.details %}
-              <button class="btn btn-sm btn-outline-info" type="button"
-                      data-bs-toggle="popover" data-bs-trigger="focus"
-                      data-bs-content="{{ log.details | tojson }}">
-                <i class="fas fa-info-circle"></i>
-              </button>
-            {% endif %}
-          </td>
-        </tr>
-        {% else %}
-        <tr><td colspan="7" class="text-center py-3 text-muted">No logs found.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-
-<!-- Pagination -->
-{% if logs.pages > 1 %}
-<nav class="mt-3">
-  <ul class="pagination justify-content-center">
-    {% if logs.has_prev %}
-    <li class="page-item"><a class="page-link" href="{{ url_for('admin.audit_logs', page=logs.prev_num, action=action_filter, user_id=user_filter) }}">&laquo;</a></li>
-    {% endif %}
-    {% for p in logs.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
-      {% if p %}
-        <li class="page-item {{ 'active' if p == logs.page }}"><a class="page-link" href="{{ url_for('admin.audit_logs', page=p, action=action_filter, user_id=user_filter) }}">{{ p }}</a></li>
+<div class="ac">
+  <table class="at">
+    <thead><tr><th>Timestamp</th><th>User</th><th>Action</th><th>Resource</th><th>IP</th></tr></thead>
+    <tbody>
+      {% for log in logs.items %}
+      <tr>
+        <td style="color:var(--muted);font-size:.78rem;white-space:nowrap">{{ log.timestamp.strftime('%d %b %Y %H:%M:%S') }}</td>
+        <td style="font-weight:600;font-size:.855rem">{{ log.user.username if log.user else '—' }}</td>
+        <td>
+          {% if 'delete' in log.action %}<span class="sp sp-red">{{ log.action }}</span>
+          {% elif 'create' in log.action or 'register' in log.action %}<span class="sp sp-green">{{ log.action }}</span>
+          {% elif 'login' in log.action %}<span class="sp sp-blue">{{ log.action }}</span>
+          {% else %}<span class="sp sp-gray">{{ log.action }}</span>{% endif %}
+        </td>
+        <td style="color:var(--muted);font-size:.8rem">{{ log.resource_type or '' }}{% if log.resource_id %} #{{ log.resource_id }}{% endif %}</td>
+        <td style="color:var(--muted);font-size:.75rem;font-family:monospace">{{ log.ip_address or '—' }}</td>
+      </tr>
       {% else %}
-        <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
-      {% endif %}
-    {% endfor %}
-    {% if logs.has_next %}
-    <li class="page-item"><a class="page-link" href="{{ url_for('admin.audit_logs', page=logs.next_num, action=action_filter, user_id=user_filter) }}">&raquo;</a></li>
-    {% endif %}
-  </ul>
-</nav>
-{% endif %}
-
-<div class="mt-2 text-muted small">
-  Showing {{ logs.items | length }} of {{ logs.total }} log entries
+      <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:2rem">No audit logs found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
-{% endblock %}
 
-{% block admin_scripts %}
-<script>
-  // Enable Bootstrap popovers
-  document.querySelectorAll('[data-bs-toggle="popover"]').forEach(el => {
-    new bootstrap.Popover(el, { html: false });
-  });
-</script>
+{% if logs.pages > 1 %}
+<div class="apg">
+  {% if logs.has_prev %}<a href="{{ url_for('admin.audit_logs', page=logs.prev_num, action=action_filter, user_id=user_filter) }}">&laquo;</a>{% else %}<span class="dis">&laquo;</span>{% endif %}
+  {% for p in logs.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+    {% if p %}<a class="{{ 'cur' if p == logs.page }}" href="{{ url_for('admin.audit_logs', page=p, action=action_filter, user_id=user_filter) }}">{{ p }}</a>
+    {% else %}<span class="dis">…</span>{% endif %}
+  {% endfor %}
+  {% if logs.has_next %}<a href="{{ url_for('admin.audit_logs', page=logs.next_num, action=action_filter, user_id=user_filter) }}">&raquo;</a>{% else %}<span class="dis">&raquo;</span>{% endif %}
+</div>
+{% endif %}
+<div class="mt-2" style="font-size:.75rem;color:var(--muted)">{{ logs.total }} total log entries</div>
 {% endblock %}

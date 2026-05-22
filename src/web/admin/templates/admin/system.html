@@ -1,121 +1,78 @@
 {% extends "admin/base_admin.html" %}
 {% block admin_title %}System Health{% endblock %}
 {% block admin_content %}
-<h2 class="mb-4"><i class="fas fa-server me-2"></i>System Health</h2>
+<h1 class="mb-4" style="font-size:1.3rem;font-weight:700;color:var(--text)">
+  <i class="fas fa-server me-2" style="color:var(--brand)"></i>System Health
+</h1>
 
+<!-- Counts -->
 <div class="row g-3 mb-4">
+  {% for label, val, clr in [
+    ('Users', counts.users, 'var(--brand)'),
+    ('Businesses', counts.businesses, '#2485E8'),
+    ('Assessments', counts.assessments, '#F0A500'),
+    ('Certificates', counts.certificates, '#F5C518'),
+    ('Audit Logs', counts.audit_logs, '#94a6c0'),
+  ] %}
+  <div class="col-6 col-lg">
+    <div class="kpi">
+      <div class="kpi-lbl">{{ label }}</div>
+      <div class="kpi-val" style="color:{{ clr }}">{{ val }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="row g-3">
   <!-- Hardware -->
   <div class="col-lg-6">
-    <div class="card border-0 shadow-sm">
-      <div class="card-header bg-white"><strong>Server Resources</strong></div>
-      <ul class="list-group list-group-flush">
-        <li class="list-group-item d-flex justify-content-between">
-          <span><i class="fas fa-desktop me-2 text-primary"></i>OS</span>
-          <span>{{ hw.os }}</span>
-        </li>
-        <li class="list-group-item d-flex justify-content-between">
-          <span><i class="fab fa-python me-2 text-warning"></i>Python</span>
-          <span>{{ hw.python }}</span>
-        </li>
-        <li class="list-group-item d-flex justify-content-between">
-          <span><i class="fas fa-microchip me-2 text-info"></i>CPUs</span>
-          <span>{{ hw.cpu_count }}</span>
-        </li>
-        <li class="list-group-item">
-          <div class="d-flex justify-content-between mb-1">
-            <span
-              ><i class="fas fa-microchip me-2 text-info"></i>CPU Usage</span
-            >
-            <span>{{ hw.cpu_percent }}%</span>
-          </div>
-          <div class="progress" style="height: 8px">
-            <div
-              class="progress-bar {{ 'bg-success' if hw.cpu_percent < 60 else ('bg-warning' if hw.cpu_percent < 85 else 'bg-danger') }}"
-              style="width: {{ hw.cpu_percent }}%"
-            ></div>
-          </div>
-        </li>
-        <li class="list-group-item">
-          <div class="d-flex justify-content-between mb-1">
-            <span><i class="fas fa-memory me-2 text-success"></i>Memory</span>
-            <span
-              >{{ (hw.memory.used / 1073741824) | round(1) }} / {{
-              (hw.memory.total / 1073741824) | round(1) }} GB</span
-            >
-          </div>
-          <div class="progress" style="height: 8px">
-            <div
-              class="progress-bar {{ 'bg-success' if hw.memory.percent < 60 else ('bg-warning' if hw.memory.percent < 85 else 'bg-danger') }}"
-              style="width: {{ hw.memory.percent }}%"
-            ></div>
-          </div>
-        </li>
-        <li class="list-group-item">
-          <div class="d-flex justify-content-between mb-1">
-            <span><i class="fas fa-hdd me-2 text-secondary"></i>Disk</span>
-            <span
-              >{{ (hw.disk.used / 1073741824) | round(1) }} / {{ (hw.disk.total
-              / 1073741824) | round(1) }} GB</span
-            >
-          </div>
-          <div class="progress" style="height: 8px">
-            <div
-              class="progress-bar {{ 'bg-success' if hw.disk.percent < 60 else ('bg-warning' if hw.disk.percent < 85 else 'bg-danger') }}"
-              style="width: {{ hw.disk.percent }}%"
-            ></div>
-          </div>
-        </li>
-      </ul>
+    <div class="ac">
+      <div class="ac-hdr"><span><i class="fas fa-microchip me-2" style="color:var(--brand)"></i>Hardware &amp; Runtime</span></div>
+      <div style="padding:.75rem 1.2rem;font-size:.855rem">
+        {% for label, value in [
+          ('Operating System', hw.os),
+          ('Python Version', hw.python),
+          ('CPU Cores', hw.cpu_count),
+          ('CPU Usage', hw.cpu_percent|string + '%'),
+        ] %}
+        <div class="d-flex justify-content-between py-2" style="border-bottom:1px solid rgba(255,255,255,.04)">
+          <span style="color:var(--muted)">{{ label }}</span>
+          <span style="color:var(--text);font-weight:500">{{ value }}</span>
+        </div>
+        {% endfor %}
+      </div>
     </div>
   </div>
 
-  <!-- Database counts -->
+  <!-- Memory + Disk -->
   <div class="col-lg-6">
-    <div class="card border-0 shadow-sm">
-      <div class="card-header bg-white">
-        <strong>Database Statistics</strong>
+    <div class="ac mb-3">
+      <div class="ac-hdr"><span><i class="fas fa-memory me-2" style="color:#2485E8"></i>Memory</span></div>
+      <div style="padding:.75rem 1.2rem;font-size:.855rem">
+        {% set mem = hw.memory %}
+        <div class="d-flex justify-content-between mb-1">
+          <span style="color:var(--muted)">Used</span>
+          <span style="color:var(--text)">{{ (mem.used / 1024**3) | round(1) }} GB / {{ (mem.total / 1024**3) | round(1) }} GB</span>
+        </div>
+        <div style="background:rgba(255,255,255,.07);border-radius:999px;height:6px">
+          <div style="height:6px;border-radius:999px;width:{{ mem.percent }}%;background:{% if mem.percent > 80 %}#E84040{% elif mem.percent > 60 %}#F0A500{% else %}var(--brand){% endif %}"></div>
+        </div>
+        <div style="font-size:.73rem;color:var(--muted);margin-top:.3rem">{{ mem.percent }}% used</div>
       </div>
-      <ul class="list-group list-group-flush">
-        <li class="list-group-item d-flex justify-content-between">
-          <span><i class="fas fa-users me-2 text-primary"></i>Users</span>
-          <span class="badge bg-primary rounded-pill">{{ counts.users }}</span>
-        </li>
-        <li class="list-group-item d-flex justify-content-between">
-          <span
-            ><i class="fas fa-building me-2 text-success"></i>Businesses</span
-          >
-          <span class="badge bg-success rounded-pill"
-            >{{ counts.businesses }}</span
-          >
-        </li>
-        <li class="list-group-item d-flex justify-content-between">
-          <span
-            ><i class="fas fa-clipboard-check me-2 text-info"></i
-            >Assessments</span
-          >
-          <span class="badge bg-info rounded-pill"
-            >{{ counts.assessments }}</span
-          >
-        </li>
-        <li class="list-group-item d-flex justify-content-between">
-          <span
-            ><i class="fas fa-certificate me-2 text-warning"></i
-            >Certificates</span
-          >
-          <span class="badge bg-warning rounded-pill"
-            >{{ counts.certificates }}</span
-          >
-        </li>
-        <li class="list-group-item d-flex justify-content-between">
-          <span
-            ><i class="fas fa-clipboard-list me-2 text-secondary"></i>Audit
-            Logs</span
-          >
-          <span class="badge bg-secondary rounded-pill"
-            >{{ counts.audit_logs }}</span
-          >
-        </li>
-      </ul>
+    </div>
+    <div class="ac">
+      <div class="ac-hdr"><span><i class="fas fa-hard-drive me-2" style="color:#F0A500"></i>Disk</span></div>
+      <div style="padding:.75rem 1.2rem;font-size:.855rem">
+        {% set disk = hw.disk %}
+        <div class="d-flex justify-content-between mb-1">
+          <span style="color:var(--muted)">Used</span>
+          <span style="color:var(--text)">{{ (disk.used / 1024**3) | round(1) }} GB / {{ (disk.total / 1024**3) | round(1) }} GB</span>
+        </div>
+        <div style="background:rgba(255,255,255,.07);border-radius:999px;height:6px">
+          <div style="height:6px;border-radius:999px;width:{{ (disk.used/disk.total*100)|round|int }}%;background:{% if disk.used/disk.total > 0.85 %}#E84040{% elif disk.used/disk.total > 0.65 %}#F0A500{% else %}var(--brand){% endif %}"></div>
+        </div>
+        <div style="font-size:.73rem;color:var(--muted);margin-top:.3rem">{{ (disk.used/disk.total*100)|round|int }}% used</div>
+      </div>
     </div>
   </div>
 </div>
