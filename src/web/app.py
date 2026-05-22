@@ -82,11 +82,13 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=1)
 app.config['SQLALCHEMY_DATABASE_URI'] = config.get_database_url()
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Initialize extensions without binding to app immediately
-db = SQLAlchemy()
-login_manager = LoginManager()
+# Initialize extensions and bind to app immediately so that
+# `flask run` (which imports the module and uses `app` directly)
+# gets Flask-Login's current_user context processor registered.
+db = SQLAlchemy(app)
+login_manager = LoginManager(app)
 login_manager.login_view = 'login'  # type: ignore[assignment]
-csrf = CSRFProtect()
+csrf = CSRFProtect(app)
 
 # Initialize scheduler for automation (optional dependency)
 scheduler = None
@@ -399,16 +401,11 @@ def create_app(db_uri: str | None = None) -> Flask:
     Args:
         db_uri: Override the database URI (useful for tests with SQLite).
     """
+    # Extensions are already bound at module level.
+    # Only re-init the DB if a custom URI is supplied (e.g. SQLite in tests).
     if db_uri:
         app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
-
-    # Bind extensions to app once (do not create tables here; tests handle it)
-    if 'sqlalchemy' not in getattr(app, 'extensions', {}):
         db.init_app(app)
-    if not hasattr(app, 'login_manager'):
-        login_manager.init_app(app)
-    if 'csrf' not in getattr(app, 'extensions', {}):
-        csrf.init_app(app)
 
     # Session security — disable secure cookie flag in test/local mode
     if not app.config.get('TESTING'):
