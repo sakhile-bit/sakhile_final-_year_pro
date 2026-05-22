@@ -1,272 +1,449 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>
-      {% block title %}Zambia Digital Hygiene Certification{% endblock %}
-    </title>
-    <link
-      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-      rel="stylesheet"
-    />
-    <link
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
-      rel="stylesheet"
-    />
-    <style>
-      :root {
-        --brand: #00d19b;
-        --brand-dark: #00a67c;
-        --bg: #08101a;
-        --surface: rgba(22, 40, 62, 0.96);
-        --panel: rgba(15, 26, 40, 0.92);
-        --text: #eaf4ff;
-        --muted: #94a6c0;
-        --border: rgba(255, 255, 255, 0.08);
-      }
-      * {
-        scroll-behavior: smooth;
-      }
-      html {
-        min-height: 100%;
-      }
-      body {
-        background:
-          radial-gradient(
-            circle at top left,
-            rgba(0, 200, 150, 0.12),
-            transparent 20%
-          ),
-          linear-gradient(180deg, #07101a 0%, #081724 45%, #0d1a25 100%);
-        color: var(--text);
-        font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-        min-height: 100vh;
-      }
-      body::selection {
-        background: rgba(0, 209, 155, 0.24);
-        color: var(--text);
-      }
-      .navbar {
-        background: rgba(16, 28, 43, 0.96) !important;
-        border-bottom: 1px solid rgba(0, 209, 155, 0.12);
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.18);
-      }
-      .navbar-brand {
-        color: var(--brand) !important;
-        font-weight: 700;
-        font-size: 1.25rem;
-        letter-spacing: 0.02em;
-      }
-      .nav-link {
-        color: var(--muted) !important;
-        transition: color 0.2s ease;
-      }
-      .nav-link:hover,
-      .nav-link.active {
-        color: var(--text) !important;
-      }
-      .btn,
-      .btn-brand,
-      .btn-outline-brand {
-        transition: all 0.2s ease;
-        border-radius: 999px;
-        font-weight: 600;
-      }
-      .btn-brand {
-        background: var(--brand);
-        color: #07101a;
-        border: 1px solid transparent;
-        box-shadow: 0 14px 30px rgba(0, 209, 155, 0.14);
-      }
-      .btn-brand:hover,
-      .btn-brand:focus {
-        background: var(--brand-dark);
-        color: #fff;
-      }
-      .btn-outline-brand {
-        border: 1.5px solid var(--brand);
-        color: var(--brand);
-        background: rgba(0, 209, 155, 0.06);
-      }
-      .btn-outline-brand:hover,
-      .btn-outline-brand:focus {
-        background: rgba(0, 209, 155, 0.18);
-        color: #fff;
-        border-color: var(--brand);
-      }
-      .btn-secondary {
-        border-radius: 999px;
-        transition: all 0.2s ease;
-      }
-      .card-surface {
-        background: var(--panel);
-        border: 1px solid var(--border);
-        border-radius: 1.25rem;
-        box-shadow: 0 30px 70px rgba(0, 0, 0, 0.22);
-        backdrop-filter: blur(12px);
-      }
-      .card {
-        border-radius: 1rem;
-      }
-      .card-body {
-        padding: 1.75rem;
-      }
-      .form-control,
-      .form-select,
-      .form-check-input {
-        background: rgba(255, 255, 255, 0.06);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        color: var(--text);
-        border-radius: 0.85rem;
-        box-shadow: inset 0 4px 12px rgba(0, 0, 0, 0.12);
-      }
-      .form-control:focus,
-      .form-select:focus {
-        background: rgba(255, 255, 255, 0.09);
-        border-color: rgba(0, 209, 155, 0.6);
-        outline: none;
-        box-shadow: 0 0 0 0.2rem rgba(0, 209, 155, 0.15);
-        color: var(--text);
-      }
-      .form-check-input:checked {
-        background-color: var(--brand);
-        border-color: var(--brand);
-      }
-      .form-control::placeholder {
-        color: rgba(234, 244, 255, 0.55);
-      }
-      .section-heading {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.75rem;
-        font-size: 1.35rem;
-        font-weight: 700;
-        margin-bottom: 0.75rem;
-        color: var(--text);
-      }
-      .section-heading::after {
-        content: "";
-        flex: 1;
-        height: 1px;
-        background: rgba(255, 255, 255, 0.08);
-        margin-left: 1rem;
-      }
-      .feature-card {
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        background: rgba(255, 255, 255, 0.02);
-      }
-      .text-muted {
-        color: rgba(234, 244, 255, 0.7) !important;
-      }
-      .alert {
-        border-radius: 1rem;
-      }
-      footer {
-        background: rgba(15, 26, 40, 0.98);
-        border-top: 1px solid rgba(255, 255, 255, 0.08);
-        color: var(--muted);
-      }
-      footer a {
-        color: var(--brand);
-      }
-      .link-quiet {
-        color: var(--muted);
-      }
-      .link-quiet:hover {
-        color: var(--text);
-      }
-      .table thead th {
-        border-bottom-color: rgba(255, 255, 255, 0.12);
-      }
-      .table tbody tr:hover {
-        background: rgba(255, 255, 255, 0.04);
-      }
-      .shadow-soft {
-        box-shadow: 0 16px 45px rgba(0, 0, 0, 0.16);
-      }
-    </style>
-    {% block head %}{% endblock %}
-  </head>
-  <body>
-    <nav class="navbar navbar-expand-lg navbar-dark py-3">
-      <div class="container">
-        <a class="navbar-brand" href="{{ url_for('index') }}">
-          <i class="fas fa-shield-halved me-2"></i>Zambia Digital Hygiene
-        </a>
-        <button
-          class="navbar-toggler"
-          type="button"
-          data-bs-toggle="collapse"
-          data-bs-target="#nav"
-        >
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="nav">
-          <ul class="navbar-nav ms-auto align-items-center gap-2">
-            <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('about') }}">About</a>
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{% block title %}Zambia Digital Hygiene Certification{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet"/>
+  <style>
+    :root {
+      --brand:       #00d19b;
+      --brand-dark:  #00a67c;
+      --brand-dim:   rgba(0,209,155,.08);
+      --bg:          #08101a;
+      --surface:     rgba(22,40,62,.96);
+      --panel:       rgba(15,26,40,.92);
+      --text:        #eaf4ff;
+      --muted:       #94a6c0;
+      --border:      rgba(255,255,255,.08);
+      --danger-dim:  rgba(232,64,64,.12);
+      --warning-dim: rgba(240,165,0,.12);
+      --success-dim: rgba(0,209,155,.12);
+    }
+    * { scroll-behavior: smooth; box-sizing: border-box; }
+    html { min-height: 100%; }
+    body {
+      background:
+        radial-gradient(circle at top left, rgba(0,200,150,.12), transparent 20%),
+        linear-gradient(180deg,#07101a 0%,#081724 45%,#0d1a25 100%);
+      color: var(--text);
+      font-family: "Segoe UI","Helvetica Neue",Arial,sans-serif;
+      min-height: 100vh;
+    }
+    ::selection { background: rgba(0,209,155,.24); color: var(--text); }
+
+    /* ── Navbar ─────────────────────────────────────────────────── */
+    .navbar {
+      background: rgba(10,20,34,.97) !important;
+      border-bottom: 1px solid rgba(0,209,155,.1);
+      box-shadow: 0 4px 24px rgba(0,0,0,.2);
+    }
+    .navbar-brand {
+      color: var(--brand) !important;
+      font-weight: 700;
+      font-size: 1.15rem;
+      letter-spacing: .02em;
+    }
+    .nav-link { color: var(--muted) !important; transition: color .2s; }
+    .nav-link:hover, .nav-link.active { color: var(--text) !important; }
+    .dropdown-menu {
+      background: rgba(12,22,36,.98);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: .85rem;
+      box-shadow: 0 16px 40px rgba(0,0,0,.4);
+      backdrop-filter: blur(12px);
+    }
+    .dropdown-item {
+      color: var(--muted);
+      font-size: .9rem;
+      border-radius: .5rem;
+      padding: .5rem 1rem;
+    }
+    .dropdown-item:hover { background: rgba(255,255,255,.06); color: var(--text); }
+    .dropdown-item i { width: 1.2rem; text-align: center; margin-right: .5rem; }
+    .dropdown-divider { border-color: rgba(255,255,255,.08); }
+    .navbar-toggler { border-color: rgba(255,255,255,.2); }
+
+    /* ── Buttons ─────────────────────────────────────────────────── */
+    .btn, .btn-brand, .btn-outline-brand {
+      transition: all .2s; border-radius: 999px; font-weight: 600;
+    }
+    .btn-brand {
+      background: var(--brand); color: #07101a;
+      border: 1px solid transparent;
+      box-shadow: 0 8px 24px rgba(0,209,155,.18);
+    }
+    .btn-brand:hover, .btn-brand:focus { background: var(--brand-dark); color: #fff; }
+    .btn-outline-brand {
+      border: 1.5px solid var(--brand); color: var(--brand);
+      background: rgba(0,209,155,.06);
+    }
+    .btn-outline-brand:hover, .btn-outline-brand:focus {
+      background: rgba(0,209,155,.18); color: #fff; border-color: var(--brand);
+    }
+    .btn-secondary { border-radius: 999px; transition: all .2s; }
+
+    /* ── Cards ───────────────────────────────────────────────────── */
+    .card-surface {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 1.25rem;
+      box-shadow: 0 24px 60px rgba(0,0,0,.22);
+      backdrop-filter: blur(12px);
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      color: var(--text);
+    }
+    .card-header {
+      background: rgba(255,255,255,.04);
+      border-bottom: 1px solid var(--border);
+      border-radius: 1rem 1rem 0 0 !important;
+    }
+    .card-body { padding: 1.5rem; }
+    .feature-card {
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.02);
+    }
+
+    /* ── Stat cards ──────────────────────────────────────────────── */
+    .stat-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      text-align: center;
+      transition: transform .2s, box-shadow .2s;
+    }
+    .stat-card:hover { transform: translateY(-2px); box-shadow: 0 16px 40px rgba(0,0,0,.3); }
+    .stat-card .stat-num {
+      font-size: 2.4rem; font-weight: 800;
+      background: linear-gradient(135deg, var(--brand), #00a0d0);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+
+    /* ── Forms ───────────────────────────────────────────────────── */
+    .form-control, .form-select, .form-check-input {
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.1);
+      color: var(--text);
+      border-radius: .85rem;
+      box-shadow: inset 0 2px 8px rgba(0,0,0,.12);
+    }
+    .form-control:focus, .form-select:focus {
+      background: rgba(255,255,255,.09);
+      border-color: rgba(0,209,155,.6);
+      box-shadow: 0 0 0 .2rem rgba(0,209,155,.15);
+      color: var(--text);
+    }
+    .form-check-input:checked { background-color: var(--brand); border-color: var(--brand); }
+    .form-control::placeholder { color: rgba(234,244,255,.45); }
+    .form-label { color: var(--muted); font-size: .875rem; font-weight: 500; }
+    .input-group-text {
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.1);
+      color: var(--muted);
+    }
+
+    /* ── Tables ──────────────────────────────────────────────────── */
+    .table { color: var(--text); }
+    .table thead th {
+      color: var(--muted); font-size: .8rem; text-transform: uppercase;
+      letter-spacing: .06em; border-bottom: 1px solid rgba(255,255,255,.1);
+      font-weight: 600;
+    }
+    .table tbody tr { border-bottom: 1px solid rgba(255,255,255,.04); }
+    .table tbody tr:hover { background: rgba(255,255,255,.03); }
+    .table td { vertical-align: middle; font-size: .9rem; }
+
+    /* ── Badges ──────────────────────────────────────────────────── */
+    .badge-gold   { background: rgba(255,215,0,.15); color:#FFD700; border:1px solid rgba(255,215,0,.3); }
+    .badge-silver { background: rgba(192,192,192,.12); color:#C0C0C0; border:1px solid rgba(192,192,192,.3); }
+    .badge-bronze { background: rgba(205,127,50,.15); color:#CD7F32; border:1px solid rgba(205,127,50,.3); }
+    .badge-fail   { background: var(--danger-dim); color:#E84040; border:1px solid rgba(232,64,64,.3); }
+
+    /* ── Alerts ──────────────────────────────────────────────────── */
+    .alert { border-radius: 1rem; border-width: 1px; }
+    .alert-success { background: var(--success-dim); border-color: rgba(0,209,155,.25); color: var(--brand); }
+    .alert-danger  { background: var(--danger-dim);  border-color: rgba(232,64,64,.25);  color: #E84040; }
+    .alert-warning { background: var(--warning-dim); border-color: rgba(240,165,0,.25);  color: #F0A500; }
+    .alert-info    { background: rgba(36,133,232,.12); border-color:rgba(36,133,232,.25); color: #2485E8; }
+
+    /* ── Progress bars ───────────────────────────────────────────── */
+    .progress { background: rgba(255,255,255,.07); border-radius: 999px; }
+    .progress-bar { border-radius: 999px; }
+
+    /* ── Misc ────────────────────────────────────────────────────── */
+    .text-brand   { color: var(--brand) !important; }
+    .text-muted   { color: var(--muted) !important; }
+    .section-heading {
+      display: inline-flex; align-items: center; gap: .75rem;
+      font-size: 1.25rem; font-weight: 700; margin-bottom: .75rem; color: var(--text);
+    }
+    .shadow-soft { box-shadow: 0 12px 36px rgba(0,0,0,.18); }
+    .border-brand { border-color: rgba(0,209,155,.3) !important; }
+    footer {
+      background: rgba(10,18,30,.98);
+      border-top: 1px solid rgba(255,255,255,.06);
+      color: var(--muted);
+    }
+    footer a { color: var(--brand); text-decoration: none; }
+    footer a:hover { color: var(--brand-dark); }
+    .link-quiet { color: var(--muted); text-decoration: none; }
+    .link-quiet:hover { color: var(--text); }
+
+    /* ── Status pill ─────────────────────────────────────────────── */
+    .status-pill {
+      display: inline-flex; align-items: center; gap: .4rem;
+      padding: .25rem .75rem; border-radius: 999px; font-size: .78rem; font-weight: 600;
+    }
+    .status-pass    { background: rgba(0,209,155,.12); color: var(--brand); }
+    .status-warning { background: var(--warning-dim); color: #F0A500; }
+    .status-fail    { background: var(--danger-dim);  color: #E84040; }
+
+    /* ── Nav user avatar ─────────────────────────────────────────── */
+    .nav-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--brand), #0090c0);
+      display: inline-flex; align-items: center; justify-content: center;
+      color: #07101a; font-weight: 700; font-size: .8rem;
+    }
+    .nav-badge {
+      background: #E84040; color: #fff;
+      border-radius: 999px; font-size: .65rem; font-weight: 700;
+      padding: .1rem .4rem; vertical-align: top; margin-left: 2px;
+    }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+<!-- ── Navbar ──────────────────────────────────────────────────────────── -->
+<nav class="navbar navbar-expand-lg navbar-dark py-2">
+  <div class="container">
+    <a class="navbar-brand" href="{{ url_for('index') }}">
+      <i class="fas fa-shield-halved me-2"></i>ZDH Certification
+    </a>
+    <button class="navbar-toggler border-0" type="button"
+            data-bs-toggle="collapse" data-bs-target="#navMain">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="navMain">
+      {% if current_user.is_authenticated %}
+      <!-- ── Authenticated nav ──────────────────────────────────── -->
+      <ul class="navbar-nav me-auto gap-1">
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}"
+             href="{{ url_for('dashboard') }}">
+            <i class="fas fa-gauge-high me-1"></i>Dashboard
+          </a>
+        </li>
+
+        {% if current_user.role in ('assessor','admin') %}
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint == 'assess' %}active{% endif %}"
+             href="{{ url_for('assess') }}">
+            <i class="fas fa-clipboard-check me-1"></i>Assess
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint == 'assessment_requests' %}active{% endif %}"
+             href="{{ url_for('assessment_requests') }}">
+            <i class="fas fa-inbox me-1"></i>Requests
+          </a>
+        </li>
+        {% endif %}
+
+        {% if current_user.role == 'business_owner' %}
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint == 'my_business' %}active{% endif %}"
+             href="{{ url_for('my_business') }}">
+            <i class="fas fa-building me-1"></i>My Business
+          </a>
+        </li>
+        {% endif %}
+
+        <!-- Tools dropdown -->
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
+            <i class="fas fa-toolbox me-1"></i>Tools
+          </a>
+          <ul class="dropdown-menu">
+            <li>
+              <a class="dropdown-item" href="{{ url_for('system_scan') }}">
+                <i class="fas fa-laptop-code text-brand"></i>System Scan
+              </a>
             </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('index') }}#how-it-works"
-                >How It Works</a
-              >
+            <li>
+              <a class="dropdown-item" href="{{ url_for('infrastructure_scan') }}">
+                <i class="fas fa-network-wired text-brand"></i>Infrastructure Scan
+              </a>
             </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('index') }}#controls"
-                >15 Controls</a
-              >
+            <li>
+              <a class="dropdown-item" href="{{ url_for('zambia_assessment') }}">
+                <i class="fas fa-flag text-brand"></i>Zambia Risk Assessment
+              </a>
             </li>
-            <li class="nav-item">
-              <a
-                href="{{ url_for('download') }}"
-                class="btn btn-brand btn-sm ms-2"
-              >
-                <i class="fas fa-download me-1"></i>Download
+            <li>
+              <a class="dropdown-item" href="{{ url_for('predeploy_check') }}">
+                <i class="fas fa-rocket text-brand"></i>Pre-Deploy Check
+              </a>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <a class="dropdown-item" href="{{ url_for('schedule_scan') }}">
+                <i class="fas fa-clock text-brand"></i>Schedule Scan
               </a>
             </li>
           </ul>
-        </div>
-      </div>
-    </nav>
+        </li>
 
-    {% with messages = get_flashed_messages(with_categories=true) %} {% if
-    messages %}
-    <div class="container mt-3">
-      {% for cat, msg in messages %}
-      <div
-        class="alert alert-{{ 'danger' if cat == 'error' else cat }} alert-dismissible fade show"
-        role="alert"
-      >
-        {{ msg }}<button
-          type="button"
-          class="btn-close"
-          data-bs-dismiss="alert"
-        ></button>
-      </div>
-      {% endfor %}
+        {% if current_user.role == 'admin' %}
+        <li class="nav-item">
+          <a class="nav-link {% if 'admin' in (request.endpoint or '') %}active{% endif %}"
+             href="/admin">
+            <i class="fas fa-crown me-1" style="color:#FFD700"></i>Admin
+          </a>
+        </li>
+        {% endif %}
+      </ul>
+
+      <!-- User dropdown -->
+      <ul class="navbar-nav ms-auto gap-1 align-items-center">
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle d-flex align-items-center gap-2"
+             href="#" data-bs-toggle="dropdown">
+            <span class="nav-avatar">{{ current_user.username[0].upper() }}</span>
+            <span class="d-none d-md-inline">{{ current_user.username }}</span>
+            <small class="badge
+              {% if current_user.role == 'admin' %}bg-warning text-dark
+              {% elif current_user.role == 'assessor' %}bg-info text-dark
+              {% else %}bg-success bg-opacity-25 text-success{% endif %}
+              rounded-pill ms-1">
+              {{ current_user.role | replace('_', ' ') | title }}
+            </small>
+          </a>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li class="px-3 py-2 small" style="color:var(--muted)">
+              Signed in as <strong style="color:var(--text)">{{ current_user.username }}</strong>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <a class="dropdown-item" href="{{ url_for('profile') }}">
+                <i class="fas fa-user"></i>Profile
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="{{ url_for('change_password') }}">
+                <i class="fas fa-key"></i>Change Password
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="{{ url_for('mfa_setup') }}">
+                <i class="fas fa-shield-halved"></i>MFA Settings
+                {% if current_user.mfa_enabled %}
+                <span class="badge bg-success ms-1" style="font-size:.65rem">ON</span>
+                {% endif %}
+              </a>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <a class="dropdown-item text-danger" href="{{ url_for('logout') }}">
+                <i class="fas fa-right-from-bracket text-danger"></i>Sign Out
+              </a>
+            </li>
+          </ul>
+        </li>
+      </ul>
+
+      {% else %}
+      <!-- ── Public nav ─────────────────────────────────────────── -->
+      <ul class="navbar-nav ms-auto align-items-center gap-2">
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_for('about') }}">About</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_for('index') }}#how-it-works">How It Works</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_for('index') }}#controls">15 Controls</a>
+        </li>
+        <li class="nav-item">
+          <a href="{{ url_for('login') }}" class="btn btn-outline-brand btn-sm ms-2">
+            <i class="fas fa-sign-in-alt me-1"></i>Sign In
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{{ url_for('download') }}" class="btn btn-brand btn-sm ms-1">
+            <i class="fas fa-download me-1"></i>Download
+          </a>
+        </li>
+      </ul>
+      {% endif %}
     </div>
-    {% endif %} {% endwith %} {% block content %}{% endblock %}
+  </div>
+</nav>
 
-    <footer class="mt-5 py-4">
-      <div class="container text-center" style="font-size: 0.85rem">
-        <p class="mb-1">
-          <strong style="color: var(--text)"
-            >Zambia Digital Hygiene Certification Program</strong
-          >
+<!-- ── Flash messages ──────────────────────────────────────────────────── -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="container mt-3">
+  {% for cat, msg in messages %}
+  <div class="alert alert-{{ 'danger' if cat == 'error' else cat }} alert-dismissible fade show" role="alert">
+    <i class="fas {% if cat == 'success' %}fa-circle-check{% elif cat in ('error','danger') %}fa-circle-exclamation{% else %}fa-circle-info{% endif %} me-2"></i>
+    {{ msg }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+{% block content %}{% endblock %}
+
+<!-- ── Footer ──────────────────────────────────────────────────────────── -->
+<footer class="mt-5 py-4">
+  <div class="container" style="font-size:.85rem">
+    <div class="row g-3 align-items-center">
+      <div class="col-md-5">
+        <p class="mb-1 fw-bold" style="color:var(--text)">
+          <i class="fas fa-shield-halved me-2" style="color:var(--brand)"></i>
+          Zambia Digital Hygiene Certification Programme
         </p>
-        <p class="mb-1">
-          University of Zambia &nbsp;•&nbsp; Dept. of Computing &amp;
-          Informatics &nbsp;•&nbsp; Networking &amp; Information Security
-        </p>
-        <p class="mb-0" style="font-size: 0.75rem">
-          Aligned to NIST CSF v1.1 &nbsp;•&nbsp; CIS Controls v8 &nbsp;•&nbsp;
-          ISO 27001:2022 &nbsp;•&nbsp; Cyber Essentials
+        <p class="mb-0" style="color:var(--muted)">
+          University of Zambia &nbsp;·&nbsp; Dept. of Computing &amp; Informatics
         </p>
       </div>
-    </footer>
+      <div class="col-md-4 text-md-center">
+        <p class="mb-0" style="color:var(--muted);font-size:.78rem">
+          NIST CSF v1.1 &nbsp;·&nbsp; CIS Controls v8 &nbsp;·&nbsp;
+          ISO 27001:2022 &nbsp;·&nbsp; Zambia DPA 2021
+        </p>
+      </div>
+      <div class="col-md-3 text-md-end">
+        {% if not current_user.is_authenticated %}
+        <a href="{{ url_for('login') }}" class="btn btn-outline-brand btn-sm me-2">
+          <i class="fas fa-sign-in-alt me-1"></i>Sign In
+        </a>
+        <a href="{{ url_for('register') }}" class="btn btn-brand btn-sm">
+          Register
+        </a>
+        {% else %}
+        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-brand btn-sm">
+          <i class="fas fa-gauge-high me-1"></i>Dashboard
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</footer>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    {% block scripts %}{% endblock %}
-  </body>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% block scripts %}{% endblock %}
+</body>
 </html>

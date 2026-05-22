@@ -485,8 +485,46 @@ def rate_limit(max_attempts=5, window=300):  # 5 attempts per 5 minutes
 
 @app.route('/')
 def index():
-    """Home page"""
-    return render_template('index.html')
+    """Home page — pass download URL so template can render correctly."""
+    dl_url = os.environ.get(
+        'DOWNLOAD_URL',
+        'https://github.com/sakhile-bit/sakhile_final-_year_pro'
+        '/releases/latest/download/ZambiaDigitalHygiene.exe',
+    )
+    return render_template('index.html', download_url=dl_url)
+
+
+@app.route('/api/stats')
+@login_required
+def api_stats():
+    """JSON stats used by the dashboard Chart.js widgets."""
+    query = Assessment.query
+    if current_user.role == 'business_owner' and current_user.business_id:
+        query = query.filter_by(business_id=current_user.business_id)
+    elif current_user.role != 'admin':
+        query = query.filter_by(assessor_id=current_user.id)
+
+    assessments = query.order_by(Assessment.assessment_date.asc()).all()
+
+    cert_counts = {'GOLD': 0, 'SILVER': 0, 'BRONZE': 0, 'NOT CERTIFIED': 0}
+    trend_labels = []
+    trend_scores = []
+    for a in assessments:
+        cert_counts[a.certification_level] = (
+            cert_counts.get(a.certification_level, 0) + 1)
+        trend_labels.append(a.assessment_date.strftime('%d %b'))
+        pct = round(a.total_score / 120 * 100) if a.total_score else 0
+        trend_scores.append(pct)
+
+    return jsonify({
+        'cert_counts': cert_counts,
+        'trend_labels': trend_labels[-12:],
+        'trend_scores': trend_scores[-12:],
+        'total': len(assessments),
+        'avg_score': round(
+            sum(a.total_score for a in assessments) / len(assessments), 1
+        ) if assessments else 0,
+    })
 
 @app.route('/login', methods=['GET', 'POST'])
 @rate_limit()
