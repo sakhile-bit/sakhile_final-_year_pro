@@ -61,7 +61,7 @@ class ControlResult:
     weight: int
     status: str                 # PASS, WARNING, FAIL, ERROR, NOT_ASSESSED
     details: str
-    category: str = "technical" # technical | administrative | physical
+    category: str = "technical"  # technical | administrative | physical
     verification: str = "automated"  # automated | manual | hybrid
     evidence: Optional[str] = None   # Description of evidence collected
 
@@ -360,9 +360,9 @@ class DigitalHygieneAssessor:
         )
 
     def _check_os_updates(self) -> ControlResult:
-        """C01 – Check Windows Update settings and last update time"""
+        """C01 – Windows Update: service state, last patch date, auto-update config,
+        pending-restart flag, and recent hotfix via PowerShell."""
         ctrl = self.controls["C01_os_updates"]
-        # Only run Windows-specific checks on Windows hosts
         if platform.system() != 'Windows':
             return ControlResult(
                 control_id=ctrl["id"], name=ctrl["name"],
@@ -374,49 +374,118 @@ class DigitalHygieneAssessor:
             )
 
         try:
-            import psutil
-            import winreg
+            import subprocess
+            import winreg  # type: ignore[import]
 
-            # Check if Windows Update service is running
-            service_running = False
-            for service in psutil.win_service_iter():  # type: ignore[attr-defined]
-                if service.name().lower() == 'wuauserv':
-                    if service.status() == 'running':
-                        service_running = True
-                    break
-
-            # Check last update time from registry
-            try:
-                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,  # type: ignore[attr-defined]
-                                    r"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\Results\Install")
-                last_update, _ = winreg.QueryValueEx(key, "LastSuccessTime")  # type: ignore[attr-defined]
-                winreg.CloseKey(key)  # type: ignore[attr-defined]
-
-                last_update_date = datetime.datetime.fromtimestamp(last_update)
-                days_since_update = (datetime.datetime.now() - last_update_date).days
-
-                if service_running and days_since_update < 30:
-                    score = ctrl["weight"]
-                    status = "PASS"
-                    details = f"Windows Update running. Last update: {last_update_date.strftime('%Y-%m-%d')} ({days_since_update} days ago)"
-                elif service_running and days_since_update < 90:
-                    score = ctrl["weight"] // 2
-                    status = "WARNING"
-                    details = f"Updates somewhat old. Last: {last_update_date.strftime('%Y-%m-%d')} ({days_since_update} days ago)"
-                else:
-                    score = 0
-                    status = "FAIL"
-                    details = "Windows Update not properly configured or updates too old"
-
-            except Exception:
-                score = 0
-                status = "FAIL"
-                details = "Cannot determine last update time"
-
-        except Exception as e:
+            findings: list[str] = []
             score = 0
-            status = "ERROR"
-            details = f"Error checking updates: {str(e)}"
+
+            # 1. Windows Update service (wuauserv) — running or auto-start
+            try:
+                svc_result = subprocess.run(
+                    ['sc', 'query', 'wuauserv'],
+                    capture_output=True, text=True, timeout=8, shell=False)
+                svc_running = 'RUNNING' in svc_result.stdout.upper()
+            except Exception:
+                svc_running = False
+
+            # 2. Auto-update configured (AU\NoAutoUpdate = 0 means enabled)
+            auto_update_enabled = True
+            try:
+                key = winreg.OpenKey(  # type: ignore[attr-defined]
+                    winreg.HKEY_LOCAL_MACHINE,  # type: ignore[attr-defined]
+                    r"SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU",
+                )
+                no_auto, _ = winreg.QueryValueEx(key, "NoAutoUpdate")  # type: ignore[attr-defined]
+                winreg.CloseKey(key)  # type: ignore[attr-defined]
+                auto_update_enabled = (no_auto == 0)
+            except Exception:
+                pass  # Key absent = default enabled
+
+            # 3. Pending restart flag
+            pending_restart = False
+            for reg_path in [
+                r"SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending",
+                r"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired",
+            ]:
+                try:
+                    winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, reg_path)  # type: ignore[attr-defined]
+                    pending_restart = True
+                    break
+                except Exception:
+                    pass
+
+            # 4. Last successful install from registry
+            days_since = 999
+            last_date_str = "unknown"
+            try:
+                key = winreg.OpenKey(  # type: ignore[attr-defined]
+                    winreg.HKEY_LOCAL_MACHINE,
+                    r"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\Results\Install",
+                )
+                ts, _ = winreg.QueryValueEx(key, "LastSuccessTime")  # type: ignore[attr-defined]
+                winreg.CloseKey(key)  # type: ignore[attr-defined]
+                last_dt = datetime.datetime.fromtimestamp(ts)
+                days_since = (datetime.datetime.now() - last_dt).days
+                last_date_str = last_dt.strftime('%Y-%m-%d')
+            except Exception:
+                # Fallback: PowerShell Get-HotFix (last installed hotfix date)
+                try:
+                    ps = subprocess.run(
+                        ['powershell', '-NonInteractive', '-Command',
+                         '(Get-HotFix | Sort-Object InstalledOn -Descending |'
+                         ' Select-Object -First 1).InstalledOn'],
+                        capture_output=True, text=True, timeout=20, shell=False)
+                    line = ps.stdout.strip().splitlines()[0] if ps.stdout.strip() else ""
+                    if line:
+                        for fmt in ('%m/%d/%Y', '%Y-%m-%d', '%d/%m/%Y'):
+                            try:
+                                last_dt = datetime.datetime.strptime(line.split()[0], fmt)
+                                days_since = (datetime.datetime.now() - last_dt).days
+                                last_date_str = last_dt.strftime('%Y-%m-%d')
+                                break
+                            except ValueError:
+                                continue
+                except Exception:
+                    pass
+
+            # Score calculation
+            if svc_running or auto_update_enabled:
+                score += 3
+                findings.append("Windows Update service active")
+            else:
+                findings.append("Windows Update service not running — enable it")
+
+            if auto_update_enabled:
+                score += 2
+                findings.append("Automatic updates configured")
+            else:
+                findings.append("Automatic updates disabled — re-enable via Settings")
+
+            if days_since < 30:
+                score += ctrl["weight"] - 5
+                findings.append(
+                    f"Last patch: {last_date_str} ({days_since}d ago) — current")
+            elif days_since < 60:
+                score += (ctrl["weight"] - 5) // 2
+                findings.append(
+                    f"Last patch: {last_date_str} ({days_since}d ago) — update soon")
+            else:
+                findings.append(
+                    f"Last patch: {last_date_str} ({days_since}d ago) — overdue")
+
+            if pending_restart:
+                score = max(0, score - 2)
+                findings.append("Pending restart required to complete updates")
+
+            score = min(score, ctrl["weight"])
+            pct = score / ctrl["weight"] * 100 if ctrl["weight"] else 0
+            status = "PASS" if pct >= 80 else ("WARNING" if pct >= 50 else "FAIL")
+            details = "; ".join(findings)
+
+        except Exception as exc:
+            score, status = 0, "ERROR"
+            details = f"Update check error: {exc}"
 
         return ControlResult(
             control_id=ctrl["id"], name=ctrl["name"],
@@ -426,7 +495,8 @@ class DigitalHygieneAssessor:
         )
 
     def _check_antivirus(self) -> ControlResult:
-        """C02 – Check for antivirus installation and status using WMI / registry"""
+        """C02 – Antivirus: Defender status via PowerShell (primary) + registry scan
+        (fallback). Checks: AV enabled, real-time protection on, definition age."""
         ctrl = self.controls["C02_antivirus"]
         if platform.system() != 'Windows':
             return ControlResult(
@@ -439,59 +509,103 @@ class DigitalHygieneAssessor:
             )
 
         try:
-            import winreg
+            import subprocess
+            import json as _json
+            import winreg  # type: ignore[import]
 
-            av_installed = False
-            av_name = "Unknown"
+            score = 0
+            findings: list[str] = []
+            av_name = ""
 
-            # Check via WMI if available
+            # ── Primary: PowerShell Get-MpComputerStatus (Defender + 3rd party) ──
+            ps_ok = False
             try:
-                import wmi
-                c = wmi.WMI()
-                for product in c.Win32_Product():
-                    if any(term in product.Name.lower() for term in [
-                        'avast', 'avg', 'bitdefender', 'kaspersky',
-                        'mcafee', 'norton', 'eset', 'windows defender',
-                        'antivirus', 'security', 'endpoint'
-                    ]):
-                        av_installed = True
-                        av_name = product.Name
-                        break
-            except ImportError:
+                ps = subprocess.run(
+                    ['powershell', '-NonInteractive', '-Command',
+                     'Get-MpComputerStatus | Select-Object '
+                     'AntivirusEnabled,RealTimeProtectionEnabled,'
+                     'AntivirusSignatureAge,AntivirusSignatureLastUpdated,'
+                     'QuickScanAge | ConvertTo-Json'],
+                    capture_output=True, text=True, timeout=20, shell=False)
+                if ps.returncode == 0 and ps.stdout.strip():
+                    data = _json.loads(ps.stdout.strip())
+                    av_on = bool(data.get('AntivirusEnabled', False))
+                    rt_on = bool(data.get('RealTimeProtectionEnabled', False))
+                    sig_age = int(data.get('AntivirusSignatureAge') or 999)
+                    scan_age = int(data.get('QuickScanAge') or 999)
+
+                    av_name = "Windows Defender"
+                    ps_ok = True
+
+                    if av_on:
+                        score += 5
+                        findings.append("Antivirus enabled")
+                    else:
+                        findings.append("Antivirus DISABLED — critical risk")
+
+                    if rt_on:
+                        score += 4
+                        findings.append("Real-time protection ON")
+                    else:
+                        findings.append("Real-time protection OFF — enable immediately")
+
+                    if sig_age <= 3:
+                        score += ctrl["weight"] - 9
+                        findings.append(f"Definitions: {sig_age}d old — current")
+                    elif sig_age <= 7:
+                        score += (ctrl["weight"] - 9) // 2
+                        findings.append(f"Definitions: {sig_age}d old — update soon")
+                    else:
+                        findings.append(f"Definitions: {sig_age}d old — outdated")
+
+                    if scan_age is not None and scan_age < 30:
+                        findings.append(f"Last quick scan: {scan_age}d ago")
+            except Exception:
                 pass
 
-            # Fallback: check installed programs via registry
-            if not av_installed:
-                key_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"
-                try:
-                    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path) as key:  # type: ignore[attr-defined]
-                        for i in range(winreg.QueryInfoKey(key)[0]):  # type: ignore[attr-defined]
-                            try:
-                                subkey_name = winreg.EnumKey(key, i)  # type: ignore[attr-defined]
-                                with winreg.OpenKey(key, subkey_name) as subkey:  # type: ignore[attr-defined]
-                                    display_name = winreg.QueryValueEx(subkey, "DisplayName")[0]  # type: ignore[attr-defined]
-                                    if any(t in display_name.lower() for t in ['antivirus', 'security', 'defender']):
-                                        av_installed = True
-                                        av_name = display_name
-                                        break
-                            except Exception:
-                                pass
-                except Exception:
-                    pass
+            # ── Fallback: registry installed-programs scan ────────────────────
+            if not ps_ok:
+                av_terms = [
+                    'avast', 'avg', 'bitdefender', 'kaspersky', 'mcafee',
+                    'norton', 'eset', 'trend micro', 'sophos', 'malwarebytes',
+                    'webroot', 'cylance', 'crowdstrike', 'sentinelone',
+                    'windows defender', 'antivirus', 'endpoint protection',
+                ]
+                for key_path in [
+                    r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+                    r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+                ]:
+                    try:
+                        with winreg.OpenKey(  # type: ignore[attr-defined]
+                                winreg.HKEY_LOCAL_MACHINE, key_path) as key:  # type: ignore[attr-defined]
+                            for i in range(winreg.QueryInfoKey(key)[0]):  # type: ignore[attr-defined]
+                                try:
+                                    sk = winreg.EnumKey(key, i)  # type: ignore[attr-defined]
+                                    with winreg.OpenKey(key, sk) as sub:  # type: ignore[attr-defined]
+                                        name = winreg.QueryValueEx(sub, "DisplayName")[0]  # type: ignore[attr-defined]
+                                        if any(t in name.lower() for t in av_terms):
+                                            av_name = name
+                                            score = ctrl["weight"] * 3 // 4
+                                            findings.append(f"AV detected via registry: {name}")
+                                            break
+                                except Exception:
+                                    pass
+                        if av_name:
+                            break
+                    except Exception:
+                        pass
 
-            if av_installed:
-                score = ctrl["weight"]
-                status = "PASS"
-                details = f"Antivirus detected: {av_name}"
-            else:
-                score = 0
-                status = "FAIL"
-                details = "No antivirus software detected"
+                if not av_name:
+                    findings.append("No antivirus detected via registry or PowerShell")
 
-        except Exception as e:
-            score = 0
-            status = "ERROR"
-            details = f"Error checking antivirus: {str(e)}"
+            score = min(score, ctrl["weight"])
+            pct = score / ctrl["weight"] * 100 if ctrl["weight"] else 0
+            status = "PASS" if pct >= 80 else ("WARNING" if pct >= 50 else "FAIL")
+            details = f"{av_name + ': ' if av_name else ''}" + "; ".join(findings)
+
+        except Exception as exc:
+            score, status = 0, "ERROR"
+            details = f"AV check error: {exc}"
 
         return ControlResult(
             control_id=ctrl["id"], name=ctrl["name"],
@@ -501,7 +615,8 @@ class DigitalHygieneAssessor:
         )
 
     def _check_firewall(self) -> ControlResult:
-        """C03 – Check Windows Firewall status via netsh"""
+        """C03 – Firewall: check all 3 profiles (Domain/Private/Public) individually.
+        PASS requires all 3 ON; WARNING if 2/3; FAIL if <2."""
         ctrl = self.controls["C03_firewall"]
         if platform.system() != 'Windows':
             return ControlResult(
@@ -515,38 +630,51 @@ class DigitalHygieneAssessor:
 
         try:
             import subprocess
+            import re
 
             result = subprocess.run(
-                ['netsh', 'advfirewall', 'show', 'allprofiles', 'state'],
-                capture_output=True, text=True, shell=False,
-            )
+                ['netsh', 'advfirewall', 'show', 'allprofiles'],
+                capture_output=True, text=True, timeout=10, shell=False)
 
-            firewall_enabled = False
-            profiles = []
+            # Parse each profile block
+            profile_states: dict[str, bool] = {}
+            current_profile = None
+            for line in result.stdout.splitlines():
+                # Detect profile header: "Domain Profile Settings:" etc.
+                m = re.match(r'^(Domain|Private|Public)\s+Profile\s+Settings', line, re.I)
+                if m:
+                    current_profile = m.group(1).title()
+                elif current_profile and re.search(r'State\s+ON', line, re.I):
+                    profile_states[current_profile] = True
+                elif current_profile and re.search(r'State\s+OFF', line, re.I):
+                    profile_states[current_profile] = False
 
-            for line in result.stdout.split('\n'):
-                if 'ON' in line.upper() and 'STATE' in line.upper():
-                    firewall_enabled = True
-                    profile = line.split()[0] if line.split() else ""
-                    profiles.append(profile)
+            enabled = [p for p, on in profile_states.items() if on]
+            disabled = [p for p, on in profile_states.items() if not on]
 
-            if firewall_enabled and len(profiles) >= 2:
-                score = ctrl["weight"]
+            # Score: each profile = weight/3 pts; all 3 = bonus
+            per_profile = ctrl["weight"] // 3
+            score = min(len(enabled) * per_profile, ctrl["weight"])
+
+            if len(enabled) == 3:
                 status = "PASS"
-                details = f"Firewall enabled for profiles: {', '.join(profiles)}"
-            elif firewall_enabled:
-                score = ctrl["weight"] // 2
+                details = f"Firewall ON for all 3 profiles: {', '.join(enabled)}"
+            elif len(enabled) == 2:
                 status = "WARNING"
-                details = "Firewall partially enabled"
+                details = (f"Firewall ON: {', '.join(enabled)} — "
+                           f"OFF: {', '.join(disabled)} — enable all profiles")
+            elif len(enabled) == 1:
+                status = "FAIL"
+                details = (f"Firewall partially enabled ({enabled[0]} only). "
+                           f"Disabled: {', '.join(disabled)}")
             else:
                 score = 0
                 status = "FAIL"
-                details = "Firewall is disabled"
+                details = "Windows Firewall is disabled on all profiles"
 
-        except Exception as e:
-            score = 0
-            status = "ERROR"
-            details = f"Error checking firewall: {str(e)}"
+        except Exception as exc:
+            score, status = 0, "ERROR"
+            details = f"Firewall check error: {exc}"
 
         return ControlResult(
             control_id=ctrl["id"], name=ctrl["name"],
@@ -582,14 +710,20 @@ class DigitalHygieneAssessor:
 
             for line in result.stdout.split('\n'):
                 if 'Minimum password length' in line:
-                    try: min_length = int(line.split()[-1])
-                    except ValueError: pass
+                    try:
+                        min_length = int(line.split()[-1])
+                    except ValueError:
+                        pass
                 elif 'Maximum password age' in line:
-                    try: max_age = int(line.split()[-2])
-                    except ValueError: pass
+                    try:
+                        max_age = int(line.split()[-2])
+                    except ValueError:
+                        pass
                 elif 'Lockout threshold' in line:
-                    try: lockout_threshold = int(line.split()[-1])
-                    except ValueError: pass
+                    try:
+                        lockout_threshold = int(line.split()[-1])
+                    except ValueError:
+                        pass
 
             score = 0
             details_parts = []
@@ -639,7 +773,9 @@ class DigitalHygieneAssessor:
         )
 
     def _check_backup_system(self) -> ControlResult:
-        """C05 – Check for backup software or recent backup files"""
+        """C05 – Backup: check installed backup software, Windows File History,
+        VSS (Volume Shadow Copy), OneDrive/Google Drive cloud sync, and recent
+        backup files in common directories."""
         ctrl = self.controls["C05_backups"]
         if platform.system() != 'Windows':
             return ControlResult(
@@ -653,77 +789,113 @@ class DigitalHygieneAssessor:
 
         try:
             import os
-            import winreg
+            import subprocess
+            import winreg  # type: ignore[import]
 
-            backup_software = False
-            backup_details = []
+            score = 0
+            findings: list[str] = []
 
-            software_keys = [
-                r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
-                r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+            # 1. Dedicated backup software in registry
+            bk_terms = [
+                'backup', 'acronis', 'veeam', 'carbonite', 'backblaze',
+                'crashplan', 'idrive', 'backupassist', 'cobian', 'duplicati',
+                'macrium', 'shadow', 'syncback',
             ]
+            for reg_root in [winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER]:  # type: ignore[attr-defined]
+                for kp in [
+                    r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+                    r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+                ]:
+                    try:
+                        with winreg.OpenKey(reg_root, kp) as key:  # type: ignore[attr-defined]
+                            for i in range(winreg.QueryInfoKey(key)[0]):  # type: ignore[attr-defined]
+                                try:
+                                    sk = winreg.EnumKey(key, i)  # type: ignore[attr-defined]
+                                    with winreg.OpenKey(key, sk) as sub:  # type: ignore[attr-defined]
+                                        nm = winreg.QueryValueEx(sub, "DisplayName")[0]  # type: ignore[attr-defined]
+                                        if any(t in nm.lower() for t in bk_terms):
+                                            score += 4
+                                            findings.append(f"Backup software: {nm}")
+                                            raise StopIteration
+                                except StopIteration:
+                                    raise
+                                except Exception:
+                                    pass
+                    except StopIteration:
+                        break
+                    except Exception:
+                        pass
 
-            for key_path in software_keys:
-                try:
-                    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path) as key:  # type: ignore[attr-defined]
-                        for i in range(winreg.QueryInfoKey(key)[0]):  # type: ignore[attr-defined]
-                            try:
-                                subkey_name = winreg.EnumKey(key, i)  # type: ignore[attr-defined]
-                                with winreg.OpenKey(key, subkey_name) as subkey:  # type: ignore[attr-defined]
-                                    display_name = winreg.QueryValueEx(subkey, "DisplayName")[0]  # type: ignore[attr-defined]
-                                    if any(t in display_name.lower() for t in [
-                                        'backup', 'acronis', 'veeam', 'carbonite',
-                                        'backblaze', 'crashplan',
-                                    ]):
-                                        backup_software = True
-                                        backup_details.append(f"Software: {display_name}")
-                            except Exception:
-                                pass
-                except Exception:
-                    pass
+            # 2. Windows File History service
+            try:
+                r = subprocess.run(['sc', 'query', 'fhsvc'],
+                                   capture_output=True, text=True, timeout=5)
+                if 'RUNNING' in r.stdout.upper():
+                    score += 2
+                    findings.append("Windows File History active")
+            except Exception:
+                pass
 
-            # Check common backup locations for recent files
-            backup_dirs = [
-                Path("C:/Backup"), Path("D:/Backup"),
-                Path(os.environ.get('USERPROFILE', '') + "/Backup"),
-                Path(os.environ.get('USERPROFILE', '') + "/Documents/Backup"),
+            # 3. Volume Shadow Copy (VSS) — snapshot-based backup
+            try:
+                r = subprocess.run(['vssadmin', 'list', 'shadows'],
+                                   capture_output=True, text=True, timeout=8)
+                if 'Shadow Copy Volume' in r.stdout:
+                    score += 2
+                    shadow_count = r.stdout.count('Shadow Copy Volume')
+                    findings.append(f"VSS: {shadow_count} shadow copy/copies found")
+                elif r.returncode == 0:
+                    findings.append("VSS: no shadow copies — configure automatic backups")
+            except Exception:
+                pass
+
+            # 4. Cloud backup: OneDrive / Google Drive / Dropbox
+            cloud_paths = {
+                'OneDrive': os.path.expanduser('~/OneDrive'),
+                'Google Drive': os.path.expanduser('~/Google Drive'),
+                'Dropbox': os.path.expanduser('~/Dropbox'),
+            }
+            for cloud_name, cloud_path in cloud_paths.items():
+                if os.path.isdir(cloud_path):
+                    score += 1
+                    findings.append(f"{cloud_name} folder detected")
+                    break
+
+            # 5. Recent backup files in common directories
+            profile = os.environ.get('USERPROFILE', os.path.expanduser('~'))
+            scan_dirs = [
+                Path("C:/Backup"), Path("D:/Backup"), Path("E:/Backup"),
+                Path(profile) / "Backup",
+                Path(profile) / "Documents" / "Backup",
+                Path(profile) / "Desktop" / "Backup",
             ]
-
-            recent_backup = False
-            for backup_dir in backup_dirs:
-                if backup_dir.exists():
-                    for file_path in backup_dir.rglob("*"):
-                        if file_path.is_file():
-                            mod_time = datetime.datetime.fromtimestamp(file_path.stat().st_mtime)
-                            if (datetime.datetime.now() - mod_time).days < 7:
-                                recent_backup = True
-                                backup_details.append(f"Recent backup: {file_path.name} ({mod_time.date()})")
+            for d in scan_dirs:
+                if d.exists():
+                    for fp in d.rglob("*"):
+                        if fp.is_file():
+                            age = (datetime.datetime.now() -
+                                   datetime.datetime.fromtimestamp(fp.stat().st_mtime)).days
+                            if age < 14:
+                                score += 1
+                                findings.append(f"Recent backup file in {d.name}/ ({age}d ago)")
                                 break
 
-            if backup_software and recent_backup:
-                score = ctrl["weight"]
+            score = min(score, ctrl["weight"])
+            pct = score / ctrl["weight"] * 100 if ctrl["weight"] else 0
+            if pct >= 70:
                 status = "PASS"
-                details = "Backup system detected and recent backups found"
-            elif backup_software:
-                score = ctrl["weight"] * 3 // 5
+            elif pct >= 40:
                 status = "WARNING"
-                details = "Backup software installed but no recent backups found"
-            elif recent_backup:
-                score = ctrl["weight"] * 3 // 5
-                status = "WARNING"
-                details = "Recent backups found but no backup software detected"
             else:
-                score = 0
                 status = "FAIL"
-                details = "No backup system detected"
+                if not findings:
+                    findings.append("No backup system, shadow copies, or cloud sync detected")
 
-            if backup_details:
-                details += " | " + "; ".join(backup_details)
+            details = "; ".join(findings) if findings else "No backup evidence found"
 
-        except Exception as e:
-            score = 0
-            status = "ERROR"
-            details = f"Error checking backup system: {str(e)}"
+        except Exception as exc:
+            score, status = 0, "ERROR"
+            details = f"Backup check error: {exc}"
 
         return ControlResult(
             control_id=ctrl["id"], name=ctrl["name"],
@@ -878,7 +1050,9 @@ class DigitalHygieneAssessor:
             )
             exposed = [s for s in ('C$', 'ADMIN$', 'IPC$') if s in result.stdout]
             if 'C$' in exposed or 'ADMIN$' in exposed:
-                return 'WARNING', f"Default admin shares exposed: {', '.join(exposed)} – consider disabling C$ and ADMIN$"
+                return ('WARNING',
+                        f"Default admin shares exposed: {', '.join(exposed)}"
+                        " - consider disabling C$ and ADMIN$")
             return 'PASS', 'No dangerous default admin shares detected'
         except Exception as exc:
             return 'ERROR', f'Admin shares check failed: {exc}'
@@ -935,6 +1109,165 @@ class DigitalHygieneAssessor:
         except Exception as exc:
             return 'ERROR', f'USB policy check failed: {exc}'
 
+    # ------------------------------------------------------------------
+    # Extended security checks (bonus — beyond C01-C05)
+    # ------------------------------------------------------------------
+
+    def _check_ransomware_protection(self) -> Tuple[str, str]:
+        """EX-01: Controlled Folder Access (Windows ransomware protection)."""
+        if platform.system() != 'Windows':
+            return 'NOT_APPLICABLE', 'Non-Windows host'
+        try:
+            import subprocess
+            import json as _json
+            ps = subprocess.run(
+                ['powershell', '-NonInteractive', '-Command',
+                 'Get-MpPreference | Select-Object '
+                 'EnableControlledFolderAccess | ConvertTo-Json'],
+                capture_output=True, text=True, timeout=15, shell=False)
+            if ps.returncode == 0 and ps.stdout.strip():
+                data = _json.loads(ps.stdout.strip())
+                cfa = data.get('EnableControlledFolderAccess', 0)
+                if cfa == 1:
+                    return 'PASS', 'Controlled Folder Access (ransomware protection) is ON'
+                elif cfa == 2:
+                    return 'WARNING', 'Controlled Folder Access is in audit mode — enable it'
+                return 'FAIL', ('Controlled Folder Access is OFF — enable via '
+                                'Windows Security > Virus & threat protection')
+            return 'WARNING', 'Could not query Controlled Folder Access status'
+        except Exception as exc:
+            return 'ERROR', f'Ransomware protection check error: {exc}'
+
+    def _check_local_accounts(self) -> Tuple[str, str]:
+        """EX-02: Local account audit — guest disabled, admin count, default admin."""
+        if platform.system() != 'Windows':
+            return 'NOT_APPLICABLE', 'Non-Windows host'
+        try:
+            import subprocess
+            import json as _json
+            ps = subprocess.run(
+                ['powershell', '-NonInteractive', '-Command',
+                 'Get-LocalUser | Select-Object Name,Enabled | ConvertTo-Json'],
+                capture_output=True, text=True, timeout=15, shell=False)
+            issues = []
+            if ps.returncode == 0 and ps.stdout.strip():
+                raw = _json.loads(ps.stdout.strip())
+                users = raw if isinstance(raw, list) else [raw]
+                admin_on = [u for u in users
+                            if u.get('Name', '').lower() == 'administrator'
+                            and u.get('Enabled', False)]
+                guest_on = [u for u in users
+                            if u.get('Name', '').lower() == 'guest'
+                            and u.get('Enabled', False)]
+                enabled_count = sum(1 for u in users if u.get('Enabled', False))
+                if admin_on:
+                    issues.append('Built-in Administrator account is ENABLED — disable it')
+                if guest_on:
+                    issues.append('Guest account is ENABLED — disable it')
+                summary = f'{enabled_count} enabled local account(s)'
+                if not issues:
+                    return 'PASS', f'{summary} — no built-in account risks detected'
+                return 'WARNING', f'{summary}; ' + '; '.join(issues)
+            return 'WARNING', 'Could not enumerate local user accounts'
+        except Exception as exc:
+            return 'ERROR', f'Local accounts check error: {exc}'
+
+    def _check_autorun_policy(self) -> Tuple[str, str]:
+        """EX-03: AutoRun/AutoPlay disabled — prevents USB/CD malware."""
+        if platform.system() != 'Windows':
+            return 'NOT_APPLICABLE', 'Non-Windows host'
+        try:
+            import winreg  # type: ignore[import]
+            # NoDriveTypeAutoRun = 0xFF (255) disables AutoRun for all drives
+            for hive, path in [
+                (winreg.HKEY_LOCAL_MACHINE,  # type: ignore[attr-defined]
+                 r'SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer'),
+                (winreg.HKEY_CURRENT_USER,   # type: ignore[attr-defined]
+                 r'SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer'),
+            ]:
+                try:
+                    key = winreg.OpenKey(hive, path)  # type: ignore[attr-defined]
+                    val, _ = winreg.QueryValueEx(key, 'NoDriveTypeAutoRun')  # type: ignore[attr-defined]
+                    winreg.CloseKey(key)  # type: ignore[attr-defined]
+                    if val >= 0xFF or val == 0x91:
+                        return 'PASS', f'AutoRun disabled (NoDriveTypeAutoRun=0x{val:X})'
+                    return 'WARNING', (
+                        f'AutoRun partially restricted (0x{val:X}) — '
+                        'set NoDriveTypeAutoRun=0xFF to disable for all drives')
+                except FileNotFoundError:
+                    continue
+                except Exception:
+                    continue
+            return 'FAIL', ('AutoRun is NOT disabled — USB drives autorun malware risk. '
+                            'Enable via Group Policy or registry.')
+        except Exception as exc:
+            return 'ERROR', f'AutoRun check error: {exc}'
+
+    def _check_windows_hello(self) -> Tuple[str, str]:
+        """EX-04: Windows Hello / PIN — modern, phishing-resistant authentication."""
+        if platform.system() != 'Windows':
+            return 'NOT_APPLICABLE', 'Non-Windows host'
+        try:
+            import subprocess
+            ps = subprocess.run(
+                ['powershell', '-NonInteractive', '-Command',
+                 'Get-WmiObject -Class Win32_UserAccount | '
+                 'Where-Object {$_.LocalAccount -eq $True -and $_.Disabled -eq $False} | '
+                 'Measure-Object | Select-Object -ExpandProperty Count'],
+                capture_output=True, text=True, timeout=15, shell=False)
+
+            # Check NGC (Next Generation Credentials) folder — indicates Hello/PIN set up
+            import os
+            ngc_path = os.path.join(
+                os.environ.get('WINDIR', 'C:\\Windows'),
+                'ServiceProfiles', 'LocalService', 'AppData', 'Local',
+                'Microsoft', 'Ngc')
+            if os.path.isdir(ngc_path) and any(
+                    os.scandir(ngc_path)):
+                return 'PASS', 'Windows Hello / PIN configured (NGC credentials found)'
+            # Fallback: check Hello policy
+            import winreg  # type: ignore[import]
+            try:
+                key = winreg.OpenKey(  # type: ignore[attr-defined]
+                    winreg.HKEY_LOCAL_MACHINE,
+                    r'SOFTWARE\Policies\Microsoft\PassportForWork')
+                enabled, _ = winreg.QueryValueEx(key, 'Enabled')  # type: ignore[attr-defined]
+                winreg.CloseKey(key)  # type: ignore[attr-defined]
+                if enabled:
+                    return 'PASS', 'Windows Hello policy is enabled'
+                return 'WARNING', 'Windows Hello policy is disabled by GPO'
+            except FileNotFoundError:
+                pass
+            return 'WARNING', ('Windows Hello / PIN not detected — configure via '
+                               'Settings > Accounts > Sign-in options')
+        except Exception as exc:
+            return 'ERROR', f'Windows Hello check error: {exc}'
+
+    def _check_pending_security_updates(self) -> Tuple[str, str]:
+        """EX-05: Count pending Windows security updates."""
+        if platform.system() != 'Windows':
+            return 'NOT_APPLICABLE', 'Non-Windows host'
+        try:
+            import subprocess
+            ps = subprocess.run(
+                ['powershell', '-NonInteractive', '-Command',
+                 '(New-Object -ComObject Microsoft.Update.Session)'
+                 '.CreateUpdateSearcher().Search("IsInstalled=0 and Type=\'Software\'")'
+                 '.Updates.Count'],
+                capture_output=True, text=True, timeout=30, shell=False)
+            if ps.returncode == 0 and ps.stdout.strip().isdigit():
+                count = int(ps.stdout.strip())
+                if count == 0:
+                    return 'PASS', 'No pending Windows updates — system is fully patched'
+                elif count <= 5:
+                    return 'WARNING', (
+                        f'{count} pending update(s) — install them soon via Windows Update')
+                return 'FAIL', (
+                    f'{count} pending update(s) — run Windows Update immediately')
+            return 'WARNING', 'Could not query pending updates (may require admin rights)'
+        except Exception as exc:
+            return 'ERROR', f'Pending updates check error: {exc}'
+
     def _check_windows_defender_atp(self) -> Tuple[str, str]:
         """Check Windows Defender real-time protection and definition age."""
         if platform.system() != 'Windows':
@@ -943,7 +1276,9 @@ class DigitalHygieneAssessor:
             import subprocess
             result = subprocess.run(
                 ['powershell', '-NonInteractive', '-Command',
-                 'Get-MpComputerStatus | Select-Object AntivirusEnabled,RealTimeProtectionEnabled,AntivirusSignatureAge | ConvertTo-Json'],
+                 'Get-MpComputerStatus | Select-Object '
+                 'AntivirusEnabled,RealTimeProtectionEnabled,'
+                 'AntivirusSignatureAge | ConvertTo-Json'],
                 capture_output=True, text=True, timeout=15, shell=False,
             )
             if result.returncode == 0 and result.stdout.strip():
@@ -1065,7 +1400,10 @@ class DigitalHygieneAssessor:
             elif results[key].status == "WARNING":
                 recommendations.append("🟡 Improve: " + RECS.get(key, f"Improve {results[key].name}."))
             elif results[key].status == "NOT_ASSESSED":
-                recommendations.append(f"⚪ Not checked: {results[key].name} — answer the manual questions to assess this.")
+                recommendations.append(
+                    f"Not checked: {results[key].name}"
+                    " - answer the manual questions to assess this."
+                )
 
         # Zambia-specific standing reminders
         recommendations.append(
@@ -1184,7 +1522,10 @@ class InfrastructureAssessor:
                         if days_left < 0:
                             return f"SSL certificate EXPIRED ({expires_str})"
                         elif days_left < 30:
-                            return f"SSL/TLS enabled but certificate expires SOON in {int(days_left)} days ({expires_str})"
+                            return (
+                                f"SSL/TLS enabled but expires SOON in "
+                                f"{int(days_left)} days ({expires_str})"
+                            )
                         return f"SSL/TLS enabled, expires: {expires_str} ({int(days_left)} days)"
                     except Exception:
                         return f"SSL/TLS enabled, expires: {expires_str}"
