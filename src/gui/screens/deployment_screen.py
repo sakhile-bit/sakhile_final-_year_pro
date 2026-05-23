@@ -1015,7 +1015,7 @@ class DeploymentCheckerScreen(ctk.CTkFrame):
                                        {"CRITICAL": 0, "HIGH": 1,
                                         "MEDIUM": 2, "LOW": 3
                                         }.get(x.severity, 4))):
-            status_clr = "#00C896" if c.passed else {
+            status_clr = "#6C5FC7" if c.passed else {
                 "CRITICAL": "#E84040", "HIGH": "#E87000",
                 "MEDIUM": "#F0A500", "LOW": "#A0B4C8",
             }.get(c.severity, "#A0B4C8")

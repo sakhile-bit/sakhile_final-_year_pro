@@ -32,9 +32,9 @@ STATUS_ICON = {
     "ERROR": "!", "NOT_ASSESSED": "–",
 }
 EFFORT = {
-    "C01_os_updates":            ("⚡ Quick Fix",  "#00C896"),
-    "C02_antivirus":             ("⚡ Quick Fix",  "#00C896"),
-    "C03_firewall":              ("⚡ Quick Fix",  "#00C896"),
+    "C01_os_updates":            ("⚡ Quick Fix",  "#6C5FC7"),
+    "C02_antivirus":             ("⚡ Quick Fix",  "#6C5FC7"),
+    "C03_firewall":              ("⚡ Quick Fix",  "#6C5FC7"),
     "C04_password_policy":       ("📅 This Week",  "#2485E8"),
     "C05_backups":               ("📅 This Week",  "#2485E8"),
     "C06_security_training":     ("📆 This Month", "#F0A500"),
@@ -443,7 +443,7 @@ class ResultsScreen(ctk.CTkFrame):
         tier = r.certification_level
         pct = round(r.score / r.total_possible * 100) if r.total_possible else 0
         tc = {"GOLD": "#F5C518", "SILVER": "#C0CDD8",
-              "BRONZE": "#D4873A"}.get(tier, "#00C896")
+              "BRONZE": "#D4873A"}.get(tier, "#6C5FC7")
         ti = {"GOLD": "🥇", "SILVER": "🥈", "BRONZE": "🥉"}.get(tier, "✔")
         valid = (r.assessment_date.replace(year=r.assessment_date.year + 1)
                  .strftime("%d %B %Y"))
@@ -527,7 +527,7 @@ class ResultsScreen(ctk.CTkFrame):
         tier = d["certification_level"]
         tc = {"GOLD": "#F5C518", "SILVER": "#C0CDD8", "BRONZE": "#D4873A",
               "NOT CERTIFIED": "#E84040"}.get(tier, "#E84040")
-        sc_clr = {"PASS": "#00C896", "WARNING": "#F0A500", "FAIL": "#E84040",
+        sc_clr = {"PASS": "#6C5FC7", "WARNING": "#F0A500", "FAIL": "#E84040",
                   "ERROR": "#F0A500", "NOT_ASSESSED": "#5A7490"}
         rows = "".join(
             "<tr>"

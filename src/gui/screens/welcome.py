@@ -305,7 +305,7 @@ class WelcomeScreen(ctk.CTkFrame):
             ("📄  Policy Docs",
              "#CD8A3A",   "#1A0E00",      self._on_policies,      1, 1),
             ("🚀  Deploy Check",
-             CLR_SUCCESS, "#003D28",      self._on_deploy,        1, 2),
+             CLR_SUCCESS, "#1A1730",      self._on_deploy,        1, 2),
         ]
         for label, clr, hov, cmd, r, c in tools:
             btn = ctk.CTkFrame(grid, fg_color=CLR_SURFACE, corner_radius=12,

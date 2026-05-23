@@ -500,7 +500,7 @@ class PolicyTemplatesScreen(ctk.CTkFrame):
         ctk.CTkButton(
             btn_frame, text="⬇ Download", width=110, height=34,
             font=("Segoe UI", 11, "bold"),
-            fg_color=CLR_ACCENT, hover_color="#00A87A",
+            fg_color=CLR_ACCENT, hover_color="#7D70D6",
             text_color="#000000", corner_radius=10,
             command=lambda t=tmpl: self._download(t),
         ).pack(side="left")
@@ -520,7 +520,7 @@ class PolicyTemplatesScreen(ctk.CTkFrame):
         ).pack(side="left", padx=PAD, pady=14)
         ctk.CTkButton(
             hdr, text="⬇ Download", width=110, height=32,
-            fg_color=CLR_ACCENT, hover_color="#00A87A", text_color="#000000",
+            fg_color=CLR_ACCENT, hover_color="#7D70D6", text_color="#000000",
             command=lambda: self._download(tmpl),
         ).pack(side="right", padx=PAD)
 
