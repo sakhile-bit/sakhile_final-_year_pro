@@ -47,7 +47,7 @@ CATEGORIES = [
     },
     {
         "title": "⚖️ Zambia Legal Compliance",
-        "colour": "#00C896",
+        "colour": "#6C5FC7",
         "items": [
             ("dpa_registered",
              "Is your business registered with the Data Protection Commission (DPC) under the Zambia Data Protection Act No. 3 of 2021?",
@@ -84,7 +84,7 @@ CATEGORIES = [
 ]
 
 RISK_COLOURS = {
-    "LOW RISK":    ("#00C896", "Your business has good protection against local threats. "
+    "LOW RISK":    ("#6C5FC7", "Your business has good protection against local threats. "
                    "Maintain these controls and review annually."),
     "MEDIUM RISK": ("#FFB800", "Your business has some gaps in local threat protection. "
                    "Address the unchecked items as a priority."),
@@ -162,7 +162,7 @@ class ZambiaRiskScreen(ctk.CTkFrame):
 
                 cb = ctk.CTkCheckBox(
                     card, text="", variable=var,
-                    fg_color=CLR_ACCENT, hover_color="#00A87A",
+                    fg_color=CLR_ACCENT, hover_color="#7D70D6",
                     border_color=CLR_BORDER, width=24, height=24,
                 )
                 cb.grid(row=0, column=0, padx=(16, 10), pady=14, sticky="n")
@@ -206,7 +206,7 @@ class ZambiaRiskScreen(ctk.CTkFrame):
         ctk.CTkButton(
             nav, text="Calculate Risk →",
             font=("Segoe UI", 13, "bold"),
-            fg_color=CLR_ACCENT, hover_color="#00A87A",
+            fg_color=CLR_ACCENT, hover_color="#7D70D6",
             text_color="#000000", height=38, corner_radius=18,
             command=self._calculate,
         ).grid(row=0, column=2, padx=PAD, pady=14)

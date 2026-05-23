@@ -55,7 +55,7 @@ RISK_COLOUR = {
     "HIGH":     "#E87000",
     "MEDIUM":   "#F0A500",
     "LOW":      "#78C840",
-    "SAFE":     "#00C896",
+    "SAFE":     "#6C5FC7",
     "SCANNING": "#5A7490",
     "UNKNOWN":  "#5A7490",
 }

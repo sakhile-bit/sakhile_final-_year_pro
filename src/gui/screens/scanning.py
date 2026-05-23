@@ -340,7 +340,7 @@ class ScanningScreen(ctk.CTkFrame):
         if btn:
             if result.status == "PASS":
                 btn.configure(text="✔  Fixed", state="disabled",
-                              fg_color="#0A2018", text_color=CLR_SUCCESS,
+                              fg_color="#1A1730", text_color=CLR_SUCCESS,
                               border_color=CLR_SUCCESS)
             else:
                 btn.configure(text="🔧  Retry", state="normal")

@@ -78,7 +78,7 @@ _WEIGHTS = {
 _MAX = sum(_WEIGHTS.values())
 
 _ANS_STYLE = {
-    "Yes – Fully": (CLR_SUCCESS, "#0A2018"),
+    "Yes – Fully": (CLR_SUCCESS, "#1A1730"),
     "Partially":   (CLR_WARNING, "#1A1400"),
     "No":          (CLR_DANGER,  "#2A0A0A"),
 }
