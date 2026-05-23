@@ -3,7 +3,7 @@
 import customtkinter as ctk
 from src.gui.theme import (
     CLR_BG, CLR_SURFACE, CLR_SURFACE_ALT,
-    CLR_ACCENT, CLR_ACCENT_HOV,
+    CLR_ACCENT, CLR_BLUE,
     CLR_TEXT, CLR_TEXT_SEC, CLR_MUTED,
     CLR_SUCCESS, CLR_WARNING, CLR_DANGER, CLR_BORDER,
     FONT_TITLE, FONT_SUBHEAD, FONT_BODY, FONT_SMALL, FONT_CAPTION,
@@ -34,7 +34,9 @@ class HistoryScreen(ctk.CTkFrame):
     # ------------------------------------------------------------------ build
     def _build(self):
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1)
+        self.grid_rowconfigure(0, weight=0)   # header
+        self.grid_rowconfigure(1, weight=1)   # scroll — expands
+        self.grid_rowconfigure(2, weight=0)   # nav bar — pinned
 
         # Header
         hdr = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0,
@@ -156,7 +158,16 @@ class HistoryScreen(ctk.CTkFrame):
         ).pack(pady=(0, 6))
 
         ctk.CTkButton(
-            btn_f, text="🗑  Delete", font=FONT_CAPTION,
+            btn_f, text="Compare", font=FONT_CAPTION,
+            fg_color="transparent", hover_color=CLR_SURFACE_ALT,
+            border_color=CLR_BLUE, border_width=1,
+            text_color=CLR_BLUE,
+            width=72, height=30, corner_radius=8,
+            command=lambda rid=row_id: self._show_compare(rid),
+        ).pack(pady=(0, 6))
+
+        ctk.CTkButton(
+            btn_f, text="Delete", font=FONT_CAPTION,
             fg_color="transparent", hover_color=CLR_SURFACE_ALT,
             border_color=CLR_DANGER, border_width=1,
             text_color=CLR_DANGER,
@@ -263,6 +274,124 @@ class HistoryScreen(ctk.CTkFrame):
             text_color=CLR_TEXT, font=FONT_BODY,
             command=dlg.destroy,
         ).pack(pady=10)
+
+    # --------------------------------------------------------------- comparison
+    def _show_compare(self, row_id: int):
+        """Open a side-by-side comparison of this assessment vs the one before it."""
+        from src.utils.local_db import list_assessments, get_assessment
+        all_rows = list_assessments()
+        ids = [r["id"] for r in all_rows]
+        try:
+            pos = ids.index(row_id)
+        except ValueError:
+            return
+        if pos >= len(ids) - 1:
+            # No older assessment to compare with
+            dlg = ctk.CTkToplevel(self)
+            dlg.title("Compare")
+            dlg.geometry("360x120")
+            dlg.configure(fg_color=CLR_SURFACE)
+            dlg.grab_set()
+            ctk.CTkLabel(dlg,
+                         text="No previous assessment to compare with.\n"
+                              "Complete at least two assessments first.",
+                         font=FONT_SMALL, text_color=CLR_MUTED,
+                         justify="center").pack(pady=(22, 14))
+            ctk.CTkButton(dlg, text="OK", fg_color=CLR_ACCENT,
+                          text_color="#000000", command=dlg.destroy).pack()
+            return
+
+        newer_id = row_id
+        older_id = ids[pos + 1]
+        newer = get_assessment(newer_id)
+        older = get_assessment(older_id)
+        if not newer or not older:
+            return
+
+        dlg = ctk.CTkToplevel(self)
+        dlg.title("Assessment Comparison")
+        dlg.geometry("820x600")
+        dlg.configure(fg_color=CLR_BG)
+        dlg.grab_set()
+
+        # Header
+        hdr = ctk.CTkFrame(dlg, fg_color=CLR_SURFACE, corner_radius=0,
+                           height=56)
+        hdr.pack(fill="x")
+        hdr.pack_propagate(False)
+        ctk.CTkLabel(hdr,
+                     text="Side-by-side Assessment Comparison",
+                     font=FONT_SUBHEAD, text_color=CLR_TEXT,
+                     ).pack(side="left", padx=PAD, pady=16)
+        ctk.CTkButton(hdr, text="Close", height=BTN_H, corner_radius=BTN_R,
+                      fg_color=CLR_SURFACE_ALT, hover_color=CLR_BORDER,
+                      text_color=CLR_TEXT, font=FONT_BODY,
+                      command=dlg.destroy).pack(side="right", padx=PAD)
+
+        scroll = ctk.CTkScrollableFrame(dlg, fg_color=CLR_BG)
+        scroll.pack(fill="both", expand=True)
+        scroll.grid_columnconfigure((0, 1), weight=1)
+
+        def _col_header(parent, col, data):
+            tier = data.get("certification_level", "—")
+            pct = data.get("percentage", 0)
+            biz = data.get("business", {}).get("name", "—")
+            date = data.get("assessment_date", "")[:10]
+            tier_clr = TIER_COLOURS.get(tier, CLR_DANGER)
+            f = ctk.CTkFrame(parent, fg_color=CLR_SURFACE,
+                             corner_radius=10, border_width=2,
+                             border_color=tier_clr)
+            f.grid(row=0, column=col, padx=8, pady=8, sticky="ew")
+            ctk.CTkLabel(f, text=biz, font=FONT_SUBHEAD,
+                         text_color=CLR_TEXT).pack(pady=(12, 2))
+            ctk.CTkLabel(f,
+                         text=f"{TIER_ICON.get(tier, '?')}  {tier}  ({pct}%)",
+                         font=("Segoe UI", 14, "bold"),
+                         text_color=tier_clr).pack()
+            ctk.CTkLabel(f, text=date, font=FONT_CAPTION,
+                         text_color=CLR_MUTED).pack(pady=(2, 12))
+
+        _col_header(scroll, 0, newer)
+        _col_header(scroll, 1, older)
+
+        # Control-by-control comparison
+        newer_ctrls = newer.get("controls", {})
+        older_ctrls = older.get("controls", {})
+        all_ctrl_ids = list(newer_ctrls.keys()) or list(older_ctrls.keys())
+
+        for row_i, ctrl_key in enumerate(all_ctrl_ids):
+            nc = newer_ctrls.get(ctrl_key, {})
+            oc = older_ctrls.get(ctrl_key, {})
+            for col, ctrl in [(0, nc), (1, oc)]:
+                status = ctrl.get("status", "—")
+                clr = STATUS_CLR.get(status, CLR_MUTED)
+                icon = STATUS_ICON.get(status, "?")
+                rf = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE,
+                                  corner_radius=8, border_width=1,
+                                  border_color=CLR_BORDER)
+                rf.grid(row=row_i + 1, column=col,
+                        padx=8, pady=3, sticky="ew")
+                rf.grid_columnconfigure(1, weight=1)
+                ctk.CTkFrame(rf, fg_color=clr, width=3,
+                             corner_radius=0).grid(row=0, column=0,
+                                                   sticky="ns")
+                ctk.CTkLabel(rf, text=icon, font=("Segoe UI", 11),
+                             text_color=clr, width=22,
+                             ).grid(row=0, column=1,
+                                    padx=(8, 4), pady=8, sticky="n")
+                name = ctrl.get("name", ctrl_key)
+                ctk.CTkLabel(rf,
+                             text=f"{ctrl.get('id', '?')}  {name}",
+                             font=FONT_SMALL, text_color=CLR_TEXT,
+                             anchor="w",
+                             ).grid(row=0, column=2, sticky="w", pady=8)
+                ctk.CTkLabel(rf,
+                             text=f"{ctrl.get('score', 0)}"
+                                  f"/{ctrl.get('weight', 0)}",
+                             font=("Segoe UI", 10, "bold"),
+                             text_color=clr,
+                             ).grid(row=0, column=3,
+                                    padx=8, pady=8, sticky="e")
 
     # ----------------------------------------------------------------- delete
     def _confirm_delete(self, row_id, card, delete_fn):
