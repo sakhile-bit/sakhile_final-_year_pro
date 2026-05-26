@@ -42,3 +42,5 @@ requests>=2.28.0    # external IP checks, Shodan lookups (already installed)
 reportlab>=4.0.0    # PDF report generation
 # python-nmap       # vulnerability scanning (also needs nmap binary)
 # APScheduler       # scheduled scans
+ldap3>=2.9.0        # Active Directory checks (optional)
+pip-audit>=2.1.0    # dependency vulnerability scanning (optional)

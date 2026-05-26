@@ -4,7 +4,6 @@ Unit tests for the pre-deployment digital hygiene checker
 
 import os
 import pytest
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 from src.security.deployment.checker import (
@@ -110,26 +109,27 @@ class TestPreDeploymentChecker:
         return PreDeploymentChecker(project_root=str(tmp_path))
 
     def test_run_all_returns_report(self, checker):
-        """run_all() must return a DeploymentReadiness with 13 checks."""
+        """run_all() must return a DeploymentReadiness with 15 checks."""
         with patch('src.security.deployment.checker.subprocess.run',
                    return_value=MagicMock(stdout='', stderr='', returncode=0)):
             report = checker.run_all()
         assert isinstance(report, DeploymentReadiness)
-        assert report.total == 13
+        assert report.total == 15
 
     def test_all_checks_have_ids(self, checker):
         with patch('src.security.deployment.checker.subprocess.run',
                    return_value=MagicMock(stdout='', stderr='', returncode=0)):
             report = checker.run_all()
         ids = [c.check_id for c in report.checks]
-        assert ids == [f'PDC-{i:02d}' for i in range(1, 14)]
+        assert len(ids) == 15
+        assert set(ids) == {f'PDC-{i:02d}' for i in range(1, 16)}
 
     def test_all_checks_have_category(self, checker):
         with patch('src.security.deployment.checker.subprocess.run',
                    return_value=MagicMock(stdout='', stderr='', returncode=0)):
             report = checker.run_all()
         for c in report.checks:
-            assert c.category in ('system', 'network', 'application', 'secrets'), \
+            assert c.category in ('system', 'network', 'application', 'secrets', 'monitoring'), \
                 f'{c.check_id} has unexpected category {c.category!r}'
 
     # -- individual check unit tests --
@@ -155,6 +155,14 @@ class TestPreDeploymentChecker:
             assert 'FLASK_DEBUG' in result.details
         finally:
             os.environ.pop('FLASK_DEBUG', None)
+
+    def test_monitoring_hygiene_check(self, checker):
+        with patch('src.security.deployment.checker.get_logging_hygiene',
+                   return_value={'passed': True, 'details': ['Event log available'], 'severity': 'LOW'}):
+            result = checker._check_monitoring_hygiene()
+        assert result.check_id == 'PDC-15'
+        assert result.category == 'monitoring'
+        assert result.passed is True
 
     def test_env_file_no_env(self, checker, tmp_path):
         """No .env file → pass."""
@@ -208,4 +216,3 @@ class TestPreDeploymentChecker:
 # Note: Web interface tests for pre-deployment are part of Phase 2.
 # The current landing page (src/web/app.py) is minimal. Full dashboard
 # features including pre-deployment checker routes will be added in Phase 2.
-

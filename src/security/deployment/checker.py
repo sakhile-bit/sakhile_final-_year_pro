@@ -31,6 +31,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from src.security.monitoring.checks import get_logging_hygiene
+from src.security.siem.forwarder import WebhookForwarder, build_siem_event
+
 # ---------------------------------------------------------------------------
 # Data classes
 # ---------------------------------------------------------------------------
@@ -44,7 +47,7 @@ class CheckResult:
     severity: str          # CRITICAL, HIGH, MEDIUM, LOW
     details: str
     remediation: str = ''
-    category: str = ''     # system, network, application, secrets
+    category: str = ''     # system, network, application, secrets, monitoring
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -124,15 +127,17 @@ class DeploymentReadiness:
 class PreDeploymentChecker:
     """Run a battery of digital-hygiene checks on the current system.
 
-    Checks cover four categories:
-    * **system**      – OS patches, firewall, antivirus, disk encryption
+    Checks cover five categories:
+    * **system**      – OS patches, firewall, antivirus, disk encryption, inventory
     * **network**     – dangerous open ports, DNS resolution, HTTPS readiness
     * **application** – Python env, dependency vulnerabilities, debug flags
     * **secrets**     – env-var leaks, hard-coded credentials, .env exposure
+    * **monitoring**  – event logging and log-forwarding/agent hygiene
     """
 
-    def __init__(self, project_root: Optional[str] = None):
+    def __init__(self, project_root: Optional[str] = None, siem_url: Optional[str] = None):
         self.project_root = Path(project_root) if project_root else Path.cwd()
+        self.siem_url = siem_url
 
     # ------------------------------------------------------------------
     # Public API
@@ -147,6 +152,9 @@ class PreDeploymentChecker:
         report.checks.append(self._check_firewall())
         report.checks.append(self._check_antivirus())
         report.checks.append(self._check_disk_encryption())
+        # Inventory checks
+        report.checks.append(self._check_software_inventory())
+        report.checks.append(self._check_monitoring_hygiene())
 
         # Network checks
         report.checks.append(self._check_open_ports())
@@ -163,7 +171,17 @@ class PreDeploymentChecker:
         report.checks.append(self._check_hardcoded_secrets())
         report.checks.append(self._check_git_secrets())
 
+        self._maybe_forward_siem(report)
         return report
+
+    def _maybe_forward_siem(self, report: DeploymentReadiness) -> bool:
+        """Optionally forward the aggregated report to a SIEM webhook."""
+        forwarder = WebhookForwarder(self.siem_url)
+        if not forwarder.url:
+            return False
+
+        event = build_siem_event(report.to_dict(), source='deployment_checker')
+        return forwarder.send(event)
 
     # ------------------------------------------------------------------
     # SYSTEM checks
@@ -290,6 +308,76 @@ class PreDeploymentChecker:
         except Exception as e:
             return CheckResult('PDC-04', 'Disk Encryption', False, 'MEDIUM',
                                f'Check failed: {e}', 'Verify disk encryption manually', 'system')
+
+    def _check_software_inventory(self) -> CheckResult:
+        """PDC-14: Produce a short software inventory summary for the host.
+
+        On Windows this reads common registry uninstall keys; on Unix it lists
+        installed packages where available. This check returns LOW severity and
+        is informational for assessors.
+        """
+        try:
+            if platform.system() == 'Windows':
+                import winreg  # type: ignore[import]
+
+                products = []
+                for key_path in [
+                    r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+                    r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+                ]:
+                    try:
+                        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path) as key:  # type: ignore[attr-defined]
+                            for i in range(winreg.QueryInfoKey(key)[0]):  # type: ignore[attr-defined]
+                                try:
+                                    sk = winreg.EnumKey(key, i)  # type: ignore[attr-defined]
+                                    with winreg.OpenKey(key, sk) as sub:  # type: ignore[attr-defined]
+                                        try:
+                                            name = winreg.QueryValueEx(sub, 'DisplayName')[0]  # type: ignore[attr-defined]
+                                            products.append(name)
+                                        except Exception:
+                                            pass
+                                except Exception:
+                                    pass
+                    except Exception:
+                        pass
+
+                if not products:
+                    return CheckResult('PDC-14', 'Software Inventory', True, 'LOW',
+                                       'No installed-program entries discovered (or access denied)',
+                                       category='system')
+                sample = ', '.join(sorted(set(products))[:8])
+                return CheckResult('PDC-14', 'Software Inventory', True, 'LOW',
+                                   f'Detected packages: {sample} (+more)',
+                                   category='system')
+            else:
+                # Attempt dpkg or rpm list
+                try:
+                    r = subprocess.run(['dpkg-query', '-W', '-f', '${Package}\n'], capture_output=True, text=True, timeout=10)
+                    pkgs = r.stdout.splitlines()
+                    sample = ', '.join(pkgs[:8]) if pkgs else 'none'
+                    return CheckResult('PDC-14', 'Software Inventory', True, 'LOW',
+                                       f'Detected packages: {sample}', category='system')
+                except Exception:
+                    return CheckResult('PDC-14', 'Software Inventory', True, 'LOW',
+                                       'Unable to enumerate packages; check manually', category='system')
+        except Exception as e:
+            return CheckResult('PDC-14', 'Software Inventory', False, 'LOW',
+                               f'Inventory check failed: {e}', 'Inspect installed software manually', 'system')
+
+    def _check_monitoring_hygiene(self) -> CheckResult:
+        """PDC-15: Check logging and monitoring hygiene on the host."""
+        status = get_logging_hygiene()
+        details = '; '.join(status.get('details', [])) or 'Monitoring status could not be determined'
+        if status.get('passed'):
+            return CheckResult('PDC-15', 'Monitoring Hygiene', True, status.get('severity', 'LOW'),
+                               details, category='monitoring')
+
+        remediation = 'Install or configure a log forwarder and ensure event logging is available.'
+        if status.get('severity') == 'MEDIUM':
+            remediation = 'Confirm Windows Event Log or syslog logging is active and forwarding agent is installed.'
+
+        return CheckResult('PDC-15', 'Monitoring Hygiene', False, status.get('severity', 'MEDIUM'),
+                           details, remediation, 'monitoring')
 
     # ------------------------------------------------------------------
     # NETWORK checks
