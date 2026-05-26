@@ -93,8 +93,8 @@ class TestDigitalHygieneAssessor:
         assert assessor.manual_answers == answers
 
     @patch.object(DigitalHygieneAssessor, '_check_os_updates')
-    @patch.object(DigitalHygieneAssessor, '_check_antivirus')
-    @patch.object(DigitalHygieneAssessor, '_check_firewall')
+    @patch.object(DigitalHygieneAssessor, '_check_antivirus_enhanced')
+    @patch.object(DigitalHygieneAssessor, '_check_firewall_enhanced')
     @patch.object(DigitalHygieneAssessor, '_check_password_policy')
     @patch.object(DigitalHygieneAssessor, '_check_backup_system')
     def test_run_assessment_auto_only(self, m_backup, m_pw, m_fw, m_av, m_os, business_info):
@@ -108,12 +108,12 @@ class TestDigitalHygieneAssessor:
         assessor = DigitalHygieneAssessor(business_info, assessment_tier='automated')
         results = assessor.run_assessment()
 
-        assert results.score == 55  # only automated controls
+        assert results.score == 55  # only automated controls (C01-C05 total weight = 55)
         assert results.total_possible == 120
 
     @patch.object(DigitalHygieneAssessor, '_check_os_updates')
-    @patch.object(DigitalHygieneAssessor, '_check_antivirus')
-    @patch.object(DigitalHygieneAssessor, '_check_firewall')
+    @patch.object(DigitalHygieneAssessor, '_check_antivirus_enhanced')
+    @patch.object(DigitalHygieneAssessor, '_check_firewall_enhanced')
     @patch.object(DigitalHygieneAssessor, '_check_password_policy')
     @patch.object(DigitalHygieneAssessor, '_check_backup_system')
     def test_run_assessment_zero_not_certified(self, m_backup, m_pw, m_fw, m_av, m_os, business_info):

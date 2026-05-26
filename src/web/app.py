@@ -402,10 +402,10 @@ def create_app(db_uri: str | None = None) -> Flask:
         db_uri: Override the database URI (useful for tests with SQLite).
     """
     # Extensions are already bound at module level.
-    # Only re-init the DB if a custom URI is supplied (e.g. SQLite in tests).
+    # Only override the DB URI if a custom one is supplied (e.g. SQLite in tests).
+    # Do NOT call db.init_app(app) again — it was already registered at module level.
     if db_uri:
         app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
-        db.init_app(app)
 
     # Session security — disable secure cookie flag in test/local mode
     if not app.config.get('TESTING'):
