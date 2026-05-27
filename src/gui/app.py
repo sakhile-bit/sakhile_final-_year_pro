@@ -2,7 +2,7 @@
 
 import customtkinter as ctk
 from src.gui.theme import (
-    CLR_BG, CLR_SURFACE, CLR_ACCENT, CLR_TEXT,
+    CLR_BG,
     WIN_W, WIN_H, APP_NAME, APP_VERSION,
 )
 
@@ -112,7 +112,7 @@ class DigitalHygieneApp(ctk.CTk):
 
     def _show_results(self, manual_scores, evidence=None):
         from src.security.assessment.assessor import (
-            DigitalHygieneAssessor, ControlResult, CONTROL_CATALOGUE,
+            DigitalHygieneAssessor, CONTROL_CATALOGUE,
         )
 
         # Merge automated results + manual scores into a full assessment

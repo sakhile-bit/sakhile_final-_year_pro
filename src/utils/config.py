@@ -136,11 +136,9 @@ class Config:
 
         Priority:
         1. ``DATABASE_URL`` environment variable (explicit override).
-        2. MySQL when the driver is installed AND the server is reachable.
+        2. MySQL when the driver is installed AND authentication succeeds.
         3. SQLite fallback for local dev / testing.
         """
-        import socket
-
         # 1. Explicit override via env var (supports sqlite:/// and postgres:// too)
         explicit = os.environ.get('DATABASE_URL', '').strip()
         if explicit:
@@ -153,27 +151,35 @@ class Config:
         password = db_config.get('password') or os.getenv('DB_PASSWORD', '')
         name = db_config.get('name') or os.getenv('DB_NAME', 'digital_hygiene')
 
-        # 2. Try MySQL — only if the driver is present AND the server responds
+        # 2. Try MySQL — only if the driver is present AND auth succeeds
         try:
-            import mysql.connector  # noqa: F401
+            import mysql.connector
             mysql_available = True
         except ImportError:
             mysql_available = False
 
         if mysql_available and user:
-            # Quick TCP probe — avoids hanging on an unreachable server
+            # Verify both TCP reachability AND successful authentication before
+            # returning a MySQL URL.  A TCP probe alone is not enough — the
+            # server may be running but the credentials could be wrong, which
+            # causes the app to crash on first DB access.
             try:
-                with socket.create_connection((host, int(port)), timeout=2):
-                    pass
-                mysql_reachable = True
-            except OSError:
-                mysql_reachable = False
-
-            if mysql_reachable:
+                test_conn = mysql.connector.connect(
+                    host=host,
+                    port=int(port),
+                    user=user,
+                    password=password or '',
+                    database=name,
+                    connection_timeout=3,
+                )
+                test_conn.close()
+                # Auth succeeded — build and return the SQLAlchemy URL
                 if password:
                     return (f'mysql+mysqlconnector://{user}:'
                             f'{quote_plus(password)}@{host}:{port}/{name}')
                 return f'mysql+mysqlconnector://{user}@{host}:{port}/{name}'
+            except Exception:
+                pass  # fall through to SQLite
 
         # 3. SQLite fallback
         db_dir = Path(__file__).parent.parent.parent / 'instance'

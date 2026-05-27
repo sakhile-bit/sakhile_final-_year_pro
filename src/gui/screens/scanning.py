@@ -7,18 +7,27 @@ from src.gui.theme import (
     CLR_BG, CLR_SURFACE, CLR_SURFACE_ALT,
     CLR_ACCENT, CLR_ACCENT_HOV,
     CLR_TEXT, CLR_TEXT_SEC, CLR_MUTED,
-    CLR_SUCCESS, CLR_WARNING, CLR_DANGER, CLR_BORDER, CLR_DIVIDER,
-    FONT_TITLE, FONT_SUBHEAD, FONT_BODY, FONT_SMALL, FONT_CAPTION,
-    PAD, PAD_SM, NAV_H, BTN_H, BTN_R,
+    CLR_SUCCESS, CLR_WARNING, CLR_DANGER, CLR_BORDER,
+    FONT_SUBHEAD, FONT_BODY, FONT_SMALL, FONT_CAPTION,
+    PAD, NAV_H, BTN_H, BTN_R,
 )
 from src.gui.screens.business_info import _header
 
 CHECKS = [
-    ("C01", "OS Updates",         "Windows Update service and last patch date"),
+    ("C01", "OS Updates",           "Windows Update service and last patch date"),
     ("C02", "Antivirus / Defender", "Real-time protection and definition age"),
-    ("C03", "Firewall",           "Domain, Private and Public profile status"),
-    ("C04", "Password Policy",    "Minimum length, expiry and lockout threshold"),
-    ("C05", "Backup System",      "Backup software and recent backup files"),
+    ("C03", "Firewall",             "Domain, Private and Public profile status"),
+    ("C04", "Password Policy",      "Minimum length, expiry and lockout threshold"),
+    ("C05", "Backup System",        "Backup software, VSS, cloud sync"),
+]
+
+# Extended checks — run in parallel with C01-C05, displayed separately
+EXTENDED_CHECKS = [
+    ("EX-01", "Ransomware Protection", "Controlled Folder Access status"),
+    ("EX-02", "Local Account Audit",   "Guest disabled, built-in admin review"),
+    ("EX-03", "AutoRun Policy",        "USB/CD AutoRun disabled"),
+    ("EX-04", "Windows Hello / PIN",   "Modern phishing-resistant authentication"),
+    ("EX-05", "Pending Updates",       "Count of outstanding Windows updates"),
 ]
 
 STATUS_STYLE = {
@@ -73,6 +82,8 @@ class ScanningScreen(ctk.CTkFrame):
         self._on_back = on_back
         self._on_skip = on_skip
         self._results: dict = {}
+        self._ext_results: dict = {}   # {eid: (status_str, detail_str)}
+        self._ext_rows: dict = {}      # {eid: (stripe, icon, detail_lbl)}
         self._row_frames: dict = {}
         self._status_labels: dict = {}
         self._icon_labels: dict = {}
@@ -110,15 +121,28 @@ class ScanningScreen(ctk.CTkFrame):
         self._progress.set(0)
         self._progress.grid(row=1, column=0, sticky="ew", pady=(0, 14))
 
-        # Check rows
+        # Core check rows (C01-C05)
+        ctk.CTkLabel(body, text="CORE CONTROLS  (C01 – C05)",
+                     font=FONT_CAPTION, text_color=CLR_MUTED,
+                     ).grid(row=2, column=0, sticky="w", pady=(0, 6))
         for i, (cid, cname, cdesc) in enumerate(CHECKS):
-            self._make_check_row(body, i + 2, cid, cname, cdesc)
+            self._make_check_row(body, i + 3, cid, cname, cdesc)
+
+        # Extended check rows (EX-01 – EX-05)
+        base = len(CHECKS) + 4
+        ctk.CTkLabel(body, text="EXTENDED SECURITY CHECKS",
+                     font=FONT_CAPTION, text_color=CLR_MUTED,
+                     ).grid(row=base, column=0, sticky="w",
+                            pady=(14, 6))
+        self._ext_rows: dict = {}
+        for i, (eid, ename, edesc) in enumerate(EXTENDED_CHECKS):
+            self._make_ext_row(body, base + 1 + i, eid, ename, edesc)
 
         self._status_var = ctk.StringVar(value="Initialising…")
         ctk.CTkLabel(body, textvariable=self._status_var,
                      font=FONT_CAPTION, text_color=CLR_MUTED,
-                     ).grid(row=len(CHECKS) + 2, column=0,
-                            pady=(8, 0), sticky="w")
+                     ).grid(row=base + len(EXTENDED_CHECKS) + 2,
+                            column=0, pady=(8, 0), sticky="w")
 
         # Nav bar
         nav = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0,
@@ -190,18 +214,54 @@ class ScanningScreen(ctk.CTkFrame):
         detail.grid(row=0, column=3, padx=(0, 14), pady=14, sticky="e")
         self._status_labels[cid] = detail
 
+    def _make_ext_row(self, parent, grid_row, eid, ename, edesc):
+        """Lightweight row for extended (EX-*) checks — no fix button."""
+        card = ctk.CTkFrame(parent, fg_color=CLR_SURFACE, corner_radius=10,
+                            border_width=1, border_color=CLR_BORDER)
+        card.grid(row=grid_row, column=0, sticky="ew", pady=3)
+        card.grid_columnconfigure(2, weight=1)
+
+        stripe = ctk.CTkFrame(card, fg_color=CLR_BORDER, width=3,
+                              corner_radius=0)
+        stripe.grid(row=0, column=0, sticky="ns")
+
+        icon_lbl = ctk.CTkLabel(card, text="…",
+                                font=("Segoe UI Emoji", 16),
+                                text_color=CLR_MUTED, width=36)
+        icon_lbl.grid(row=0, column=1, padx=(10, 6), pady=12, sticky="n")
+
+        txt = ctk.CTkFrame(card, fg_color="transparent")
+        txt.grid(row=0, column=2, sticky="w", pady=12)
+        ctk.CTkLabel(txt, text=f"{eid}  {ename}",
+                     font=FONT_SUBHEAD, text_color=CLR_TEXT, anchor="w",
+                     ).pack(anchor="w")
+        ctk.CTkLabel(txt, text=edesc, font=FONT_CAPTION,
+                     text_color=CLR_MUTED, anchor="w",
+                     ).pack(anchor="w")
+
+        detail_lbl = ctk.CTkLabel(card, text="Pending",
+                                  font=FONT_SMALL, text_color=CLR_MUTED,
+                                  anchor="e", wraplength=240)
+        detail_lbl.grid(row=0, column=3, padx=(0, 12), pady=12, sticky="e")
+
+        self._ext_rows[eid] = (stripe, icon_lbl, detail_lbl)
+
     # ------------------------------------------------------------------ scan
     def _run_scan(self):
         from src.security.assessment.assessor import DigitalHygieneAssessor
         assessor = DigitalHygieneAssessor(self._biz, assessment_tier="automated")
-        methods = [
+
+        # Core C01-C05 methods
+        core_methods = [
             ("C01", assessor._check_os_updates),
             ("C02", assessor._check_antivirus_enhanced),
             ("C03", assessor._check_firewall_enhanced),
             ("C04", assessor._check_password_policy),
             ("C05", assessor._check_backup_system),
         ]
-        for idx, (cid, method) in enumerate(methods):
+        total = len(CHECKS) + len(EXTENDED_CHECKS)
+
+        for idx, (cid, method) in enumerate(core_methods):
             self.after(0, self._status_var.set, f"Scanning {cid}…")
             try:
                 result = method()
@@ -218,7 +278,28 @@ class ScanningScreen(ctk.CTkFrame):
                 )
             self._results[cid] = result
             self.after(0, self._update_row, cid, result,
-                       (idx + 1) / len(CHECKS))
+                       (idx + 1) / total)
+
+        # Extended EX-01…EX-05 checks (run after core, in background thread)
+        ext_methods = [
+            ("EX-01", assessor._check_ransomware_protection),
+            ("EX-02", assessor._check_local_accounts),
+            ("EX-03", assessor._check_autorun_policy),
+            ("EX-04", assessor._check_windows_hello),
+            ("EX-05", assessor._check_pending_security_updates),
+        ]
+        for idx, (eid, method) in enumerate(ext_methods):
+            self.after(0, self._status_var.set,
+                       f"Extended check {eid}…")
+            try:
+                status_str, detail_str = method()
+            except Exception as exc:
+                status_str, detail_str = "ERROR", str(exc)
+            self._ext_results[eid] = (status_str, detail_str)
+            progress = (len(CHECKS) + idx + 1) / total
+            self.after(0, self._update_ext_row, eid,
+                       status_str, detail_str, progress)
+
         self.after(0, self._scan_complete)
 
     def _update_row(self, cid, result, progress):
@@ -233,9 +314,22 @@ class ScanningScreen(ctk.CTkFrame):
             text_color=icon_clr)
         self._progress.set(progress)
 
+    def _update_ext_row(self, eid, status_str, detail_str, progress):
+        icon_txt, icon_clr = STATUS_STYLE.get(status_str, ("?", CLR_MUTED))
+        stripe, icon, detail_lbl = self._ext_rows[eid]
+        stripe.configure(fg_color=icon_clr)
+        icon.configure(text=icon_txt, text_color=icon_clr)
+        short = detail_str[:65] + "…" if len(detail_str) > 65 else detail_str
+        detail_lbl.configure(text=short, text_color=icon_clr)
+        self._progress.set(progress)
+
     def _scan_complete(self):
+        passed = sum(1 for r in self._results.values() if r.status == "PASS")
+        ext_pass = sum(1 for s, _ in self._ext_results.values()
+                       if s == "PASS")
         self._status_var.set(
-            "✔  All checks complete — fix any issues, then continue")
+            f"All checks done — {passed}/5 core passed, "
+            f"{ext_pass}/5 extended passed.  Fix issues, then continue.")
         self._next_btn.configure(state="normal")
         self._skip_btn.configure(state="normal")
         self._add_fix_buttons()
@@ -340,7 +434,7 @@ class ScanningScreen(ctk.CTkFrame):
         if btn:
             if result.status == "PASS":
                 btn.configure(text="✔  Fixed", state="disabled",
-                              fg_color="#0A2018", text_color=CLR_SUCCESS,
+                              fg_color="#1A1730", text_color=CLR_SUCCESS,
                               border_color=CLR_SUCCESS)
             else:
                 btn.configure(text="🔧  Retry", state="normal")

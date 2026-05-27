@@ -4,7 +4,6 @@ Unit tests for the pre-deployment digital hygiene checker
 
 import os
 import pytest
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 from src.security.deployment.checker import (
@@ -110,26 +109,27 @@ class TestPreDeploymentChecker:
         return PreDeploymentChecker(project_root=str(tmp_path))
 
     def test_run_all_returns_report(self, checker):
-        """run_all() must return a DeploymentReadiness with 13 checks."""
+        """run_all() must return a DeploymentReadiness with 15 checks."""
         with patch('src.security.deployment.checker.subprocess.run',
                    return_value=MagicMock(stdout='', stderr='', returncode=0)):
             report = checker.run_all()
         assert isinstance(report, DeploymentReadiness)
-        assert report.total == 13
+        assert report.total == 15
 
     def test_all_checks_have_ids(self, checker):
         with patch('src.security.deployment.checker.subprocess.run',
                    return_value=MagicMock(stdout='', stderr='', returncode=0)):
             report = checker.run_all()
         ids = [c.check_id for c in report.checks]
-        assert ids == [f'PDC-{i:02d}' for i in range(1, 14)]
+        assert len(ids) == 15
+        assert set(ids) == {f'PDC-{i:02d}' for i in range(1, 16)}
 
     def test_all_checks_have_category(self, checker):
         with patch('src.security.deployment.checker.subprocess.run',
                    return_value=MagicMock(stdout='', stderr='', returncode=0)):
             report = checker.run_all()
         for c in report.checks:
-            assert c.category in ('system', 'network', 'application', 'secrets'), \
+            assert c.category in ('system', 'network', 'application', 'secrets', 'monitoring'), \
                 f'{c.check_id} has unexpected category {c.category!r}'
 
     # -- individual check unit tests --
@@ -155,6 +155,14 @@ class TestPreDeploymentChecker:
             assert 'FLASK_DEBUG' in result.details
         finally:
             os.environ.pop('FLASK_DEBUG', None)
+
+    def test_monitoring_hygiene_check(self, checker):
+        with patch('src.security.deployment.checker.get_logging_hygiene',
+                   return_value={'passed': True, 'details': ['Event log available'], 'severity': 'LOW'}):
+            result = checker._check_monitoring_hygiene()
+        assert result.check_id == 'PDC-15'
+        assert result.category == 'monitoring'
+        assert result.passed is True
 
     def test_env_file_no_env(self, checker, tmp_path):
         """No .env file → pass."""
@@ -190,6 +198,54 @@ class TestPreDeploymentChecker:
         result = checker._check_hardcoded_secrets()
         assert result.passed is False
 
+    def test_hardcoded_secrets_skips_security_dir(self, tmp_path):
+        """Security module source files contain patterns as strings; they must not
+        trigger false positives."""
+        src = tmp_path / 'src'
+        sec = src / 'security'
+        sec.mkdir(parents=True)
+        (sec / 'checker.py').write_text("patterns = ['password = \"']\n")
+        checker = PreDeploymentChecker(project_root=str(tmp_path))
+        result = checker._check_hardcoded_secrets()
+        assert result.passed is True, 'Security dir should be skipped'
+
+    def test_hardcoded_secrets_ignores_placeholders(self, tmp_path):
+        src = tmp_path / 'src'
+        src.mkdir()
+        (src / 'config.py').write_text('secret_key = "your-secret-here"\n')
+        checker = PreDeploymentChecker(project_root=str(tmp_path))
+        result = checker._check_hardcoded_secrets()
+        assert result.passed is True, 'Placeholder values must not trigger a hit'
+
+    def test_git_secrets_ignores_env_example(self, tmp_path):
+        """'.env.example' is a template; it must not flag as a git secret."""
+        (tmp_path / '.git').mkdir()
+        (tmp_path / '.env.example').write_text('SECRET=placeholder\n')
+        with patch('src.security.deployment.checker.subprocess.run',
+                   return_value=MagicMock(
+                       stdout='.env.example\nREADME.md\n', returncode=0)):
+            checker = PreDeploymentChecker(project_root=str(tmp_path))
+            result = checker._check_git_secrets()
+        assert result.passed is True, '.env.example should not be flagged'
+
+    def test_git_secrets_detects_real_env(self, tmp_path):
+        """A real '.env' file tracked in git should be flagged."""
+        (tmp_path / '.git').mkdir()
+        with patch('src.security.deployment.checker.subprocess.run',
+                   return_value=MagicMock(stdout='.env\napp.py\n', returncode=0)):
+            checker = PreDeploymentChecker(project_root=str(tmp_path))
+            result = checker._check_git_secrets()
+        assert result.passed is False, '.env in git should be flagged'
+
+    def test_vuln_count_not_unknown(self, tmp_path):
+        """PDC-09 must never report 'unknown number of' vulnerable packages."""
+        checker = PreDeploymentChecker(project_root=str(tmp_path))
+        with patch('src.security.deployment.checker.subprocess.run',
+                   return_value=MagicMock(stdout='CVE-2023-001\n', stderr='', returncode=1)):
+            result = checker._check_dependency_vulnerabilities()
+        assert 'unknown number of' not in result.details
+        assert result.passed is False
+
     def test_dns_resolution(self, checker):
         result = checker._check_dns_resolution()
         # May fail in offline CI; just ensure it returns a CheckResult
@@ -208,4 +264,3 @@ class TestPreDeploymentChecker:
 # Note: Web interface tests for pre-deployment are part of Phase 2.
 # The current landing page (src/web/app.py) is minimal. Full dashboard
 # features including pre-deployment checker routes will be added in Phase 2.
-

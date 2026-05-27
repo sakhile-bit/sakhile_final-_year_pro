@@ -31,9 +31,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from src.security.monitoring.checks import get_logging_hygiene
+from src.security.siem.forwarder import WebhookForwarder, build_siem_event
+
+
 # ---------------------------------------------------------------------------
 # Data classes
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class CheckResult:
@@ -44,7 +49,7 @@ class CheckResult:
     severity: str          # CRITICAL, HIGH, MEDIUM, LOW
     details: str
     remediation: str = ''
-    category: str = ''     # system, network, application, secrets
+    category: str = ''     # system, network, application, secrets, monitoring
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -124,15 +129,17 @@ class DeploymentReadiness:
 class PreDeploymentChecker:
     """Run a battery of digital-hygiene checks on the current system.
 
-    Checks cover four categories:
-    * **system**      – OS patches, firewall, antivirus, disk encryption
+    Checks cover five categories:
+    * **system**      – OS patches, firewall, antivirus, disk encryption, inventory
     * **network**     – dangerous open ports, DNS resolution, HTTPS readiness
     * **application** – Python env, dependency vulnerabilities, debug flags
     * **secrets**     – env-var leaks, hard-coded credentials, .env exposure
+    * **monitoring**  – event logging and log-forwarding/agent hygiene
     """
 
-    def __init__(self, project_root: Optional[str] = None):
+    def __init__(self, project_root: Optional[str] = None, siem_url: Optional[str] = None):
         self.project_root = Path(project_root) if project_root else Path.cwd()
+        self.siem_url = siem_url
 
     # ------------------------------------------------------------------
     # Public API
@@ -147,6 +154,9 @@ class PreDeploymentChecker:
         report.checks.append(self._check_firewall())
         report.checks.append(self._check_antivirus())
         report.checks.append(self._check_disk_encryption())
+        # Inventory checks
+        report.checks.append(self._check_software_inventory())
+        report.checks.append(self._check_monitoring_hygiene())
 
         # Network checks
         report.checks.append(self._check_open_ports())
@@ -163,42 +173,76 @@ class PreDeploymentChecker:
         report.checks.append(self._check_hardcoded_secrets())
         report.checks.append(self._check_git_secrets())
 
+        self._maybe_forward_siem(report)
         return report
+
+    def _maybe_forward_siem(self, report: DeploymentReadiness) -> bool:
+        """Optionally forward the aggregated report to a SIEM webhook."""
+        forwarder = WebhookForwarder(self.siem_url)
+        if not forwarder.url:
+            return False
+
+        event = build_siem_event(report.to_dict(), source='deployment_checker')
+        return forwarder.send(event)
 
     # ------------------------------------------------------------------
     # SYSTEM checks
     # ------------------------------------------------------------------
 
     def _check_os_updates(self) -> CheckResult:
-        """PDC-01: Verify OS patches are reasonably current."""
+        """PDC-01: Verify OS patches are reasonably current.
+
+        On Windows uses PowerShell to get the most recent hotfix date; tries
+        multiple locale-aware date formats and falls back to a WSUS registry
+        query.  Returns PASS if patched within 30 days, FAIL otherwise.
+        """
         try:
             if platform.system() == 'Windows':
+                # Ask PowerShell for the most recently installed hotfix,
+                # formatted as a sortable ISO string to avoid locale differences.
+                ps_cmd = (
+                    r"$hf = Get-HotFix | Where-Object {$_.InstalledOn} | "
+                    r"Sort-Object InstalledOn -Descending | Select-Object -First 1; "
+                    r"if ($hf) { $hf.InstalledOn.ToString('yyyy-MM-dd') } else { '' }"
+                )
                 r = subprocess.run(
-                    'powershell -Command "(Get-HotFix | Sort-Object InstalledOn -Descending | Select-Object -First 1).InstalledOn"',
-                    capture_output=True, text=True, timeout=15, shell=True,
+                    ['powershell', '-NonInteractive', '-Command', ps_cmd],
+                    capture_output=True, text=True, timeout=20,
                 )
                 output = r.stdout.strip()
-                if output:
+                if output and len(output) >= 10:
                     from datetime import datetime as _dt
                     try:
-                        last = _dt.strptime(output.split()[0], '%m/%d/%Y')
+                        last = _dt.strptime(output[:10], '%Y-%m-%d')
                         days_ago = (datetime.now() - last).days
                         if days_ago <= 30:
                             return CheckResult('PDC-01', 'OS Updates', True, 'CRITICAL',
-                                               f'Last patch installed {days_ago} day(s) ago',
+                                               f'Last patch installed {days_ago} day(s) ago ({output[:10]})',
                                                category='system')
                         return CheckResult('PDC-01', 'OS Updates', False, 'CRITICAL',
                                            f'Last patch was {days_ago} days ago – overdue',
-                                           'Run Windows Update immediately', 'system')
+                                           'Run Windows Update: Settings > Update & Security',
+                                           'system')
                     except ValueError:
                         pass
+                # Fallback: check Windows Update service state as a partial signal
+                svc = subprocess.run(
+                    ['sc', 'query', 'wuauserv'],
+                    capture_output=True, text=True, timeout=8,
+                )
+                svc_running = 'RUNNING' in svc.stdout.upper()
+                detail = ('Windows Update service is running but patch date could not be '
+                          'determined – run Windows Update manually.'
+                          if svc_running else
+                          'Windows Update service is not running and patch date unknown.')
                 return CheckResult('PDC-01', 'OS Updates', False, 'CRITICAL',
-                                   'Unable to determine last patch date',
-                                   'Open Settings > Update & Security and check for updates', 'system')
+                                   detail,
+                                   'Open Settings > Update & Security and check for updates',
+                                   'system')
             else:
                 r = subprocess.run(['apt', 'list', '--upgradable'],
                                    capture_output=True, text=True, timeout=15)
-                upgradable = [l for l in r.stdout.splitlines() if 'upgradable' in l.lower()]
+                upgradable = [ln for ln in r.stdout.splitlines() if 'upgradable' in ln.lower()]
                 if len(upgradable) == 0:
                     return CheckResult('PDC-01', 'OS Updates', True, 'CRITICAL',
                                        'All packages up to date', category='system')
@@ -243,8 +287,12 @@ class PreDeploymentChecker:
         """PDC-03: Detect running antivirus / Windows Defender."""
         try:
             if platform.system() == 'Windows':
+                ps_av = (
+                    'powershell -Command "Get-MpComputerStatus'
+                    ' | Select-Object -ExpandProperty RealTimeProtectionEnabled"'
+                )
                 r = subprocess.run(
-                    'powershell -Command "Get-MpComputerStatus | Select-Object -ExpandProperty RealTimeProtectionEnabled"',
+                    ps_av,
                     capture_output=True, text=True, timeout=10, shell=True,
                 )
                 if 'true' in r.stdout.strip().lower():
@@ -290,6 +338,80 @@ class PreDeploymentChecker:
         except Exception as e:
             return CheckResult('PDC-04', 'Disk Encryption', False, 'MEDIUM',
                                f'Check failed: {e}', 'Verify disk encryption manually', 'system')
+
+    def _check_software_inventory(self) -> CheckResult:
+        """PDC-14: Produce a short software inventory summary for the host.
+
+        On Windows this reads common registry uninstall keys; on Unix it lists
+        installed packages where available. This check returns LOW severity and
+        is informational for assessors.
+        """
+        try:
+            if platform.system() == 'Windows':
+                import winreg  # type: ignore[import]
+
+                products = []
+                for key_path in [
+                    r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+                    r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+                ]:
+                    try:
+                        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path) as key:  # type: ignore[attr-defined]
+                            for i in range(winreg.QueryInfoKey(key)[0]):  # type: ignore[attr-defined]
+                                try:
+                                    sk = winreg.EnumKey(key, i)  # type: ignore[attr-defined]
+                                    with winreg.OpenKey(key, sk) as sub:  # type: ignore[attr-defined]
+                                        try:
+                                            name = winreg.QueryValueEx(  # type: ignore[attr-defined]
+                                                sub, 'DisplayName')[0]
+                                            products.append(name)
+                                        except Exception:
+                                            pass
+                                except Exception:
+                                    pass
+                    except Exception:
+                        pass
+
+                if not products:
+                    return CheckResult('PDC-14', 'Software Inventory', True, 'LOW',
+                                       'No installed-program entries discovered (or access denied)',
+                                       category='system')
+                sample = ', '.join(sorted(set(products))[:8])
+                return CheckResult('PDC-14', 'Software Inventory', True, 'LOW',
+                                   f'Detected packages: {sample} (+more)',
+                                   category='system')
+            else:
+                # Attempt dpkg or rpm list
+                try:
+                    r = subprocess.run(
+                        ['dpkg-query', '-W', '-f', '${Package}\n'],
+                        capture_output=True, text=True, timeout=10,
+                    )
+                    pkgs = r.stdout.splitlines()
+                    sample = ', '.join(pkgs[:8]) if pkgs else 'none'
+                    return CheckResult('PDC-14', 'Software Inventory', True, 'LOW',
+                                       f'Detected packages: {sample}', category='system')
+                except Exception:
+                    return CheckResult('PDC-14', 'Software Inventory', True, 'LOW',
+                                       'Unable to enumerate packages; check manually', category='system')
+        except Exception as e:
+            return CheckResult('PDC-14', 'Software Inventory', False, 'LOW',
+                               f'Inventory check failed: {e}', 'Inspect installed software manually', 'system')
+
+    def _check_monitoring_hygiene(self) -> CheckResult:
+        """PDC-15: Check logging and monitoring hygiene on the host."""
+        status = get_logging_hygiene()
+        details = '; '.join(status.get('details', [])) or 'Monitoring status could not be determined'
+        if status.get('passed'):
+            return CheckResult('PDC-15', 'Monitoring Hygiene', True, status.get('severity', 'LOW'),
+                               details, category='monitoring')
+
+        remediation = 'Install or configure a log forwarder and ensure event logging is available.'
+        if status.get('severity') == 'MEDIUM':
+            remediation = 'Confirm Windows Event Log or syslog logging is active and forwarding agent is installed.'
+
+        return CheckResult('PDC-15', 'Monitoring Hygiene', False, status.get('severity', 'MEDIUM'),
+                           details, remediation, 'monitoring')
 
     # ------------------------------------------------------------------
     # NETWORK checks
@@ -368,9 +490,14 @@ class PreDeploymentChecker:
                 return CheckResult('PDC-09', 'Dependency Vulnerabilities', True, 'CRITICAL',
                                    'No known vulnerabilities in installed packages',
                                    category='application')
-            vuln_count = r.stdout.count('Name:') or 'unknown number of'
+            # pip-audit exits non-zero when vulnerabilities are found.
+            # Count occurrences of 'name:' in stdout; fall back to stderr line count.
+            vuln_count = r.stdout.lower().count('name:')
+            if vuln_count == 0:
+                output_lines = (r.stdout + r.stderr).splitlines()
+                vuln_count = max(1, len([ln for ln in output_lines if ln.strip()]))
             return CheckResult('PDC-09', 'Dependency Vulnerabilities', False, 'CRITICAL',
-                               f'{vuln_count} vulnerable package(s) found',
+                               f'{vuln_count} vulnerable package(s) found; run pip-audit for details',
                                'Run: pip install pip-audit && pip-audit --fix',
                                'application')
         except FileNotFoundError:
@@ -418,26 +545,54 @@ class PreDeploymentChecker:
                            'Add ".env" to your .gitignore file immediately', 'secrets')
 
     def _check_hardcoded_secrets(self) -> CheckResult:
-        """PDC-12: Scan Python files for obvious hard-coded passwords/keys."""
-        suspect_patterns = [
-            'password = "', "password = '",
-            'secret_key = "', "secret_key = '",
-            'api_key = "', "api_key = '",
-            'AWS_SECRET', 'PRIVATE_KEY',
-        ]
+        """PDC-12: Scan Python source files for obvious hard-coded passwords/keys.
+
+        Only flags lines where a quoted non-placeholder value is actually assigned —
+        skips comment lines, empty-string assignments, and placeholder values like
+        'your-secret-here'.  Also skips the security module itself (it contains
+        the patterns as search strings) and test files.
+        """
+        import re
+
+        # Regex: captures  key = "real_value"  or  key = 'real_value'
+        # The value must be non-empty and not an obvious placeholder.
+        _PAT = re.compile(
+            r'^\s*(?:password|secret_key|api_key|aws_secret|private_key)\s*=\s*'
+            r'["\']([^"\']{4,})["\']',
+            re.IGNORECASE,
+        )
+        _PLACEHOLDER = re.compile(
+            r'(?:your[-_]|example|placeholder|changeme|<|>|xxx|todo|insert)',
+            re.IGNORECASE,
+        )
+
         hits: List[str] = []
         src_dir = self.project_root / 'src'
         if not src_dir.exists():
             src_dir = self.project_root
 
+        # Files to skip: security module patterns (meta), test fixtures
+        skip_dirs = {'security', 'tests', '__pycache__'}
+
         for pyfile in src_dir.rglob('*.py'):
+            # Skip security scanner source and test files
+            parts = {p.lower() for p in pyfile.parts}
+            if parts & skip_dirs:
+                continue
             try:
-                text = pyfile.read_text(errors='ignore').lower()
-                for pat in suspect_patterns:
-                    if pat.lower() in text:
-                        rel = pyfile.relative_to(self.project_root)
-                        hits.append(f'{rel} ({pat.strip()})')
-                        break
+                for lineno, line in enumerate(
+                    pyfile.read_text(errors='ignore').splitlines(), 1
+                ):
+                    stripped = line.strip()
+                    if stripped.startswith('#'):
+                        continue  # comment line
+                    m = _PAT.match(line)
+                    if m:
+                        value = m.group(1)
+                        if not _PLACEHOLDER.search(value):
+                            rel = pyfile.relative_to(self.project_root)
+                            hits.append(f'{rel}:{lineno}')
+                            break  # one hit per file is enough
             except Exception:
                 pass
 
@@ -466,7 +621,13 @@ class PreDeploymentChecker:
             tracked = r.stdout.splitlines()
             bad_patterns = ['.env', 'id_rsa', 'id_ed25519', '.pem', '.key',
                             'credentials.json', 'service-account.json']
-            found = [f for f in tracked if any(p in f.lower() for p in bad_patterns)]
+            # Exclude safe template/example files that intentionally live in the repo
+            safe_suffixes = ('.example', '.sample', '.template', '.dist')
+            found = [
+                f for f in tracked
+                if any(p in f.lower() for p in bad_patterns)
+                and not any(f.lower().endswith(s) for s in safe_suffixes)
+            ]
             if not found:
                 return CheckResult('PDC-13', 'Git Secret Hygiene', True, 'MEDIUM',
                                    'No sensitive files tracked by git',
