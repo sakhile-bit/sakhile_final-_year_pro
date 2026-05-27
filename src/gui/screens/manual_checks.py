@@ -6,7 +6,7 @@ from src.gui.theme import (
     CLR_ACCENT, CLR_ACCENT_HOV,
     CLR_TEXT, CLR_TEXT_SEC, CLR_MUTED,
     CLR_SUCCESS, CLR_WARNING, CLR_DANGER, CLR_BORDER,
-    FONT_HEADING, FONT_SUBHEAD, FONT_BODY, FONT_SMALL, FONT_CAPTION,
+    FONT_SUBHEAD, FONT_BODY, FONT_SMALL, FONT_CAPTION,
     PAD, NAV_H, BTN_H, BTN_R,
 )
 from src.gui.screens.business_info import _header
@@ -78,7 +78,7 @@ _WEIGHTS = {
 _MAX = sum(_WEIGHTS.values())
 
 _ANS_STYLE = {
-    "Yes – Fully": (CLR_SUCCESS, "#0A2018"),
+    "Yes – Fully": (CLR_SUCCESS, "#1A1730"),
     "Partially":   (CLR_WARNING, "#1A1400"),
     "No":          (CLR_DANGER,  "#2A0A0A"),
 }
