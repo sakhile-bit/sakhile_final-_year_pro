@@ -909,7 +909,7 @@ def dashboard():
     expiring = (
         Certificate.query
         .filter(
-            Certificate.expiry_date <= soon,
+            Certificate.expiry_date <= soon,  # type: ignore[operator]
             Certificate.is_active.is_(True),  # type: ignore[union-attr]
         )
         .all()
