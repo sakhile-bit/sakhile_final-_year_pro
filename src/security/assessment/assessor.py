@@ -1244,27 +1244,78 @@ class DigitalHygieneAssessor:
             return 'ERROR', f'Windows Hello check error: {exc}'
 
     def _check_pending_security_updates(self) -> Tuple[str, str]:
-        """EX-05: Count pending Windows security updates."""
+        """EX-05: Check for pending Windows security updates.
+
+        Uses three signals in order of reliability:
+        1. Registry reboot-pending keys (fast, no admin needed)
+        2. System event log ID 19 (most recent successful update install)
+        3. WUA service state as a fallback signal
+        """
         if platform.system() != 'Windows':
             return 'NOT_APPLICABLE', 'Non-Windows host'
         try:
+            import winreg  # type: ignore[import]
             import subprocess
-            ps = subprocess.run(
-                ['powershell', '-NonInteractive', '-Command',
-                 '(New-Object -ComObject Microsoft.Update.Session)'
-                 '.CreateUpdateSearcher().Search("IsInstalled=0 and Type=\'Software\'")'
-                 '.Updates.Count'],
-                capture_output=True, text=True, timeout=30, shell=False)
-            if ps.returncode == 0 and ps.stdout.strip().isdigit():
-                count = int(ps.stdout.strip())
-                if count == 0:
-                    return 'PASS', 'No pending Windows updates — system is fully patched'
-                elif count <= 5:
-                    return 'WARNING', (
-                        f'{count} pending update(s) — install them soon via Windows Update')
-                return 'FAIL', (
-                    f'{count} pending update(s) — run Windows Update immediately')
-            return 'WARNING', 'Could not query pending updates (may require admin rights)'
+
+            signals: list[str] = []
+            pending_reboot = False
+
+            # 1. Registry keys that indicate updates are pending a restart
+            reboot_keys = [
+                r'SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired',
+                r'SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending',
+            ]
+            for rk in reboot_keys:
+                try:
+                    winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, rk)  # type: ignore[attr-defined]
+                    pending_reboot = True
+                    break
+                except Exception:
+                    pass
+
+            if pending_reboot:
+                signals.append('Reboot required to apply pending updates')
+
+            # 2. Most recent update install via System event log (ID 19)
+            try:
+                ps = subprocess.run(
+                    ['powershell', '-NonInteractive', '-Command',
+                     'try { $e = Get-WinEvent -FilterHashtable @{LogName="System";Id=19} '
+                     '-MaxEvents 1 -EA Stop; $e.TimeCreated.ToString("yyyy-MM-dd") } '
+                     'catch { "" }'],
+                    capture_output=True, text=True, timeout=12,
+                )
+                ts = ps.stdout.strip()
+                if ts and len(ts) >= 10:
+                    try:
+                        last_dt = datetime.datetime.strptime(ts[:10], '%Y-%m-%d')
+                        days_ago = (datetime.datetime.now() - last_dt).days
+                        signals.append(f'Last successful update: {ts[:10]} ({days_ago}d ago)')
+                        if not pending_reboot:
+                            if days_ago <= 30:
+                                return 'PASS', '; '.join(signals) or 'Updates appear current'
+                            return 'WARNING', f'Last update {days_ago}d ago — consider running Windows Update'
+                    except ValueError:
+                        pass
+            except Exception:
+                pass
+
+            # 3. WUA service state as a final signal
+            try:
+                svc = subprocess.run(['sc', 'query', 'wuauserv'],
+                                     capture_output=True, text=True, timeout=5)
+                if 'RUNNING' in svc.stdout.upper():
+                    signals.append('Windows Update service is running')
+                else:
+                    signals.append('Windows Update service is NOT running')
+            except Exception:
+                pass
+
+            detail = '; '.join(signals) if signals else 'Unable to determine update status'
+            if pending_reboot:
+                return 'FAIL', detail
+            return 'WARNING', detail
+
         except Exception as exc:
             return 'ERROR', f'Pending updates check error: {exc}'
 
