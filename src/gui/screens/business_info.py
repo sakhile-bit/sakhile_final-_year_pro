@@ -185,16 +185,6 @@ class BusinessInfoScreen(ctk.CTkFrame):
              "e.g. 3",                     4, 1, 1),
         ]
 
-        dropdown_opts = dict(
-            fg_color=CLR_SURFACE,
-            button_color=CLR_ACCENT,
-            button_hover_color=CLR_ACCENT_HOV,
-            font=FONT_BODY,
-            text_color=CLR_TEXT,
-            dropdown_fg_color=CLR_SURFACE_ALT,
-            height=38,
-        )
-
         for label_txt, key, placeholder, frow, fcol, span in fields:
             cell = ctk.CTkFrame(form, fg_color=CLR_SURFACE_ALT,
                                 corner_radius=10, border_width=1,
@@ -211,13 +201,27 @@ class BusinessInfoScreen(ctk.CTkFrame):
             if key == "province":
                 var = ctk.StringVar(value=PROVINCES[0])
                 ctk.CTkOptionMenu(
-                    cell, values=PROVINCES, variable=var, **dropdown_opts,
+                    cell, values=PROVINCES, variable=var,
+                    fg_color=CLR_SURFACE,
+                    button_color=CLR_ACCENT,
+                    button_hover_color=CLR_ACCENT_HOV,
+                    font=FONT_BODY,
+                    text_color=CLR_TEXT,
+                    dropdown_fg_color=CLR_SURFACE_ALT,
+                    height=38,
                 ).grid(row=1, column=0, padx=12, pady=(0, 10), sticky="ew")
 
             elif key == "industry":
                 var = ctk.StringVar(value=INDUSTRIES[0])
                 ctk.CTkOptionMenu(
-                    cell, values=INDUSTRIES, variable=var, **dropdown_opts,
+                    cell, values=INDUSTRIES, variable=var,
+                    fg_color=CLR_SURFACE,
+                    button_color=CLR_ACCENT,
+                    button_hover_color=CLR_ACCENT_HOV,
+                    font=FONT_BODY,
+                    text_color=CLR_TEXT,
+                    dropdown_fg_color=CLR_SURFACE_ALT,
+                    height=38,
                 ).grid(row=1, column=0, padx=12, pady=(0, 10), sticky="ew")
 
             else:

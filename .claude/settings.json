@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import ldap3; print\\('ldap3', ldap3.__version__\\)\")",
+      "Bash(git commit -m 'Fix EX-05 pending updates check \\(broken COM object approach\\) *)",
+      "Bash(dir /s /b *.md)",
+      "Bash(git commit -m 'docs: add individual feature documentation for all 18 features *)",
+      "Bash(python -c ' *)",
+      "Bash(python -m autopep8 --version)",
+      "Bash(python -m autopep8 --in-place --select=E302,E303,E304,E305,E712 src/web/app.py)",
+      "Bash(python -m flake8 src/web/app.py --max-line-length=120 --count)",
+      "Bash(python -m pip install flake8 -q)",
+      "Bash(python -c \"import sys; sys.path.insert\\(0,'src'\\); import web.app\")",
+      "Bash(python -m flake8 src/ --max-line-length=120 --count --statistics)",
+      "Bash(python -m autopep8 --in-place --select=W293,W391,E231,E401,E712 src/reporting/generator.py src/web/admin/routes.py src/gui/screens/deployment_screen.py src/gui/screens/network_scanner.py src/utils/cli.py)",
+      "Bash(python -m autopep8 --in-place --select=W293 src/reporting/generator.py)",
+      "Bash(python -m flake8 src/reporting/generator.py --max-line-length=120 --count)",
+      "Bash(python -m py_compile src/web/app.py)",
+      "Bash(python -m py_compile src/security/assessment/assessor.py)",
+      "Bash(python -m py_compile src/security/deployment/checker.py)",
+      "Bash(python -m py_compile src/security/infra_scanner.py)",
+      "Bash(python -m py_compile src/security/active_directory/checks.py)",
+      "Bash(python -m mypy src/security/ src/web/app.py --ignore-missing-imports --no-strict-optional --follow-imports=silent)"
+    ]
+  }
+}

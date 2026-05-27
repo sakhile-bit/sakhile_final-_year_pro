@@ -22,8 +22,8 @@ from src.gui.theme import (
     CLR_ACCENT, CLR_ACCENT_HOV, CLR_BLUE,
     CLR_TEXT, CLR_TEXT_SEC, CLR_MUTED,
     CLR_SUCCESS, CLR_WARNING, CLR_DANGER, CLR_BORDER, CLR_DIVIDER,
-    FONT_TITLE, FONT_HEADING, FONT_SUBHEAD, FONT_BODY, FONT_SMALL, FONT_CAPTION,
-    PAD, PAD_SM, NAV_H, BTN_H, BTN_R,
+    FONT_HEADING, FONT_SUBHEAD, FONT_BODY, FONT_SMALL, FONT_CAPTION,
+    PAD, NAV_H, BTN_H, BTN_R,
 )
 from src.gui.screens.business_info import _header
 from src.security.deployment.checker import (
@@ -256,10 +256,10 @@ class CodeSecurityChecker:
                 "Create requirements.txt with `pip freeze > requirements.txt` "
                 "to pin all dependency versions for reproducible deploys",
                 "code")
-        lines = [l.strip() for l in req.read_text(errors="ignore").splitlines()
-                 if l.strip() and not l.startswith("#")]
-        unpinned = [l for l in lines if l and "==" not in l
-                    and not l.startswith("-")]
+        lines = [ln.strip() for ln in req.read_text(errors="ignore").splitlines()
+                 if ln.strip() and not ln.startswith("#")]
+        unpinned = [ln for ln in lines if ln and "==" not in ln
+                    and not ln.startswith("-")]
         if not unpinned:
             return CheckResult(
                 "CCS-05", "Pinned Dependencies", True, "HIGH",
@@ -282,8 +282,10 @@ class CodeSecurityChecker:
                 continue
             text = "\n".join(self._read(fpath))
             lines = text.splitlines()
-            matches = list(pattern_bare.finditer(text)) + \
-                      list(pattern_broad.finditer(text))
+            matches = (
+                list(pattern_bare.finditer(text)) +
+                list(pattern_broad.finditer(text))
+            )
             for m in matches[:2]:
                 line_no = text[:m.start()].count("\n") + 1
                 # Only flag if the except block contains 'pass' or no re-raise
@@ -335,10 +337,10 @@ class ApplicationHygieneChecker:
     # Package manifest → (display name, audit command)
     MANIFESTS = {
         "package.json":    ("Node.js",       ["npm", "audit", "--json"]),
-        "requirements.txt":("Python (pip)",  [sys.executable, "-m", "pip", "audit"]),
-        "Pipfile":         ("Python (pipenv)",["pipenv", "check"]),
+        "requirements.txt": ("Python (pip)",  [sys.executable, "-m", "pip", "audit"]),
+        "Pipfile":         ("Python (pipenv)", ["pipenv", "check"]),
         "Gemfile":         ("Ruby",          ["bundle", "audit"]),
-        "composer.json":   ("PHP (Composer)",["composer", "audit"]),
+        "composer.json":   ("PHP (Composer)", ["composer", "audit"]),
         "go.mod":          ("Go",            ["govulncheck", "./..."]),
         "pom.xml":         ("Java (Maven)",  None),   # No simple CLI audit
         "build.gradle":    ("Java (Gradle)", None),
@@ -740,7 +742,7 @@ class DeploymentCheckerScreen(ctk.CTkFrame):
         done = [0]
 
         def run_and_track(method, label):
-            self.after(0, self._status_lbl.configure, {"text": label})
+            self.after(0, lambda lbl=label: self._status_lbl.configure(text=lbl))
             result = method()
             done[0] += 1
             self.after(0, self._progress.set, done[0] / total_checks)
@@ -763,7 +765,7 @@ class DeploymentCheckerScreen(ctk.CTkFrame):
         # Tech-agnostic application checks (5)
         app_checks_labeled = [
             (app_checker._check_detected_runtimes,   "Application: Runtime detection…"),
-            (app_checker._check_dependency_manifests,"Application: Dependency audit…"),
+            (app_checker._check_dependency_manifests, "Application: Dependency audit…"),
             (app_checker._check_debug_mode,          "Application: Debug/dev mode…"),
             (app_checker._check_dev_config_files,    "Application: Dev config files…"),
             (app_checker._check_production_config,   "Application: Production config…"),

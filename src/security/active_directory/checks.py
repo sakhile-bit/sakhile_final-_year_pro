@@ -1,7 +1,6 @@
 """Active Directory related checks (optional)."""
 from __future__ import annotations
 
-import os
 import platform
 import subprocess
 from typing import Dict, Any, Optional
@@ -90,7 +89,12 @@ def check_stale_account_policy(domain: str) -> Dict[str, Any]:
         server = Server(domain, get_info=ALL)
         conn = Connection(server, auto_bind=True)
         base_dn = build_base_dn(domain)
-        conn.search(base_dn, '(&(objectClass=user)(!(userAccountControl:1.2.840.113556.1.4.803:=2)))', attributes=['sAMAccountName', 'lastLogonTimestamp'])
+        ldap_filter = (
+            '(&(objectClass=user)'
+            '(!(userAccountControl:1.2.840.113556.1.4.803:=2)))'
+        )
+        conn.search(base_dn, ldap_filter,
+                    attributes=['sAMAccountName', 'lastLogonTimestamp'])
         count = len(conn.entries)
         conn.unbind()
         return {

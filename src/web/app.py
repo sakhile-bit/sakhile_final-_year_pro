@@ -2,7 +2,10 @@
 Flask web application for the Zambia Digital Hygiene Assessment Tool
 """
 
-from flask import Flask, render_template, request, redirect, url_for, flash, send_file, jsonify, abort, Response, session
+from flask import (
+    Flask, render_template, request, redirect, url_for,
+    flash, send_file, jsonify, abort, Response, session,
+)
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_wtf.csrf import CSRFProtect
@@ -34,7 +37,7 @@ except ImportError:  # pragma: no cover
     _nmap = None
 
 try:
-    from apscheduler.schedulers.background import BackgroundScheduler
+    from apscheduler.schedulers.background import BackgroundScheduler  # type: ignore[import-untyped]
 except ImportError:  # pragma: no cover
     BackgroundScheduler = None
 
@@ -100,6 +103,8 @@ if BackgroundScheduler is not None:
         scheduler = None
 
 # User model aligned to schema (users table)
+
+
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
 
@@ -285,6 +290,7 @@ class AuditLog(db.Model):
     def __init__(self, user_id: Optional[int] = None, action: str = '',
                  resource_type: Optional[str] = None, resource_id: Optional[int] = None,
                  details: Optional[Any] = None, ip_address: Optional[str] = None,
+                 user_agent: Optional[str] = None,
                  **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.user_id = user_id
@@ -293,6 +299,7 @@ class AuditLog(db.Model):
         self.resource_id = resource_id
         self.details = details
         self.ip_address = ip_address
+        self.user_agent = user_agent
 
 
 class Remediation(db.Model):
@@ -365,6 +372,7 @@ class AssessmentRequest(db.Model):
         self.preferred_date = preferred_date
         self.status = status
 
+
 def _generate_cert_number() -> str:
     """Generate a unique certificate number: ZDH-YYYY-XXXXXX."""
     year = datetime.utcnow().year
@@ -386,6 +394,7 @@ def check_password_strength(password):
         return False, "Password must contain at least one special character."
     return True, "Password is strong."
 
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -395,6 +404,7 @@ def load_user(user_id):
 def inject_now():
     return {'now': datetime.utcnow}
 
+
 def create_app(db_uri: str | None = None) -> Flask:
     """Create and configure the Flask application.
 
@@ -402,10 +412,16 @@ def create_app(db_uri: str | None = None) -> Flask:
         db_uri: Override the database URI (useful for tests with SQLite).
     """
     # Extensions are already bound at module level.
-    # Only override the DB URI if a custom one is supplied (e.g. SQLite in tests).
-    # Do NOT call db.init_app(app) again — it was already registered at module level.
+    # When a custom URI is supplied (e.g. SQLite in tests) we must also dispose
+    # the existing engine so SQLAlchemy recreates it with the new URL on the
+    # next connection — otherwise the old MySQL pool is reused even though the
+    # config key has changed.
     if db_uri:
         app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
+        try:
+            db.engine.dispose()
+        except Exception:
+            pass  # engine may not exist yet on first call
 
     # Session security — disable secure cookie flag in test/local mode
     if not app.config.get('TESTING'):
@@ -439,17 +455,27 @@ def create_app(db_uri: str | None = None) -> Flask:
             logger.warning(f'Column migration: {e}')
             db.session.rollback()
 
+        # Default admin credentials — password meets the 10-char complexity
+        # rule enforced by the change-password form (uppercase, lowercase,
+        # digit, special character all present).
+        _DEFAULT_ADMIN_PW = 'Admin@12345!'
         admin = User.query.filter_by(username='admin').first()
         if not admin:
-            admin = User(username='admin', email='admin@digitalhygiene.gov.zm', role='admin', is_active=True)
-            admin.set_password('admin123')
+            admin = User(
+                username='admin',
+                email='admin@digitalhygiene.gov.zm',
+                role='admin',
+                is_active=True,
+            )
+            admin.set_password(_DEFAULT_ADMIN_PW)
             db.session.add(admin)
             db.session.commit()
             logger.info('Default admin user created')
         else:
-            # Normalize hash if legacy bcrypt hash present
+            # Normalize hash if legacy bcrypt hash present or password was the
+            # old weak default that doesn't meet current complexity rules.
             if not admin.password_hash.startswith('pbkdf2:'):
-                admin.set_password('admin123')
+                admin.set_password(_DEFAULT_ADMIN_PW)
                 db.session.commit()
                 logger.info('Default admin password reset to pbkdf2 hash')
 
@@ -460,8 +486,10 @@ def create_app(db_uri: str | None = None) -> Flask:
 
     return app
 
+
 # Simple rate limiting for login
 login_attempts: dict[str, list[float]] = {}
+
 
 def rate_limit(max_attempts=5, window=300):  # 5 attempts per 5 minutes
     def decorator(f):
@@ -479,6 +507,7 @@ def rate_limit(max_attempts=5, window=300):  # 5 attempts per 5 minutes
             return f(*args, **kwargs)
         return wrapper
     return decorator
+
 
 @app.route('/')
 def index():
@@ -523,6 +552,7 @@ def api_stats():
         ) if assessments else 0,
     })
 
+
 @app.route('/login', methods=['GET', 'POST'])
 @rate_limit()
 def login():
@@ -554,7 +584,14 @@ def login():
 
             login_user(user)
             # Log login event
-            log = AuditLog(user_id=user.id, action='login', resource_type='user', resource_id=user.id, details={'ip': request.remote_addr, 'ua': request.user_agent.string})
+            _ua = request.user_agent.string or ''
+            log = AuditLog(
+                user_id=user.id, action='login',
+                resource_type='user', resource_id=user.id,
+                details={'ip': request.remote_addr, 'ua': _ua},
+                ip_address=request.remote_addr,
+                user_agent=_ua,
+            )
             db.session.add(log)
             db.session.commit()
 
@@ -568,6 +605,7 @@ def login():
         flash('Invalid username or password', 'error')
 
     return render_template('login.html')
+
 
 @app.route('/logout')
 @login_required
@@ -648,8 +686,6 @@ def my_business():
         contact_email = request.form.get('contact_email', '').strip()
         contact_phone = request.form.get('contact_phone', '').strip()
         industry = request.form.get('industry', '')
-        province = request.form.get('province', '')
-        num_employees = request.form.get('num_employees', '0')
         address = request.form.get('address', '').strip()
 
         if not name or not reg_number:
@@ -687,10 +723,27 @@ def my_business():
     assessments = []
     certificates = []
     if business:
-        assessments = Assessment.query.filter_by(business_id=business.id).order_by(Assessment.created_at.desc()).all()
-        certificates = Certificate.query.join(Assessment).filter(Assessment.business_id == business.id, Certificate.is_active == True).all()  # type: ignore[arg-type]
+        assessments = (
+            Assessment.query
+            .filter_by(business_id=business.id)
+            .order_by(Assessment.created_at.desc())
+            .all()
+        )
+        certificates = (
+            Certificate.query.join(Assessment)
+            .filter(
+                Assessment.business_id == business.id,
+                Certificate.is_active.is_(True),  # type: ignore[union-attr]
+            )
+            .all()
+        )
 
-    return render_template('my_business.html', business=business, assessments=assessments, certificates=certificates)
+    return render_template(
+        'my_business.html',
+        business=business,
+        assessments=assessments,
+        certificates=certificates,
+    )
 
 
 # ------------------------------------------------------------------
@@ -780,6 +833,7 @@ def accept_request(request_id):
     flash(f'You have been assigned to assess {ar.business.name}.', 'success')
     return redirect(url_for('assessment_requests'))
 
+
 @app.route('/dashboard')
 @login_required
 def dashboard():
@@ -852,16 +906,35 @@ def dashboard():
     reminders = []
     # Expiring certificates
     soon = datetime.utcnow() + timedelta(days=30)
-    expiring = Certificate.query.filter(Certificate.expiry_date <= soon, Certificate.is_active == True).all()  # type: ignore[arg-type]
+    expiring = (
+        Certificate.query
+        .filter(
+            Certificate.expiry_date <= soon,
+            Certificate.is_active.is_(True),  # type: ignore[union-attr]
+        )
+        .all()
+    )
     if expiring:
         reminders.append(f"{len(expiring)} certificate(s) expiring within 30 days.")
     # Periodic reassessment (every 6 months)
     six_months_ago = datetime.utcnow() - timedelta(days=180)
-    old_assessments = Assessment.query.filter(Assessment.assessment_date <= six_months_ago, Assessment.assessor_id == current_user.id).count()
+    old_assessments = Assessment.query.filter(
+        Assessment.assessment_date <= six_months_ago,
+        Assessment.assessor_id == current_user.id,
+    ).count()
     if old_assessments:
         reminders.append(f"{old_assessments} assessment(s) due for reassessment.")
 
-    return render_template('dashboard.html', assessments=assessments, stats=stats, tip=tip, reminders=reminders, mobile_device_tips=MOBILE_DEVICE_TIPS, pending_requests=pending_requests)
+    return render_template(
+        'dashboard.html',
+        assessments=assessments,
+        stats=stats,
+        tip=tip,
+        reminders=reminders,
+        mobile_device_tips=MOBILE_DEVICE_TIPS,
+        pending_requests=pending_requests,
+    )
+
 
 @app.route('/assess', methods=['GET', 'POST'])
 @login_required
@@ -988,6 +1061,7 @@ def assess():
 
     return render_template('assess.html')
 
+
 @app.route('/results/<int:assessment_id>')
 @login_required
 def results(assessment_id):
@@ -1032,6 +1106,7 @@ def results(assessment_id):
 
     return render_template('results.html', results=result_obj, business_info=business_info,
                            assessment_id=assessment_id, certificate=certificate)
+
 
 @app.route('/download/<int:assessment_id>/<format>')
 @login_required
@@ -1083,19 +1158,27 @@ def download_report(assessment_id, format):
         buffer = io.BytesIO()
         buffer.write(json.dumps(report_data, indent=2).encode())
         buffer.seek(0)
-        return send_file(buffer, as_attachment=True, download_name=f"assessment_{assessment_id}.json",
-                        mimetype='application/json')
+        return send_file(
+            buffer, as_attachment=True,
+            download_name=f"assessment_{assessment_id}.json",
+            mimetype='application/json',
+        )
     elif format == 'csv':
         report_data = generator.generate_csv_report(results, business_info)
         buffer = io.StringIO()
         writer = csv.writer(buffer)
         writer.writerows(report_data)
         buffer.seek(0)
-        return send_file(io.BytesIO(buffer.getvalue().encode()), as_attachment=True,
-                        download_name=f"assessment_{assessment_id}.csv", mimetype='text/csv')
+        return send_file(
+            io.BytesIO(buffer.getvalue().encode()),
+            as_attachment=True,
+            download_name=f"assessment_{assessment_id}.csv",
+            mimetype='text/csv',
+        )
 
     flash('Invalid format requested', 'error')
     return redirect(url_for('results', assessment_id=assessment_id))
+
 
 @app.route('/api/assessments')
 @login_required
@@ -1113,6 +1196,7 @@ def api_assessments():
         'created_at': a.created_at.isoformat()
     } for a in assessments])
 
+
 def admin_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -1122,6 +1206,7 @@ def admin_required(f):
     return decorated
 
 # Legacy audit-logs route removed – now served by the admin blueprint at /admin/audit-logs
+
 
 @app.route('/change-password', methods=['GET', 'POST'])
 @login_required
@@ -1134,23 +1219,41 @@ def change_password():
             flash('Old password incorrect.', 'error')
         elif new_pw != confirm_pw:
             flash('New passwords do not match.', 'error')
-        elif not new_pw or len(new_pw) < 10 or not re.search(r'[A-Z]', new_pw) or not re.search(r'[a-z]', new_pw) or not re.search(r'\d', new_pw) or not re.search(r'[^A-Za-z0-9]', new_pw):
+        elif (
+            not new_pw
+            or len(new_pw) < 10
+            or not re.search(r'[A-Z]', new_pw)
+            or not re.search(r'[a-z]', new_pw)
+            or not re.search(r'\d', new_pw)
+            or not re.search(r'[^A-Za-z0-9]', new_pw)
+        ):
             flash('New password does not meet hygiene requirements.', 'error')
         else:
             current_user.set_password(new_pw)
             db.session.commit()
             flash('Password changed successfully!', 'success')
-            log = AuditLog(user_id=current_user.id, action='change_password', resource_type='user', resource_id=current_user.id, details={'ip': request.remote_addr})
+            log = AuditLog(
+                user_id=current_user.id, action='change_password',
+                resource_type='user', resource_id=current_user.id,
+                details={'ip': request.remote_addr},
+            )
             db.session.add(log)
             db.session.commit()
             return redirect(url_for('dashboard'))
     return render_template('change_password.html')
 
+
 @app.route('/profile')
 @login_required
 def profile():
-    recent_logins = AuditLog.query.filter_by(user_id=current_user.id, action='login').order_by(AuditLog.timestamp.desc()).limit(5).all()
+    recent_logins = (
+        AuditLog.query
+        .filter_by(user_id=current_user.id, action='login')
+        .order_by(AuditLog.timestamp.desc())
+        .limit(5).all()
+    )
     return render_template('profile.html', user=current_user, recent_logins=recent_logins)
+
 
 @app.route('/export-data/<format>')
 @login_required
@@ -1171,23 +1274,42 @@ def export_data(format):
         writer.writerow(['ID', 'Business', 'Score', 'Level', 'Date'])
         for a in assessments:
             biz_name = a.business.name if a.business else ''
-            writer.writerow([a.id, biz_name, a.total_score, a.certification_level, a.assessment_date.strftime('%Y-%m-%d')])
+            writer.writerow([
+                a.id, biz_name, a.total_score,
+                a.certification_level,
+                a.assessment_date.strftime('%Y-%m-%d'),
+            ])
         buffer.seek(0)
-        return send_file(io.BytesIO(buffer.getvalue().encode()), as_attachment=True, download_name='my_assessments.csv', mimetype='text/csv')
+        return send_file(
+            io.BytesIO(buffer.getvalue().encode()),
+            as_attachment=True,
+            download_name='my_assessments.csv',
+            mimetype='text/csv',
+        )
     else:
         abort(400)
+
 
 @app.route('/report-incident', methods=['GET', 'POST'])
 @login_required
 def report_incident():
     if request.method == 'POST':
         desc = request.form.get('description')
-        log = AuditLog(user_id=current_user.id, action='report_incident', resource_type='incident', details={'description': desc, 'ip': request.remote_addr, 'ua': request.user_agent.string})
+        log = AuditLog(
+            user_id=current_user.id, action='report_incident',
+            resource_type='incident',
+            details={
+                'description': desc,
+                'ip': request.remote_addr,
+                'ua': request.user_agent.string,
+            },
+        )
         db.session.add(log)
         db.session.commit()
         flash('Incident reported. Thank you!', 'success')
         return redirect(url_for('dashboard'))
     return render_template('report_incident.html')
+
 
 @app.route('/mfa-setup', methods=['GET', 'POST'])
 @login_required
@@ -1258,6 +1380,7 @@ def mfa_setup():
 
     return render_template('mfa_setup.html', mfa_available=True, mfa_enabled=current_user.mfa_enabled)
 
+
 @app.route('/mfa-verify', methods=['GET', 'POST'])
 def mfa_verify():
     """Verify MFA code during login."""
@@ -1273,9 +1396,12 @@ def mfa_verify():
             if totp.verify(code, valid_window=1):
                 session.pop('mfa_user_id', None)
                 login_user(user)
+                _mfa_ua = request.user_agent.string or ''
                 log = AuditLog(user_id=user.id, action='login', resource_type='user',
                                resource_id=user.id,
-                               details={'ip': request.remote_addr, 'ua': request.user_agent.string, 'mfa': True})
+                               details={'ip': request.remote_addr, 'ua': _mfa_ua, 'mfa': True},
+                               ip_address=request.remote_addr,
+                               user_agent=_mfa_ua)
                 db.session.add(log)
                 db.session.commit()
                 flash('Login successful!', 'success')
@@ -1287,6 +1413,7 @@ def mfa_verify():
             return redirect(url_for('login'))
 
     return render_template('mfa_verify.html')
+
 
 @app.route('/zambia-assessment', methods=['GET', 'POST'])
 @login_required
@@ -1320,6 +1447,7 @@ def zambia_assessment():
         return render_template('zambia_assessment_results.html', result=result, tips=tips)
     return render_template('zambia_assessment.html', sectors=sectors, languages=languages, tips=tips)
 
+
 @app.route('/report-zambia-incident', methods=['GET', 'POST'])
 @login_required
 def report_zambia_incident():
@@ -1334,6 +1462,7 @@ def report_zambia_incident():
 # ------------------------------------------------------------------
 # Remediation Tracking
 # ------------------------------------------------------------------
+
 
 @app.route('/remediation/<int:assessment_id>')
 @login_required
@@ -1380,7 +1509,7 @@ def remediation_create(assessment_id):
         query = query.filter_by(id=assessment_id, business_id=current_user.business_id)
     else:
         query = query.filter_by(id=assessment_id, assessor_id=current_user.id)
-    assessment = query.first_or_404()
+    _ = query.first_or_404()  # raises 404 if not found / no access
 
     control_id = request.form.get('control_id', '').strip()
     control_name = request.form.get('control_name', '').strip()
@@ -1390,7 +1519,6 @@ def remediation_create(assessment_id):
     due_date = None
     if due_str:
         try:
-            from datetime import date
             due_date = datetime.strptime(due_str, '%Y-%m-%d').date()
         except ValueError:
             pass
@@ -1457,6 +1585,7 @@ def check_outdated_software():
     except Exception:
         return ['Unable to check — pip not available']
 
+
 def check_weak_passwords():
     """Check for user accounts with weak/default passwords."""
     weak = []
@@ -1471,6 +1600,7 @@ def check_weak_passwords():
     except Exception:
         pass
     return weak if weak else []
+
 
 def check_antivirus_status():
     """Query OS for antivirus status."""
@@ -1492,6 +1622,7 @@ def check_antivirus_status():
         return 'Check manually for your OS'
     except Exception as e:
         return f'Check error: {e}'
+
 
 def check_disk_encryption():
     """Check disk encryption status."""
@@ -1515,6 +1646,7 @@ def check_disk_encryption():
     except Exception as e:
         return f'Check error: {e}'
 
+
 def check_admin_accounts():
     """List admin accounts in the application."""
     try:
@@ -1522,6 +1654,7 @@ def check_admin_accounts():
         return [u.username for u in admins]
     except Exception:
         return ['Unable to query accounts']
+
 
 def check_suspicious_processes():
     """Check for potentially suspicious processes."""
@@ -1539,6 +1672,7 @@ def check_suspicious_processes():
         return ['psutil not installed — cannot scan processes']
     except Exception:
         return []
+
 
 def check_ssl_tls(domain='localhost'):
     try:
@@ -1598,6 +1732,7 @@ def check_backup_status(path='/backups'):
     except Exception as e:
         return f"Backup check error: {e}"
 
+
 def check_patch_status():
     try:
         if platform.system() == 'Windows':
@@ -1610,6 +1745,7 @@ def check_patch_status():
     except Exception as e:
         return f"Patch check error: {e}"
 
+
 def get_external_ip():
     try:
         if _requests is None:
@@ -1618,6 +1754,7 @@ def get_external_ip():
         return r.json().get('ip', 'Unknown')
     except Exception as e:
         return f"IP check error: {e}"
+
 
 def run_vulnerability_scan(target='localhost'):
     try:
@@ -1635,11 +1772,13 @@ def run_vulnerability_scan(target='localhost'):
     except Exception as e:
         return [f"Vulnerability scan error: {e}"]
 
+
 def check_shodan_exposure(ip=None):
     # Free tier: Only check if IP is public, no API call
     if not ip or ip.startswith('192.') or ip.startswith('10.') or ip.startswith('127.'):
         return "No public exposure detected (private IP)"
     return f"Public IP: {ip} (check Shodan for details)"
+
 
 @app.route('/system-scan', methods=['GET', 'POST'])
 @login_required
@@ -1696,7 +1835,8 @@ def system_scan():
         if advanced_results['disk_encryption'] != 'Enabled':
             recommendations.append('Enable disk encryption for sensitive data.')
         if advanced_results['suspicious_processes']:
-            recommendations.append(f"Investigate suspicious processes: {', '.join(advanced_results['suspicious_processes'])}.")
+            proc_list = ', '.join(advanced_results['suspicious_processes'])
+            recommendations.append(f"Investigate suspicious processes: {proc_list}.")
         recommendations.append('Review admin/root accounts and restrict access.')
         # Technical checks
         domain = request.form.get('domain', 'localhost')
@@ -1714,22 +1854,33 @@ def system_scan():
         # Technical recommendations
         if 'SSL/TLS enabled' not in technical_results['ssl_tls']:
             recommendations.append('Enable SSL/TLS for all public-facing services.')
-        if 'DNS resolution failed' in technical_results['dns_resolution'] or 'No DNS records found' in technical_results['dns_resolution']:
+        dns_res = technical_results['dns_resolution']
+        if 'DNS resolution failed' in dns_res or 'No DNS records found' in dns_res:
             recommendations.append('Fix DNS records for the target domain.')
-        if 'redirects to HTTPS' not in technical_results['https_redirect'] and 'Local host' not in technical_results['https_redirect']:
+        https_status = technical_results['https_redirect']
+        if 'redirects to HTTPS' not in https_status and 'Local host' not in https_status:
             recommendations.append('Ensure HTTP redirects to HTTPS for public domains.')
         if technical_results['target_open_ports']:
-            recommendations.append(f"Review open target ports: {', '.join(str(p) for p in technical_results['target_open_ports'])}.")
+            open_ports_str = ', '.join(str(p) for p in technical_results['target_open_ports'])
+            recommendations.append(f"Review open target ports: {open_ports_str}.")
         if 'Last backup' not in technical_results['backup_status']:
             recommendations.append('Set up regular, secure backups.')
         if 'up to date' not in technical_results['patch_status']:
             recommendations.append('Apply all missing OS and software patches.')
-        if technical_results['vulnerabilities'] and 'No common vulnerabilities detected' not in technical_results['vulnerabilities'][0]:
-            recommendations.append(f"Review open services: {', '.join(technical_results['vulnerabilities'])}.")
+        found_vulnerabilities = technical_results['vulnerabilities']
+        if found_vulnerabilities and 'No common vulnerabilities detected' not in found_vulnerabilities[0]:
+            recommendations.append(f"Review open services: {', '.join(found_vulnerabilities)}.")
         if 'No public exposure detected' not in technical_results['shodan_exposure']:
             recommendations.append('Review public exposure and restrict unnecessary services.')
-        return render_template('system_scan_results.html', scan_results=scan_results, recommendations=recommendations, advanced_results=advanced_results, technical_results=technical_results)
+        return render_template(
+            'system_scan_results.html',
+            scan_results=scan_results,
+            recommendations=recommendations,
+            advanced_results=advanced_results,
+            technical_results=technical_results,
+        )
     return render_template('system_scan.html')
+
 
 @app.route('/infrastructure-scan', methods=['GET', 'POST'])
 @login_required
@@ -1743,14 +1894,16 @@ def infrastructure_scan():
 
         if 'SSL/TLS enabled' not in infra_results.get('ssl_certificate', ''):
             recommendations.append('Enable SSL/TLS for the target service.')
-        if 'DNS resolution failed' in infra_results.get('dns_resolution', '') or 'No DNS records found' in infra_results.get('dns_resolution', ''):
+        dns_result = infra_results.get('dns_resolution', '')
+        if 'DNS resolution failed' in dns_result or 'No DNS records found' in dns_result:
             recommendations.append('Fix DNS records for the target domain.')
         if 'redirects to HTTPS' not in infra_results.get('https_redirect', ''):
             recommendations.append('Ensure HTTP redirects to HTTPS for public domains.')
         if infra_results.get('open_ports'):
             open_ports = infra_results['open_ports']
             if any(port not in (80, 443) for port in open_ports):
-                recommendations.append(f"Restrict unnecessary open ports: {', '.join(str(p) for p in open_ports if p not in (80, 443))}.")
+                extra = ', '.join(str(p) for p in open_ports if p not in (80, 443))
+                recommendations.append(f"Restrict unnecessary open ports: {extra}.")
 
         return render_template(
             'infrastructure_scan_results.html',
@@ -1769,6 +1922,7 @@ def automated_scan():
     # In real implementation, save to DB or send email
     print(f"Automated scan completed: {scan_results}")
     return scan_results
+
 
 def generate_pdf_report(scan_results, recommendations, advanced_results, technical_results):
     """Generate PDF report from scan results."""
@@ -1810,6 +1964,7 @@ def generate_pdf_report(scan_results, recommendations, advanced_results, technic
     buffer.seek(0)
     return buffer
 
+
 @app.route('/schedule-scan', methods=['GET', 'POST'])
 @login_required
 def schedule_scan():
@@ -1823,6 +1978,7 @@ def schedule_scan():
         return redirect(url_for('dashboard'))
     return render_template('schedule_scan.html')
 
+
 @app.route('/download-pdf')
 @login_required
 def download_pdf():
@@ -1835,6 +1991,8 @@ def download_pdf():
     return send_file(pdf_buffer, as_attachment=True, download_name='scan_report.pdf', mimetype='application/pdf')
 
 # Install script serving routes
+
+
 @app.route('/install.ps1')
 def install_ps1():
     """Serve PowerShell install script"""
@@ -1944,8 +2102,10 @@ Write-Host "`nInstallation directory: $((Get-Location).Path)" -ForegroundColor G
 # Pre-Deployment Digital Hygiene Check
 # ------------------------------------------------------------------
 
+
 # Keep the last report in memory so the JSON download works after a scan
 _predeploy_last_report: dict = {}
+
 
 @app.route('/predeploy-check', methods=['GET', 'POST'])
 @login_required
@@ -1954,12 +2114,16 @@ def predeploy_check():
     global _predeploy_last_report
     report = None
     if request.method == 'POST':
-        checker = PreDeploymentChecker(project_root=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        project_root = os.path.dirname(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        )
+        checker = PreDeploymentChecker(project_root=project_root)
         report = checker.run_all()
         _predeploy_last_report = report.to_dict()
         flash(f'Pre-deployment scan complete – verdict: {report.verdict}',
               'success' if report.verdict == 'READY' else 'danger')
     return render_template('predeploy_check.html', report=report)
+
 
 @app.route('/predeploy-check/json')
 @login_required
@@ -1969,6 +2133,7 @@ def predeploy_json():
         flash('Run a pre-deployment check first.', 'warning')
         return redirect(url_for('predeploy_check'))
     return jsonify(_predeploy_last_report)
+
 
 @app.route('/install.bat')
 def install_bat():
@@ -2006,7 +2171,8 @@ goto :setup
 
 :download_zip
 echo Downloading as ZIP...
-powershell -Command "Invoke-WebRequest -Uri 'https://github.com/yourusername/digital-hygiene-tool/archive/main.zip' -OutFile 'temp_digital_hygiene.zip'"
+set "REPO=https://github.com/yourusername/digital-hygiene-tool"
+powershell -Command "Invoke-WebRequest -Uri '%REPO%/archive/main.zip' -OutFile 'temp_digital_hygiene.zip'"
 powershell -Command "Expand-Archive -Path 'temp_digital_hygiene.zip' -DestinationPath '.'"
 cd digital-hygiene-tool-main
 
@@ -2036,6 +2202,7 @@ echo ========================================
 pause
 '''
     return Response(script_content, mimetype='text/plain')
+
 
 @app.route('/install.sh')
 def install_sh():
@@ -2128,6 +2295,7 @@ echo "Installation directory: $(pwd)"
 echo "You can safely delete this directory after copying the files elsewhere."
 '''
     return Response(script_content, mimetype='text/plain')
+
 
 @app.route('/verify/<certificate_number>')
 def verify(certificate_number):

@@ -3,7 +3,7 @@
 import customtkinter as ctk
 from src.gui.theme import (
     CLR_BG, CLR_SURFACE, CLR_SURFACE_ALT, CLR_ACCENT, CLR_TEXT, CLR_MUTED,
-    CLR_BORDER, CLR_SUCCESS, CLR_WARNING, CLR_DANGER,
+    CLR_BORDER, CLR_DANGER,
     FONT_HEADING, FONT_BODY, FONT_SMALL, PAD,
 )
 
@@ -14,16 +14,21 @@ CATEGORIES = [
         "colour": "#1E90FF",
         "items": [
             ("sim_swap_protection",
-             "Has your business set a SIM PIN on all company SIMs and registered for SIM swap alerts with your network provider?",
-             "SIM swap fraud is a leading cybercrime in Zambia — attackers transfer your number to steal mobile money OTPs."),
+             "Has your business set a SIM PIN on all company SIMs and registered "
+             "for SIM swap alerts with your network provider?",
+             "SIM swap fraud is a leading cybercrime in Zambia — attackers "
+             "transfer your number to steal mobile money OTPs."),
             ("mobile_money_limits",
-             "Have you set daily transaction limits on all mobile money accounts (Airtel Money, MTN MoMo, Zamtel Kwacha)?",
+             "Have you set daily transaction limits on all mobile money "
+             "accounts (Airtel Money, MTN MoMo, Zamtel Kwacha)?",
              "Transaction limits reduce losses if an account is compromised."),
             ("mobile_money_2fa",
-             "Are all mobile money and mobile banking accounts protected with a PIN/password that is NOT shared with anyone?",
+             "Are all mobile money and mobile banking accounts protected with a "
+             "PIN/password that is NOT shared with anyone?",
              "A unique PIN for each service prevents one compromise from affecting all accounts."),
             ("mobile_money_policy",
-             "Do you have a written policy for mobile money transactions (approvals, limits, who can authorise payments)?",
+             "Do you have a written policy for mobile money transactions "
+             "(approvals, limits, who can authorise payments)?",
              "Uncontrolled mobile payments are a common source of fraud in Zambian SMBs."),
         ],
     },
@@ -32,7 +37,8 @@ CATEGORIES = [
         "colour": "#FFB800",
         "items": [
             ("phishing_training",
-             "Have all staff been trained in the last 12 months to recognise phishing emails, fake links, and social engineering?",
+             "Have all staff been trained in the last 12 months to recognise "
+             "phishing emails, fake links, and social engineering?",
              "Most successful cyberattacks in Zambia start with a deceptive email or WhatsApp message."),
             ("email_mfa",
              "Is multi-factor authentication (MFA) enabled on all business email accounts (Gmail, Outlook, etc.)?",
@@ -50,13 +56,16 @@ CATEGORIES = [
         "colour": "#6C5FC7",
         "items": [
             ("dpa_registered",
-             "Is your business registered with the Data Protection Commission (DPC) under the Zambia Data Protection Act No. 3 of 2021?",
+             "Is your business registered with the Data Protection Commission "
+             "(DPC) under the Zambia Data Protection Act No. 3 of 2021?",
              "Registration is required for businesses that process personal data of Zambian residents."),
             ("dpa_policy",
-             "Do you have a written Data Protection Policy that explains how you collect, use, and protect customer data?",
+             "Do you have a written Data Protection Policy that explains how "
+             "you collect, use, and protect customer data?",
              "The DPA 2021 requires organisations to be transparent about data processing."),
             ("cyber_crimes_act",
-             "Are staff aware of the Cyber Security and Cyber Crimes Act 2021 and the penalties for misusing company systems?",
+             "Are staff aware of the Cyber Security and Cyber Crimes Act 2021 "
+             "and the penalties for misusing company systems?",
              "Employees who misuse systems can face criminal prosecution — awareness is a legal defence."),
             ("zicta_alerts",
              "Is your business subscribed to ZICTA security alerts and CERT-ZM notifications?",
@@ -68,28 +77,40 @@ CATEGORIES = [
         "colour": "#CD7F32",
         "items": [
             ("backup_offsite",
-             "Are business backups stored off-site or in the cloud (not only on the same premises as the original data)?",
+             "Are business backups stored off-site or in the cloud (not only "
+             "on the same premises as the original data)?",
              "A fire, flood, or theft will destroy local-only backups. Cloud backup is essential."),
             ("disaster_recovery",
              "Do you have a written plan for how the business would operate if all computers were destroyed or stolen?",
              "Without a plan, most small businesses cannot recover from a serious incident."),
             ("supplier_security",
-             "Have you checked that your key technology suppliers (internet, cloud, payment processor) have their own security controls in place?",
+             "Have you checked that your key technology suppliers "
+             "(internet, cloud, payment processor) have their own security controls in place?",
              "Supply chain attacks are rising — your suppliers are part of your security posture."),
             ("cyber_insurance",
-             "Does your business have cyber insurance or has management assessed whether it is appropriate for your risk level?",
+             "Does your business have cyber insurance or has management "
+             "assessed whether it is appropriate for your risk level?",
              "Cyber insurance can cover losses from ransomware, fraud, and data breaches."),
         ],
     },
 ]
 
 RISK_COLOURS = {
-    "LOW RISK":    ("#6C5FC7", "Your business has good protection against local threats. "
-                   "Maintain these controls and review annually."),
-    "MEDIUM RISK": ("#FFB800", "Your business has some gaps in local threat protection. "
-                   "Address the unchecked items as a priority."),
-    "HIGH RISK":   ("#FF4C4C", "Your business is significantly exposed to local digital threats. "
-                   "Take immediate action on the items below."),
+    "LOW RISK": (
+        "#6C5FC7",
+        "Your business has good protection against local threats. "
+        "Maintain these controls and review annually.",
+    ),
+    "MEDIUM RISK": (
+        "#FFB800",
+        "Your business has some gaps in local threat protection. "
+        "Address the unchecked items as a priority.",
+    ),
+    "HIGH RISK": (
+        "#FF4C4C",
+        "Your business is significantly exposed to local digital threats. "
+        "Take immediate action on the items below.",
+    ),
 }
 
 

@@ -27,7 +27,10 @@ REMEDIATIONS: Dict[str, Dict[str, Any]] = {
     'PDC-05': {
         'title': 'Close Risky Ports',
         'advice': 'Restrict access to database and management ports using firewall rules.',
-        'powershell': "New-NetFirewallRule -DisplayName 'Block SMB' -Direction Inbound -LocalPort 445 -Action Block -Protocol TCP",
+        'powershell': (
+            "New-NetFirewallRule -DisplayName 'Block SMB'"
+            " -Direction Inbound -LocalPort 445 -Action Block -Protocol TCP"
+        ),
     },
 }
 

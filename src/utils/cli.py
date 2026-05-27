@@ -45,10 +45,10 @@ _project_root = str(Path(__file__).resolve().parent.parent.parent)
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
-from src.security.assessment.assessor import DigitalHygieneAssessor, BusinessInfo, ZambiaRiskAssessor
-from src.reporting.generator import ReportGenerator
-from src.utils.logging_config import get_logger
-from src.utils.config import config
+from src.security.assessment.assessor import DigitalHygieneAssessor, BusinessInfo, ZambiaRiskAssessor  # noqa: E402
+from src.reporting.generator import ReportGenerator  # noqa: E402
+from src.utils.logging_config import get_logger  # noqa: E402
+from src.utils.config import config  # noqa: E402
 
 console = Console()
 logger = get_logger(__name__)
@@ -104,8 +104,10 @@ def assess(business_name: str, business_id: str, output_dir: str,
         business_info = BusinessInfo(name=business_name, id=business_id)
         assessor = DigitalHygieneAssessor(business_info)
 
-        with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
-                       console=console) as progress:
+        with Progress(
+            SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
             task = progress.add_task("Running assessment…", total=None)
             results = assessor.run_assessment()
             progress.update(task, completed=True)
@@ -116,8 +118,10 @@ def assess(business_name: str, business_id: str, output_dir: str,
         if formats:
             generator = ReportGenerator(output_dir)
 
-            with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
-                           console=console) as progress:
+            with Progress(
+                SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
                 task = progress.add_task("Generating reports…", total=len(formats))
                 report_name = f"assessment_{business_id}"
 
@@ -217,8 +221,10 @@ def scan(domain: str, backup_path: str, json_out: bool):
     results = {}
     recommendations = []
 
-    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
-                   console=console) as progress:
+    with Progress(
+        SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
         task = progress.add_task("Running system checks…", total=12)
 
         # 1 – OS information
@@ -380,8 +386,10 @@ def predeploy(project_root: str, json_out: bool):
 
     checker = PreDeploymentChecker(project_root=project_root)
 
-    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
-                   console=console) as progress:
+    with Progress(
+        SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
         task = progress.add_task("Running hygiene checks…", total=None)
         report = checker.run_all()
         progress.update(task, completed=True)
@@ -499,7 +507,7 @@ def users():
 @users.command('list')
 def users_list():
     """List all users in the database."""
-    from src.web.app import create_app, db, User as WebUser
+    from src.web.app import create_app, User as WebUser
 
     app = create_app()
     with app.app_context():
@@ -802,13 +810,13 @@ def _check_patch_status() -> str:
             r = subprocess.run('wmic qfe get HotFixID,InstalledOn',
                                shell=True, capture_output=True, text=True, timeout=15)
             if r.returncode == 0:
-                lines = [l.strip() for l in r.stdout.strip().split('\n') if l.strip()]
+                lines = [ln.strip() for ln in r.stdout.strip().split('\n') if ln.strip()]
                 return f"{len(lines) - 1} patches installed" if len(lines) > 1 else "Patch data unavailable"
             return "Patch status unavailable"
         else:
             r = subprocess.run('apt list --upgradable 2>/dev/null',
                                shell=True, capture_output=True, text=True, timeout=15)
-            upgradable = [l for l in r.stdout.split('\n') if 'upgradable' in l]
+            upgradable = [ln for ln in r.stdout.split('\n') if 'upgradable' in ln]
             return f"{len(upgradable)} packages upgradable" if upgradable else "All packages up to date"
     except Exception as e:
         return f"Patch check error: {e}"

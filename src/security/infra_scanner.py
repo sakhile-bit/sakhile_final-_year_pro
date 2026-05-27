@@ -4,7 +4,7 @@ from __future__ import annotations
 import socket
 import ssl
 from dataclasses import dataclass
-from typing import List, Tuple, Dict, Any
+from typing import List, Dict, Any
 
 
 @dataclass
@@ -48,12 +48,24 @@ def check_tls(host: str, port: int = 443, timeout: float = 3.0) -> TLSCheck:
     ctx = ssl.create_default_context()
     try:
         with socket.create_connection((host, port), timeout=timeout) as sock:
-            with ctx.wrap_socket(sock, server_hostname=host) as ssock:
-                cert = ssock.getpeercert()
-                cipher = ssock.cipher()[0] if ssock.cipher() else None
-                not_after = cert.get('notAfter')
-                subject = dict(x[0] for x in cert.get('subject', ()))
-                return TLSCheck(port=port, valid=True, expires=not_after, subject=subject.get('commonName'), cipher=cipher)
+            with ctx.wrap_socket(sock, server_hostname=host) as ssl_sock:
+                cert = ssl_sock.getpeercert()
+                cipher_info = ssl_sock.cipher()
+                cipher = cipher_info[0] if cipher_info else None
+                if not cert:
+                    return TLSCheck(port=port, valid=True, cipher=cipher)
+                not_after: str | None = (
+                    str(cert['notAfter']) if 'notAfter' in cert else None
+                )
+                subject_cn: str | None = None
+                for rdn in cert.get('subject', ()):
+                    for attr, val in rdn:
+                        if attr == 'commonName':
+                            subject_cn = str(val)
+                return TLSCheck(
+                    port=port, valid=True,
+                    expires=not_after, subject=subject_cn, cipher=cipher,
+                )
     except Exception:
         return TLSCheck(port=port, valid=False)
 

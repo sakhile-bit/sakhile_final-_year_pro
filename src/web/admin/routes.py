@@ -11,7 +11,9 @@ from flask import (
 from flask_login import login_required, current_user
 from functools import wraps
 from datetime import datetime, timedelta
-import io, csv, json, platform, os
+import io
+import csv
+import platform
 
 from src.utils.logging_config import get_logger
 
@@ -72,7 +74,7 @@ def dashboard():
     total_certs = Certificate.query.filter_by(is_active=True).count()
     expiring_soon = Certificate.query.filter(
         Certificate.expiry_date <= now + timedelta(days=30),  # type: ignore[operator]
-        Certificate.is_active == True,  # type: ignore[arg-type]
+        Certificate.is_active.is_(True),  # type: ignore[union-attr]
     ).count()
 
     # ---- Certification distribution ----
@@ -350,7 +352,7 @@ def certificates():
         query = query.filter(
             Certificate.expiry_date <= datetime.utcnow() + timedelta(days=30),  # type: ignore[operator]
             Certificate.expiry_date >= datetime.utcnow(),  # type: ignore[operator]
-            Certificate.is_active == True,  # type: ignore[arg-type]
+            Certificate.is_active.is_(True),  # type: ignore[union-attr]
         )
     page_data = query.order_by(Certificate.created_at.desc()).paginate(
         page=page, per_page=20
@@ -445,7 +447,11 @@ def system():
         'cpu_count': psutil.cpu_count(),
         'cpu_percent': psutil.cpu_percent(interval=0.5),
         'memory': psutil.virtual_memory()._asdict(),
-        'disk': psutil.disk_usage('/')._asdict() if platform.system() != 'Windows' else psutil.disk_usage('C:\\')._asdict(),
+        'disk': (
+            psutil.disk_usage('/')._asdict()
+            if platform.system() != 'Windows'
+            else psutil.disk_usage('C:\\')._asdict()
+        ),
     }
 
     return render_template('admin/system.html', counts=counts, hw=hw)
