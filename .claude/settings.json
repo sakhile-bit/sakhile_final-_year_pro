@@ -20,7 +20,8 @@
       "Bash(python -m py_compile src/security/deployment/checker.py)",
       "Bash(python -m py_compile src/security/infra_scanner.py)",
       "Bash(python -m py_compile src/security/active_directory/checks.py)",
-      "Bash(python -m mypy src/security/ src/web/app.py --ignore-missing-imports --no-strict-optional --follow-imports=silent)"
+      "Bash(python -m mypy src/security/ src/web/app.py --ignore-missing-imports --no-strict-optional --follow-imports=silent)",
+      "Bash(git commit -m 'chore: remove stray git merge entry from allowed commands *)"
     ]
   }
 }
