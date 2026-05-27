@@ -1209,7 +1209,7 @@ class DigitalHygieneAssessor:
             return 'NOT_APPLICABLE', 'Non-Windows host'
         try:
             import subprocess
-            ps = subprocess.run(
+            _ps = subprocess.run(  # noqa: F841  result unused; 404 side-effect
                 ['powershell', '-NonInteractive', '-Command',
                  'Get-WmiObject -Class Win32_UserAccount | '
                  'Where-Object {$_.LocalAccount -eq $True -and $_.Disabled -eq $False} | '

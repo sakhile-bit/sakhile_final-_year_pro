@@ -7,13 +7,11 @@ assesses risk and draws an interactive topology map.
 import threading
 import socket
 import subprocess
-import math
 import re
 import datetime
 import tkinter as tk
 import customtkinter as ctk
 from dataclasses import dataclass, field
-from typing import Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tkinter import filedialog
 
@@ -21,8 +19,8 @@ from src.gui.theme import (
     CLR_BG, CLR_SURFACE, CLR_SURFACE_ALT, CLR_SURFACE_HVR,
     CLR_ACCENT, CLR_ACCENT_HOV, CLR_BLUE,
     CLR_TEXT, CLR_TEXT_SEC, CLR_MUTED,
-    CLR_SUCCESS, CLR_WARNING, CLR_DANGER, CLR_BORDER, CLR_DIVIDER,
-    FONT_TITLE, FONT_HEADING, FONT_SUBHEAD, FONT_BODY, FONT_SMALL, FONT_CAPTION,
+    CLR_SUCCESS, CLR_BORDER, CLR_DIVIDER,
+    FONT_SUBHEAD, FONT_BODY, FONT_SMALL, FONT_CAPTION,
     PAD, PAD_SM, NAV_H, BTN_H, BTN_R,
 )
 from src.gui.screens.business_info import _header
@@ -816,8 +814,10 @@ class NetworkScannerScreen(ctk.CTkFrame):
         for p in (3306, 5432, 1433):
             if p in device.open_ports:
                 name = PORT_INFO[p][0]
-                recs.append(f"{name} (port {p}) is network-accessible — bind the "
-                             f"database to localhost only unless remote access is required.")
+                recs.append(
+                    f"{name} (port {p}) is network-accessible — bind the "
+                    f"database to localhost only unless remote access is required."
+                )
         if 21 in device.open_ports:
             recs.append("FTP (port 21) transmits data unencrypted — replace with SFTP.")
         if 80 in device.open_ports and 443 not in device.open_ports:
@@ -902,7 +902,7 @@ class NetworkScannerScreen(ctk.CTkFrame):
  </div>
  <div class="card">
   <div class="big" style="color:#00C896">
-   {sum(1 for d in self._devices.values() if d.risk_level in ("SAFE","LOW"))}
+   {sum(1 for d in self._devices.values() if d.risk_level in ("SAFE", "LOW"))}
   </div>
   <div style="color:#5A7490">Safe / Low Risk</div>
  </div>

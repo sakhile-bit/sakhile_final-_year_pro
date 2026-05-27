@@ -21,7 +21,7 @@ class SimpleScheduler:
 
     def start(self):
         def _runner():
-            last_run = [0] * len(self._jobs)
+            last_run = [0.0] * len(self._jobs)
             while not self._stop:
                 now = time.time()
                 for i, (f, interval) in enumerate(self._jobs):

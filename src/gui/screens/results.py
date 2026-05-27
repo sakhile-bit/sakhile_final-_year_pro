@@ -3,7 +3,6 @@
 import datetime
 import json
 import os
-import math
 import tkinter as tk
 import customtkinter as ctk
 from tkinter import filedialog
@@ -12,8 +11,8 @@ from src.gui.theme import (
     CLR_BG, CLR_SURFACE, CLR_SURFACE_ALT,
     CLR_ACCENT, CLR_ACCENT_HOV,
     CLR_TEXT, CLR_TEXT_SEC, CLR_MUTED,
-    CLR_SUCCESS, CLR_WARNING, CLR_DANGER, CLR_BORDER, CLR_DIVIDER,
-    FONT_TITLE, FONT_HEADING, FONT_SUBHEAD, FONT_BODY, FONT_SMALL, FONT_CAPTION,
+    CLR_SUCCESS, CLR_WARNING, CLR_DANGER, CLR_BORDER,
+    FONT_HEADING, FONT_SUBHEAD, FONT_BODY, FONT_SMALL, FONT_CAPTION,
     PAD, NAV_H, BTN_H, BTN_R,
     TIER_COLOURS,
 )

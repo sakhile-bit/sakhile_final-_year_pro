@@ -34,9 +34,11 @@ from typing import Any, Dict, List, Optional
 from src.security.monitoring.checks import get_logging_hygiene
 from src.security.siem.forwarder import WebhookForwarder, build_siem_event
 
+
 # ---------------------------------------------------------------------------
 # Data classes
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class CheckResult:
@@ -285,8 +287,12 @@ class PreDeploymentChecker:
         """PDC-03: Detect running antivirus / Windows Defender."""
         try:
             if platform.system() == 'Windows':
+                ps_av = (
+                    'powershell -Command "Get-MpComputerStatus'
+                    ' | Select-Object -ExpandProperty RealTimeProtectionEnabled"'
+                )
                 r = subprocess.run(
-                    'powershell -Command "Get-MpComputerStatus | Select-Object -ExpandProperty RealTimeProtectionEnabled"',
+                    ps_av,
                     capture_output=True, text=True, timeout=10, shell=True,
                 )
                 if 'true' in r.stdout.strip().lower():
@@ -356,7 +362,8 @@ class PreDeploymentChecker:
                                     sk = winreg.EnumKey(key, i)  # type: ignore[attr-defined]
                                     with winreg.OpenKey(key, sk) as sub:  # type: ignore[attr-defined]
                                         try:
-                                            name = winreg.QueryValueEx(sub, 'DisplayName')[0]  # type: ignore[attr-defined]
+                                            name = winreg.QueryValueEx(  # type: ignore[attr-defined]
+                                                sub, 'DisplayName')[0]
                                             products.append(name)
                                         except Exception:
                                             pass
@@ -376,7 +383,10 @@ class PreDeploymentChecker:
             else:
                 # Attempt dpkg or rpm list
                 try:
-                    r = subprocess.run(['dpkg-query', '-W', '-f', '${Package}\n'], capture_output=True, text=True, timeout=10)
+                    r = subprocess.run(
+                        ['dpkg-query', '-W', '-f', '${Package}\n'],
+                        capture_output=True, text=True, timeout=10,
+                    )
                     pkgs = r.stdout.splitlines()
                     sample = ', '.join(pkgs[:8]) if pkgs else 'none'
                     return CheckResult('PDC-14', 'Software Inventory', True, 'LOW',
@@ -484,7 +494,8 @@ class PreDeploymentChecker:
             # Count occurrences of 'name:' in stdout; fall back to stderr line count.
             vuln_count = r.stdout.lower().count('name:')
             if vuln_count == 0:
-                vuln_count = max(1, len([l for l in (r.stdout + r.stderr).splitlines() if l.strip()]))
+                output_lines = (r.stdout + r.stderr).splitlines()
+                vuln_count = max(1, len([ln for ln in output_lines if ln.strip()]))
             return CheckResult('PDC-09', 'Dependency Vulnerabilities', False, 'CRITICAL',
                                f'{vuln_count} vulnerable package(s) found; run pip-audit for details',
                                'Run: pip install pip-audit && pip-audit --fix',
