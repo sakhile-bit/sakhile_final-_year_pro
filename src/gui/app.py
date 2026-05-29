@@ -1,9 +1,13 @@
 """Main application window — manages screen transitions."""
 
 import customtkinter as ctk
+
 from src.gui.theme import (
+    APP_NAME,
+    APP_VERSION,
     CLR_BG,
-    WIN_W, WIN_H, APP_NAME, APP_VERSION,
+    WIN_H,
+    WIN_W,
 )
 
 ctk.set_appearance_mode("dark")
@@ -51,6 +55,13 @@ class DigitalHygieneApp(ctk.CTk):
             on_policies=self._show_policy_templates,
             on_network=self._show_network_scanner,
             on_deploy=self._show_deployment_checker,
+            on_remediation=self._show_remediation_guidance,
+            on_active_dir=self._show_active_directory,
+            on_export=self._show_export_reports,
+            on_users=self._show_user_management,
+            on_audit=self._show_audit_logs,
+            on_settings=self._show_settings,
+            on_dashboard=self._show_assessment_dashboard,
         ))
 
     def _show_history(self):
@@ -76,6 +87,34 @@ class DigitalHygieneApp(ctk.CTk):
     def _show_deployment_checker(self):
         from src.gui.screens.deployment_screen import DeploymentCheckerScreen
         self._swap(DeploymentCheckerScreen(self, on_back=self._show_welcome))
+
+    def _show_remediation_guidance(self):
+        from src.gui.screens.remediation_guidance import RemediationGuidanceScreen
+        self._swap(RemediationGuidanceScreen(self, on_back=self._show_welcome))
+
+    def _show_active_directory(self):
+        from src.gui.screens.active_directory import ActiveDirectoryScreen
+        self._swap(ActiveDirectoryScreen(self, on_back=self._show_welcome))
+
+    def _show_export_reports(self):
+        from src.gui.screens.export_reports import ExportReportsScreen
+        self._swap(ExportReportsScreen(self, on_back=self._show_welcome))
+
+    def _show_user_management(self):
+        from src.gui.screens.user_management import UserManagementScreen
+        self._swap(UserManagementScreen(self, on_back=self._show_welcome))
+
+    def _show_audit_logs(self):
+        from src.gui.screens.audit_log_viewer import AuditLogViewerScreen
+        self._swap(AuditLogViewerScreen(self, on_back=self._show_welcome))
+
+    def _show_settings(self):
+        from src.gui.screens.settings import SettingsScreen
+        self._swap(SettingsScreen(self, on_back=self._show_welcome))
+
+    def _show_assessment_dashboard(self):
+        from src.gui.screens.assessment_dashboard import AssessmentDashboardScreen
+        self._swap(AssessmentDashboardScreen(self, on_back=self._show_welcome))
 
     def _show_business_info(self):
         from src.gui.screens.business_info import BusinessInfoScreen
@@ -112,7 +151,8 @@ class DigitalHygieneApp(ctk.CTk):
 
     def _show_results(self, manual_scores, evidence=None):
         from src.security.assessment.assessor import (
-            DigitalHygieneAssessor, CONTROL_CATALOGUE,
+            CONTROL_CATALOGUE,
+            DigitalHygieneAssessor,
         )
 
         # Merge automated results + manual scores into a full assessment

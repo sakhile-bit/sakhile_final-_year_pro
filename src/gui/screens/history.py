@@ -423,3 +423,139 @@ class HistoryScreen(ctk.CTkFrame):
                                        dlg.destroy(),
                                        card.destroy()),
                       ).pack(side="left", padx=8)
+
+
+class HistoryFilters(ctk.CTkFrame):
+    """Filter widget for assessment history."""
+
+    def __init__(self, parent, on_filter_change=None):
+        super().__init__(parent, fg_color=CLR_SURFACE, corner_radius=8)
+        self.on_filter_change = on_filter_change or (lambda: None)
+
+        ctk.CTkLabel(self, text="🔍 Filter Assessments",
+                     font=FONT_SUBHEAD, text_color=CLR_TEXT,
+                     ).pack(anchor="w", padx=12, pady=(12, 8))
+
+        self.search_var = ctk.StringVar()
+        self.search_var.trace("w", lambda *args: self.on_filter_change())
+        ctk.CTkEntry(self, placeholder_text="Search by organization name...",
+                     textvariable=self.search_var, fg_color=CLR_SURFACE_ALT,
+                     border_color=CLR_BORDER, text_color=CLR_TEXT,
+                     font=FONT_BODY, height=32,
+                     ).pack(fill="x", padx=12, pady=(0, 12))
+
+        filter_frame = ctk.CTkFrame(self, fg_color="transparent")
+        filter_frame.pack(fill="x", padx=12, pady=(0, 12))
+        ctk.CTkLabel(filter_frame, text="Level:", font=FONT_SMALL,
+                     text_color=CLR_TEXT).pack(side="left", padx=(0, 8))
+        for level in ["All", "Gold", "Silver", "Bronze", "Failed"]:
+            ctk.CTkCheckBox(filter_frame, text=level, font=FONT_SMALL,
+                            text_color=CLR_TEXT, fg_color=CLR_SUCCESS,
+                            ).pack(side="left", padx=4)
+
+        sort_frame = ctk.CTkFrame(self, fg_color="transparent")
+        sort_frame.pack(fill="x", padx=12, pady=(0, 12))
+        ctk.CTkLabel(sort_frame, text="Sort by:", font=FONT_SMALL,
+                     text_color=CLR_TEXT).pack(side="left", padx=(0, 8))
+        self.sort_var = ctk.StringVar(value="recent")
+        for sort_opt, sort_val in [("Recent", "recent"), ("Score", "score"), ("Name", "name")]:
+            ctk.CTkRadioButton(sort_frame, text=sort_opt,
+                               variable=self.sort_var, value=sort_val,
+                               fg_color=CLR_SUCCESS, text_color=CLR_TEXT,
+                               font=FONT_SMALL,
+                               ).pack(side="left", padx=8)
+
+
+class AssessmentDetailView(ctk.CTkToplevel):
+    """Detailed view of a single assessment."""
+
+    def __init__(self, parent, assessment_data):
+        super().__init__(parent)
+        biz_name = assessment_data.get("biz_name", "Unknown")
+        self.title(f"Assessment Details — {biz_name}")
+        self.geometry("800x600")
+        self.configure(fg_color=CLR_BG)
+
+        hdr = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=60)
+        hdr.pack(fill="x")
+        hdr.pack_propagate(False)
+        ctk.CTkLabel(hdr, text=f"📋 {biz_name}",
+                     font=("Segoe UI", 16, "bold"), text_color=CLR_TEXT,
+                     ).pack(anchor="w", padx=16, pady=(12, 4))
+        meta = (f"Assessed: {assessment_data.get('saved_at', 'Unknown')} "
+                f"• Score: {assessment_data.get('pct', 0)}%")
+        ctk.CTkLabel(hdr, text=meta, font=FONT_SMALL,
+                     text_color=CLR_TEXT_SEC).pack(anchor="w", padx=16, pady=(0, 12))
+
+        scroll = ctk.CTkScrollableFrame(self, fg_color=CLR_BG)
+        scroll.pack(fill="both", expand=True, padx=16, pady=16)
+
+        summary_frame = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE, corner_radius=8)
+        summary_frame.pack(fill="x", pady=(0, 16))
+        ctk.CTkLabel(summary_frame, text="Assessment Summary",
+                     font=FONT_SUBHEAD, text_color=CLR_TEXT,
+                     ).pack(anchor="w", padx=12, pady=(12, 8))
+        for label, value in [
+            ("Certification Level", assessment_data.get("tier", "N/A")),
+            ("Overall Score",       f"{assessment_data.get('pct', 0)}%"),
+            ("Total Points",        f"{assessment_data.get('score', 0)} / 120"),
+            ("Assessment Date",     assessment_data.get("saved_at", "N/A")),
+            ("Assessor",            assessment_data.get("assessor", "System")),
+        ]:
+            row_f = ctk.CTkFrame(summary_frame, fg_color="transparent")
+            row_f.pack(fill="x", padx=12, pady=4)
+            ctk.CTkLabel(row_f, text=label,
+                         font=FONT_BODY, text_color=CLR_TEXT_SEC).pack(side="left")
+            ctk.CTkLabel(row_f, text=value,
+                         font=FONT_BODY, text_color=CLR_TEXT).pack(side="right")
+
+        footer = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=50)
+        footer.pack(fill="x")
+        footer.pack_propagate(False)
+        ctk.CTkButton(footer, text="Close", command=self.destroy,
+                      fg_color=CLR_SURFACE_ALT, text_color=CLR_TEXT,
+                      font=FONT_BODY, height=BTN_H, corner_radius=BTN_R,
+                      ).pack(side="right", padx=8, pady=12)
+
+
+class BulkExportDialog(ctk.CTkToplevel):
+    """Dialog for bulk exporting multiple assessments."""
+
+    def __init__(self, parent, selected_count):
+        super().__init__(parent)
+        self.title(f"Bulk Export — {selected_count} Assessments")
+        self.geometry("500x300")
+        self.configure(fg_color=CLR_BG)
+
+        ctk.CTkLabel(self, text=f"Export {selected_count} Assessments",
+                     font=("Segoe UI", 14, "bold"), text_color=CLR_TEXT,
+                     ).pack(anchor="w", padx=16, pady=(16, 8))
+
+        frame = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=8)
+        frame.pack(fill="both", expand=True, padx=16, pady=16)
+        ctk.CTkLabel(frame, text="Select Export Format",
+                     font=FONT_SUBHEAD, text_color=CLR_TEXT,
+                     ).pack(anchor="w", padx=12, pady=(12, 8))
+
+        self.format_var = ctk.StringVar(value="pdf")
+        for fmt, label in [
+            ("pdf",  "📄 PDF (One file per assessment)"),
+            ("xlsx", "📊 Excel (All in one sheet)"),
+            ("zip",  "📦 ZIP Archive (All formats)"),
+        ]:
+            ctk.CTkRadioButton(frame, text=label, variable=self.format_var,
+                               value=fmt, fg_color=CLR_SUCCESS,
+                               text_color=CLR_TEXT, font=FONT_BODY,
+                               ).pack(anchor="w", padx=12, pady=6)
+
+        footer = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=50)
+        footer.pack(fill="x")
+        footer.pack_propagate(False)
+        ctk.CTkButton(footer, text="Cancel", command=self.destroy,
+                      fg_color=CLR_SURFACE_ALT, text_color=CLR_TEXT,
+                      font=FONT_BODY, height=BTN_H, corner_radius=BTN_R,
+                      width=120).pack(side="left", padx=8, pady=12)
+        ctk.CTkButton(footer, text="Export",
+                      fg_color=CLR_SUCCESS, text_color="#ffffff",
+                      font=FONT_BODY, height=BTN_H, corner_radius=BTN_R,
+                      ).pack(side="right", padx=8, pady=12)

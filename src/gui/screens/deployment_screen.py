@@ -5,29 +5,50 @@ Covers system hygiene, network exposure, secrets, code quality and
 cross-stack application health (Node, Python, PHP, Java, Go, Ruby, .NET, etc.)
 """
 
+import datetime
 import os
 import re
 import shutil
 import subprocess
 import sys
 import threading
-import datetime
-import customtkinter as ctk
 from pathlib import Path
 from tkinter import filedialog
 from typing import List
 
-from src.gui.theme import (
-    CLR_BG, CLR_SURFACE, CLR_SURFACE_ALT, CLR_SURFACE_HVR,
-    CLR_ACCENT, CLR_ACCENT_HOV, CLR_BLUE,
-    CLR_TEXT, CLR_TEXT_SEC, CLR_MUTED,
-    CLR_SUCCESS, CLR_WARNING, CLR_DANGER, CLR_BORDER, CLR_DIVIDER,
-    FONT_HEADING, FONT_SUBHEAD, FONT_BODY, FONT_SMALL, FONT_CAPTION,
-    PAD, NAV_H, BTN_H, BTN_R,
-)
+import customtkinter as ctk
+
 from src.gui.screens.business_info import _header
+from src.gui.theme import (
+    BTN_H,
+    BTN_R,
+    CLR_ACCENT,
+    CLR_ACCENT_HOV,
+    CLR_BG,
+    CLR_BLUE,
+    CLR_BORDER,
+    CLR_DANGER,
+    CLR_DIVIDER,
+    CLR_MUTED,
+    CLR_SUCCESS,
+    CLR_SURFACE,
+    CLR_SURFACE_ALT,
+    CLR_SURFACE_HVR,
+    CLR_TEXT,
+    CLR_TEXT_SEC,
+    CLR_WARNING,
+    FONT_BODY,
+    FONT_CAPTION,
+    FONT_HEADING,
+    FONT_SMALL,
+    FONT_SUBHEAD,
+    NAV_H,
+    PAD,
+)
 from src.security.deployment.checker import (
-    PreDeploymentChecker, CheckResult, DeploymentReadiness,
+    CheckResult,
+    DeploymentReadiness,
+    PreDeploymentChecker,
 )
 
 # ── Verdict definitions ───────────────────────────────────────────────────────
@@ -1111,3 +1132,283 @@ class DeploymentCheckerScreen(ctk.CTkFrame):
                       fg_color=CLR_ACCENT, text_color="#000000",
                       height=BTN_H, corner_radius=BTN_R,
                       command=dlg.destroy).pack()
+
+
+class ReadinessReportDialog(ctk.CTkToplevel):
+    """Comprehensive deployment readiness report."""
+
+    def __init__(self, parent, readiness_data):
+        super().__init__(parent)
+        self.title("Deployment Readiness Report")
+        self.geometry("800x600")
+        self.configure(fg_color=CLR_BG)
+
+        # Header
+        hdr = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=60)
+        hdr.pack(fill="x")
+        hdr.pack_propagate(False)
+
+        overall_status = readiness_data.get("verdict", "UNKNOWN")
+        status_color = {
+            "READY": CLR_SUCCESS,
+            "WARNING": CLR_WARNING,
+            "BLOCKED": CLR_DANGER,
+        }.get(overall_status, CLR_MUTED)
+
+        ctk.CTkLabel(
+            hdr,
+            text="📋 Deployment Readiness Report",
+            font=("Segoe UI", 14, "bold"),
+            text_color=CLR_TEXT,
+        ).pack(anchor="w", padx=16, pady=(12, 4))
+
+        status_frame = ctk.CTkFrame(hdr, fg_color="transparent")
+        status_frame.pack(anchor="w", padx=16, pady=(0, 12))
+
+        ctk.CTkLabel(
+            status_frame,
+            text=f"Status: {overall_status}",
+            font=FONT_SUBHEAD,
+            text_color=status_color,
+        ).pack(side="left", padx=(0, 16))
+
+        total = readiness_data.get("total_checks", 0)
+        passed = readiness_data.get("passed_checks", 0)
+        pct = (passed / total * 100) if total > 0 else 0
+
+        ctk.CTkLabel(
+            status_frame,
+            text=f"{passed} / {total} Checks Passed ({int(pct)}%)",
+            font=FONT_BODY,
+            text_color=CLR_TEXT_SEC,
+        ).pack(side="left")
+
+        # Content
+        scroll = ctk.CTkScrollableFrame(self, fg_color=CLR_BG)
+        scroll.pack(fill="both", expand=True, padx=16, pady=16)
+
+        # Check results
+        checks = readiness_data.get("checks", [])
+        for check in checks:
+            self._build_check_item(scroll, check)
+
+        # Footer
+        footer = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=50)
+        footer.pack(fill="x")
+        footer.pack_propagate(False)
+
+        ctk.CTkButton(
+            footer,
+            text="📥 Export Report",
+            fg_color=CLR_SUCCESS,
+            text_color="#ffffff",
+            font=FONT_BODY,
+            height=BTN_H,
+            corner_radius=BTN_R,
+        ).pack(side="left", padx=8, pady=12)
+
+        ctk.CTkButton(
+            footer,
+            text="Close",
+            command=self.destroy,
+            fg_color=CLR_SURFACE_ALT,
+            text_color=CLR_TEXT,
+            font=FONT_BODY,
+            height=BTN_H,
+            corner_radius=BTN_R,
+        ).pack(side="right", padx=8, pady=12)
+
+    def _build_check_item(self, parent, check):
+        """Build a check item."""
+        status = check.get("status", "UNKNOWN")
+        status_color = {
+            "PASS": CLR_SUCCESS,
+            "WARNING": CLR_WARNING,
+            "FAIL": CLR_DANGER,
+        }.get(status, CLR_MUTED)
+
+        status_icon = {"PASS": "✔", "WARNING": "⚠", "FAIL": "✖"}.get(status, "?")
+
+        card = ctk.CTkFrame(parent, fg_color=CLR_SURFACE, corner_radius=8)
+        card.pack(fill="x", pady=4)
+        card.grid_columnconfigure(2, weight=1)
+
+        # Icon
+        ctk.CTkLabel(
+            card,
+            text=status_icon,
+            font=("Segoe UI Emoji", 18),
+            text_color=status_color,
+        ).grid(row=0, column=0, padx=12, pady=8)
+
+        # Content
+        content = ctk.CTkFrame(card, fg_color="transparent")
+        content.grid(row=0, column=1, columnspan=2, sticky="ew", padx=0, pady=8)
+        content.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            content,
+            text=check.get("name", "Unknown"),
+            font=FONT_SUBHEAD,
+            text_color=CLR_TEXT,
+        ).pack(anchor="w")
+
+        detail = check.get("detail", "")
+        if detail:
+            ctk.CTkLabel(
+                content,
+                text=detail,
+                font=FONT_SMALL,
+                text_color=CLR_TEXT_SEC,
+                wraplength=500,
+            ).pack(anchor="w")
+
+
+class AutoRemediationPanel(ctk.CTkFrame):
+    """Automatic remediation assistant."""
+
+    def __init__(self, parent, failed_checks):
+        super().__init__(parent, fg_color=CLR_SURFACE, corner_radius=8)
+
+        ctk.CTkLabel(
+            self, text="🔧 Auto-Remediation", font=FONT_SUBHEAD, text_color=CLR_TEXT
+        ).pack(anchor="w", padx=12, pady=(12, 8))
+
+        if not failed_checks:
+            ctk.CTkLabel(
+                self,
+                text="All checks passed! No remediation needed.",
+                font=FONT_BODY,
+                text_color=CLR_SUCCESS,
+            ).pack(padx=12, pady=12)
+            return
+
+        for check in failed_checks:
+            self._build_remediation_option(check)
+
+    def _build_remediation_option(self, check):
+        """Build remediation option."""
+        option = ctk.CTkFrame(self, fg_color=CLR_SURFACE_ALT, corner_radius=6)
+        option.pack(fill="x", padx=12, pady=4)
+        option.grid_columnconfigure(1, weight=1)
+
+        check_name = check.get("name", "Unknown")
+        check_id = check.get("id", "?")
+
+        # Checkbox
+        var = ctk.BooleanVar()
+        checkbox = ctk.CTkCheckBox(
+            option,
+            text=f"{check_id}: {check_name}",
+            variable=var,
+            text_color=CLR_TEXT,
+            fg_color=CLR_SUCCESS,
+            font=FONT_BODY,
+        )
+        checkbox.grid(row=0, column=0, columnspan=2, padx=12, pady=8, sticky="w")
+
+        # Effort/danger indicator
+        effort = check.get("effort", "Medium")
+        danger = check.get("requires_restart", False)
+
+        indicator_text = f"Effort: {effort}"
+        if danger:
+            indicator_text += " • Requires restart"
+
+        ctk.CTkLabel(
+            option,
+            text=indicator_text,
+            font=FONT_SMALL,
+            text_color=CLR_WARNING if danger else CLR_TEXT_SEC,
+        ).grid(row=1, column=0, columnspan=2, padx=24, pady=(0, 8), sticky="w")
+
+
+class PreDeploymentChecklist(ctk.CTkToplevel):
+    """Pre-deployment checklist dialog."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("Pre-Deployment Checklist")
+        self.geometry("700x600")
+        self.configure(fg_color=CLR_BG)
+
+        # Header
+        hdr = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=50)
+        hdr.pack(fill="x")
+        hdr.pack_propagate(False)
+
+        ctk.CTkLabel(
+            hdr,
+            text="✅ Pre-Deployment Checklist",
+            font=("Segoe UI", 14, "bold"),
+            text_color=CLR_TEXT,
+        ).pack(anchor="w", padx=16, pady=12)
+
+        # Content
+        scroll = ctk.CTkScrollableFrame(self, fg_color=CLR_BG)
+        scroll.pack(fill="both", expand=True, padx=16, pady=16)
+
+        checklist_items = [
+            ("Security", [
+                "All security patches applied",
+                "Firewall enabled and configured",
+                "Antivirus installed and updated",
+                "SSH keys secured",
+                "Admin credentials rotated",
+            ]),
+            ("Infrastructure", [
+                "All services started successfully",
+                "Database connectivity verified",
+                "Backup systems operational",
+                "Monitoring agents installed",
+                "Log collection configured",
+            ]),
+            ("Compliance", [
+                "Security policies documented",
+                "Audit logging enabled",
+                "Data protection measures in place",
+                "Incident response plan ready",
+                "Stakeholders notified",
+            ]),
+        ]
+
+        for category, items in checklist_items:
+            cat_frame = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE, corner_radius=8)
+            cat_frame.pack(fill="x", pady=(0, 12))
+
+            ctk.CTkLabel(
+                cat_frame,
+                text=category,
+                font=FONT_SUBHEAD,
+                text_color=CLR_TEXT,
+            ).pack(anchor="w", padx=12, pady=(12, 8))
+
+            for item in items:
+                item_frame = ctk.CTkFrame(cat_frame, fg_color="transparent")
+                item_frame.pack(fill="x", padx=12, pady=2)
+
+                var = ctk.BooleanVar()
+                ctk.CTkCheckBox(
+                    item_frame,
+                    text=item,
+                    variable=var,
+                    text_color=CLR_TEXT,
+                    fg_color=CLR_SUCCESS,
+                    font=FONT_BODY,
+                ).pack(anchor="w")
+
+        # Footer
+        footer = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=50)
+        footer.pack(fill="x")
+        footer.pack_propagate(False)
+
+        ctk.CTkButton(
+            footer,
+            text="Close",
+            command=self.destroy,
+            fg_color=CLR_SURFACE_ALT,
+            text_color=CLR_TEXT,
+            font=FONT_BODY,
+            height=BTN_H,
+            corner_radius=BTN_R,
+        ).pack(side="left", padx=16, pady=12)

@@ -1,5 +1,6 @@
 """Manual assessment — C06-C15 questions with numbered cards and live scoring."""
 
+from tkinter import filedialog
 import customtkinter as ctk
 from src.gui.theme import (
     CLR_BG, CLR_SURFACE, CLR_SURFACE_ALT,
@@ -287,3 +288,128 @@ class ManualChecksScreen(ctk.CTkFrame):
             if txt:
                 evidence[ctrl_key] = txt
         self._on_next(manual_scores, evidence)
+
+
+class EvidenceCapture(ctk.CTkToplevel):
+    """Modal for capturing evidence for a manual check."""
+
+    def __init__(self, parent, control_id, control_name):
+        super().__init__(parent)
+        self.title(f"Evidence Capture — {control_id}")
+        self.geometry("600x400")
+        self.configure(fg_color=CLR_BG)
+        self.evidence_data = None
+
+        hdr = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=50)
+        hdr.pack(fill="x")
+        hdr.pack_propagate(False)
+        ctk.CTkLabel(hdr, text=f"📸 Evidence: {control_id} — {control_name}",
+                     font=("Segoe UI", 13, "bold"), text_color=CLR_TEXT,
+                     ).pack(anchor="w", padx=16, pady=12)
+
+        scroll = ctk.CTkScrollableFrame(self, fg_color=CLR_BG)
+        scroll.pack(fill="both", expand=True, padx=16, pady=16)
+
+        ctk.CTkLabel(scroll, text="Notes",
+                     font=FONT_SUBHEAD, text_color=CLR_TEXT).pack(anchor="w")
+        self.notes_text = ctk.CTkTextbox(scroll, fg_color=CLR_SURFACE_ALT,
+                                         border_color=CLR_BORDER,
+                                         text_color=CLR_TEXT,
+                                         font=("Segoe UI", 11), height=150)
+        self.notes_text.pack(fill="x", pady=(4, 16))
+
+        ctk.CTkLabel(scroll, text="Attachments (screenshots, docs)",
+                     font=FONT_SUBHEAD, text_color=CLR_TEXT).pack(anchor="w")
+        ctk.CTkButton(scroll, text="+ Add File", command=self._add_file,
+                      fg_color=CLR_SURFACE_ALT, hover_color=CLR_SUCCESS,
+                      text_color=CLR_TEXT, font=FONT_BODY,
+                      height=BTN_H, corner_radius=BTN_R,
+                      ).pack(fill="x", pady=(4, 12))
+        self.files_list = ctk.CTkTextbox(scroll, fg_color=CLR_SURFACE_ALT,
+                                         border_color=CLR_BORDER,
+                                         text_color=CLR_MUTED,
+                                         font=("Segoe UI", 10),
+                                         height=80, state="disabled")
+        self.files_list.pack(fill="x", pady=(0, 16))
+        self.attached_files = []
+
+        footer = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=50)
+        footer.pack(fill="x")
+        footer.pack_propagate(False)
+        ctk.CTkButton(footer, text="Cancel", command=self.destroy,
+                      fg_color=CLR_SURFACE_ALT, text_color=CLR_TEXT,
+                      font=FONT_BODY, height=BTN_H, corner_radius=BTN_R,
+                      width=120).pack(side="left", padx=8, pady=12)
+        ctk.CTkButton(footer, text="Save Evidence",
+                      command=self._save_evidence,
+                      fg_color=CLR_SUCCESS, text_color="#ffffff",
+                      font=FONT_BODY, height=BTN_H, corner_radius=BTN_R,
+                      ).pack(side="right", padx=8, pady=12)
+
+    def _add_file(self):
+        file_path = filedialog.askopenfilename(
+            title="Select evidence file",
+            filetypes=[("All Files", "*.*"), ("Images", "*.jpg *.png"),
+                       ("Documents", "*.pdf")])
+        if file_path:
+            self.attached_files.append(file_path)
+            self.files_list.configure(state="normal")
+            self.files_list.delete("1.0", "end")
+            for f in self.attached_files:
+                self.files_list.insert("end", f"• {f}\n")
+            self.files_list.configure(state="disabled")
+
+    def _save_evidence(self):
+        self.evidence_data = {"notes": self.notes_text.get("1.0", "end"),
+                               "files": self.attached_files}
+        self.destroy()
+
+
+class ControlSearchFilter(ctk.CTkFrame):
+    """Search and filter widget for manual controls."""
+
+    def __init__(self, parent, on_search=None):
+        super().__init__(parent, fg_color=CLR_SURFACE, corner_radius=8)
+        self.on_search = on_search or (lambda x: None)
+        self.search_var = ctk.StringVar()
+        self.search_var.trace("w", lambda *args: self.on_search(self.search_var.get()))
+        ctk.CTkEntry(self, placeholder_text="Search controls by name or ID...",
+                     textvariable=self.search_var, fg_color=CLR_SURFACE_ALT,
+                     border_color=CLR_BORDER, text_color=CLR_TEXT,
+                     font=FONT_BODY, height=36,
+                     ).pack(fill="x", padx=12, pady=(12, 8))
+
+        filter_frame = ctk.CTkFrame(self, fg_color="transparent")
+        filter_frame.pack(fill="x", padx=12, pady=(0, 12))
+        self.filter_var = ctk.StringVar(value="all")
+        for text, value in [("All", "all"), ("Answered", "answered"), ("Pending", "pending")]:
+            ctk.CTkRadioButton(filter_frame, text=text,
+                               variable=self.filter_var, value=value,
+                               fg_color=CLR_SUCCESS, text_color=CLR_TEXT,
+                               font=FONT_SMALL,
+                               ).pack(side="left", padx=8)
+
+
+class ManualProgressIndicator(ctk.CTkFrame):
+    """Live progress indicator for manual checks."""
+
+    def __init__(self, parent, total_controls):
+        super().__init__(parent, fg_color=CLR_SURFACE, corner_radius=8)
+        self.total = total_controls
+        self.progress_bar = ctk.CTkProgressBar(self, fg_color=CLR_SURFACE_ALT,
+                                               progress_color=CLR_SUCCESS,
+                                               height=6, corner_radius=2)
+        self.progress_bar.set(0)
+        self.progress_bar.pack(fill="x", padx=12, pady=(12, 8))
+        self.status_label = ctk.CTkLabel(
+            self,
+            text=f"Progress: 0 of {total_controls} completed",
+            font=FONT_SMALL, text_color=CLR_TEXT_SEC)
+        self.status_label.pack(anchor="w", padx=12, pady=(0, 12))
+
+    def update_progress(self, answered):
+        progress = answered / self.total if self.total > 0 else 0
+        self.progress_bar.set(progress)
+        self.status_label.configure(
+            text=f"Progress: {answered} of {self.total} completed "
+                 f"({int(progress * 100)}%)")
