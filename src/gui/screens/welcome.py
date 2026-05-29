@@ -44,7 +44,7 @@ class WelcomeScreen(ctk.CTkFrame):
     def __init__(self, master, on_start, on_history=None, on_infra=None,
                  on_zambia_risk=None, on_policies=None,
                  on_network=None, on_deploy=None, on_remediation=None,
-                 on_active_dir=None, on_export=None, on_users=None,
+                 on_active_dir=None, on_export=None,
                  on_audit=None, on_settings=None, on_dashboard=None):
         super().__init__(master, fg_color=CLR_BG, corner_radius=0)
         self._on_start = on_start
@@ -57,7 +57,6 @@ class WelcomeScreen(ctk.CTkFrame):
         self._on_remediation = on_remediation or (lambda: None)
         self._on_active_dir = on_active_dir or (lambda: None)
         self._on_export = on_export or (lambda: None)
-        self._on_users = on_users or (lambda: None)
         self._on_audit = on_audit or (lambda: None)
         self._on_settings = on_settings or (lambda: None)
         self._on_dashboard = on_dashboard or (lambda: None)
@@ -347,12 +346,10 @@ class WelcomeScreen(ctk.CTkFrame):
              "#00B386",   "#001A0F",      self._on_dashboard,     2, 0),
             ("📥  Export",
              "#FF9800",   "#330000",      self._on_export,        2, 1),
-            ("👥  Users",
-             "#2196F3",   "#001030",      self._on_users,         2, 2),
             ("📋  Audit Log",
-             "#607D8B",   "#0F0F0F",      self._on_audit,         2, 3),
+             "#607D8B",   "#0F0F0F",      self._on_audit,         2, 2),
             ("⚙️  Settings",
-             "#757575",   "#1A1A1A",      self._on_settings,      3, 0),
+             "#757575",   "#1A1A1A",      self._on_settings,      2, 3),
         ]
         for label, clr, hov, cmd, r, c in tools:
             btn = ctk.CTkFrame(grid, fg_color=CLR_SURFACE, corner_radius=12,

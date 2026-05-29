@@ -2,13 +2,7 @@
 
 import customtkinter as ctk
 
-from src.gui.theme import (
-    APP_NAME,
-    APP_VERSION,
-    CLR_BG,
-    WIN_H,
-    WIN_W,
-)
+from src.gui.theme import APP_NAME, APP_VERSION, CLR_BG, WIN_H, WIN_W
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("dark-blue")
@@ -58,7 +52,6 @@ class DigitalHygieneApp(ctk.CTk):
             on_remediation=self._show_remediation_guidance,
             on_active_dir=self._show_active_directory,
             on_export=self._show_export_reports,
-            on_users=self._show_user_management,
             on_audit=self._show_audit_logs,
             on_settings=self._show_settings,
             on_dashboard=self._show_assessment_dashboard,
@@ -99,10 +92,6 @@ class DigitalHygieneApp(ctk.CTk):
     def _show_export_reports(self):
         from src.gui.screens.export_reports import ExportReportsScreen
         self._swap(ExportReportsScreen(self, on_back=self._show_welcome))
-
-    def _show_user_management(self):
-        from src.gui.screens.user_management import UserManagementScreen
-        self._swap(UserManagementScreen(self, on_back=self._show_welcome))
 
     def _show_audit_logs(self):
         from src.gui.screens.audit_log_viewer import AuditLogViewerScreen
