@@ -285,3 +285,138 @@ class InfraScannerScreen(ctk.CTkFrame):
                 anchor="w", wraplength=620, justify="left",
             ).grid(row=i, column=1,
                    padx=(0, 14), pady=(pt, pb), sticky="w")
+
+
+class ScanProgressTracker(ctk.CTkFrame):
+    """Real-time scan progress tracker with detailed metrics."""
+
+    def __init__(self, parent, total_targets):
+        super().__init__(parent, fg_color=CLR_SURFACE, corner_radius=8)
+        self.total = total_targets
+        self.vulnerabilities = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+
+        ctk.CTkLabel(self, text="Scan Progress",
+                     font=FONT_SUBHEAD, text_color=CLR_TEXT,
+                     ).pack(anchor="w", padx=12, pady=(12, 4))
+        self.progress_bar = ctk.CTkProgressBar(self, fg_color=CLR_SURFACE_ALT,
+                                               progress_color=CLR_SUCCESS,
+                                               height=8, corner_radius=2)
+        self.progress_bar.set(0)
+        self.progress_bar.pack(fill="x", padx=12, pady=(0, 4))
+        self.status_label = ctk.CTkLabel(
+            self, text=f"0 of {total_targets} scanned",
+            font=FONT_SMALL, text_color=CLR_TEXT_SEC)
+        self.status_label.pack(anchor="w", padx=12, pady=(0, 12))
+
+        vuln_frame = ctk.CTkFrame(self, fg_color="transparent")
+        vuln_frame.pack(fill="x", padx=12, pady=(0, 12))
+        for level, color in [("critical", CLR_DANGER), ("high", CLR_WARNING),
+                              ("medium", "#FF9800"), ("low", "#2196F3")]:
+            badge = ctk.CTkFrame(vuln_frame, fg_color=color,
+                                 corner_radius=4, width=50, height=28)
+            badge.pack(side="left", padx=4)
+            badge.pack_propagate(False)
+            label = ctk.CTkLabel(badge, text=f"{level.capitalize()}: 0",
+                                 font=FONT_SMALL, text_color="#ffffff")
+            label.pack(expand=True)
+            setattr(self, f"badge_{level}", label)
+
+    def update_progress(self, scanned):
+        progress = scanned / self.total if self.total > 0 else 0
+        self.progress_bar.set(progress)
+        self.status_label.configure(
+            text=f"{scanned} of {self.total} targets scanned ({int(progress * 100)}%)")
+
+    def update_vulnerabilities(self, level, count):
+        self.vulnerabilities[level] = count
+        if hasattr(self, f"badge_{level}"):
+            getattr(self, f"badge_{level}").configure(
+                text=f"{level.capitalize()}: {count}")
+
+
+class VulnerabilityDetailDialog(ctk.CTkToplevel):
+    """Detailed view of a specific vulnerability."""
+
+    def __init__(self, parent, vuln_data):
+        super().__init__(parent)
+        self.title(f"Vulnerability: {vuln_data.get('name', 'Unknown')}")
+        self.geometry("700x600")
+        self.configure(fg_color=CLR_BG)
+
+        severity = vuln_data.get("severity", "UNKNOWN").upper()
+        severity_color = {"CRITICAL": CLR_DANGER, "HIGH": CLR_WARNING,
+                          "MEDIUM": "#FF9800", "LOW": "#2196F3"}.get(severity, CLR_MUTED)
+
+        hdr = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=60)
+        hdr.pack(fill="x")
+        hdr.pack_propagate(False)
+        title_frame = ctk.CTkFrame(hdr, fg_color="transparent")
+        title_frame.pack(fill="x", padx=16, pady=(12, 4))
+        ctk.CTkLabel(title_frame, text=vuln_data.get("name", "Unknown"),
+                     font=("Segoe UI", 14, "bold"), text_color=CLR_TEXT,
+                     ).pack(anchor="w", side="left")
+        ctk.CTkLabel(title_frame, text=severity,
+                     font=FONT_SMALL, text_color=severity_color,
+                     ).pack(anchor="e", side="right")
+
+        scroll = ctk.CTkScrollableFrame(self, fg_color=CLR_BG)
+        scroll.pack(fill="both", expand=True, padx=16, pady=16)
+        for section_title, content in [
+            ("Description",   vuln_data.get("description", "")),
+            ("Affected Target", vuln_data.get("target", "")),
+            ("CVSS Score",    vuln_data.get("cvss_score", "N/A")),
+            ("Remediation",   vuln_data.get("remediation", "")),
+        ]:
+            frame = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE_ALT, corner_radius=8)
+            frame.pack(fill="x", pady=(0, 12))
+            ctk.CTkLabel(frame, text=section_title,
+                         font=FONT_SUBHEAD, text_color=CLR_TEXT,
+                         ).pack(anchor="w", padx=12, pady=(12, 4))
+            ctk.CTkLabel(frame, text=content, font=FONT_BODY,
+                         text_color=CLR_TEXT_SEC, wraplength=600, justify="left",
+                         ).pack(anchor="w", padx=12, pady=(0, 12))
+
+        footer = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=50)
+        footer.pack(fill="x")
+        footer.pack_propagate(False)
+        ctk.CTkButton(footer, text="Close", command=self.destroy,
+                      fg_color=CLR_SURFACE_ALT, text_color=CLR_TEXT,
+                      font=FONT_BODY, height=BTN_H, corner_radius=BTN_R,
+                      ).pack(side="left", padx=16, pady=12)
+
+
+class PortFilterPanel(ctk.CTkFrame):
+    """Filter ports and services in network scan."""
+
+    def __init__(self, parent, on_filter_change=None):
+        super().__init__(parent, fg_color=CLR_SURFACE, corner_radius=8)
+        self.on_filter_change = on_filter_change or (lambda: None)
+
+        ctk.CTkLabel(self, text="🔌 Filter Ports & Services",
+                     font=FONT_SUBHEAD, text_color=CLR_TEXT,
+                     ).pack(anchor="w", padx=12, pady=(12, 8))
+
+        port_frame = ctk.CTkFrame(self, fg_color="transparent")
+        port_frame.pack(fill="x", padx=12, pady=(0, 12))
+        ctk.CTkLabel(port_frame, text="Port Range:",
+                     font=FONT_BODY, text_color=CLR_TEXT).pack(side="left")
+        self.port_start = ctk.CTkEntry(port_frame, placeholder_text="Start",
+                                       fg_color=CLR_SURFACE_ALT, text_color=CLR_TEXT,
+                                       font=FONT_SMALL, width=60, height=28)
+        self.port_start.pack(side="left", padx=4)
+        ctk.CTkLabel(port_frame, text="to",
+                     font=FONT_BODY, text_color=CLR_TEXT).pack(side="left")
+        self.port_end = ctk.CTkEntry(port_frame, placeholder_text="End",
+                                     fg_color=CLR_SURFACE_ALT, text_color=CLR_TEXT,
+                                     font=FONT_SMALL, width=60, height=28)
+        self.port_end.pack(side="left", padx=4)
+
+        svc_frame = ctk.CTkFrame(self, fg_color="transparent")
+        svc_frame.pack(fill="x", padx=12, pady=(0, 12))
+        ctk.CTkLabel(svc_frame, text="Services:",
+                     font=FONT_BODY, text_color=CLR_TEXT,
+                     ).pack(side="left", padx=(0, 8))
+        for service in ["HTTP", "HTTPS", "SSH", "Database", "Other"]:
+            ctk.CTkCheckBox(svc_frame, text=service,
+                            text_color=CLR_TEXT, fg_color=CLR_SUCCESS,
+                            font=FONT_SMALL).pack(side="left", padx=4)

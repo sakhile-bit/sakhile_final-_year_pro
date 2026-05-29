@@ -610,3 +610,121 @@ class ResultsScreen(ctk.CTkFrame):
                      ).pack(pady=(0, 14))
         ctk.CTkButton(dlg, text="OK", fg_color=CLR_ACCENT,
                       text_color="#000000", command=dlg.destroy).pack()
+
+
+class RecommendationsPanel(ctk.CTkFrame):
+    """Recommendations panel showing suggested actions for improvement."""
+
+    _EFFORT_MAP = {
+        "C01": "⚡ Quick Fix", "C02": "⚡ Quick Fix", "C03": "⚡ Quick Fix",
+        "C04": "📅 This Week", "C05": "📅 This Week",
+        "C06": "📆 This Month", "C07": "📆 This Month", "C08": "📆 This Month",
+        "C09": "📅 This Week", "C10": "📅 This Week",
+        "C11": "📆 This Month", "C12": "📅 This Week",
+        "C13": "📆 This Month", "C14": "🔁 Ongoing", "C15": "🔁 Ongoing",
+    }
+
+    def __init__(self, parent, results):
+        super().__init__(parent, fg_color=CLR_SURFACE, corner_radius=12)
+        self._build_recommendations(results)
+
+    def _get_effort(self, control_id):
+        return self._EFFORT_MAP.get(control_id[:3], "📆 This Month")
+
+    def _build_recommendations(self, results):
+        ctk.CTkLabel(self, text="💡 Recommended Actions",
+                     font=FONT_SUBHEAD, text_color=CLR_TEXT,
+                     ).pack(anchor="w", padx=16, pady=(12, 8))
+
+        recommendations = []
+        for control_id, control_result in results.get("controls", {}).items():
+            status = control_result.get("status", "NOT_ASSESSED")
+            if status in ["FAIL", "WARNING"]:
+                effort = self._get_effort(control_id)
+                recommendations.append(
+                    (control_id, control_result.get("name", control_id), status, effort)
+                )
+
+        if not recommendations:
+            ctk.CTkLabel(self, text="✓ All controls are passing. Great work!",
+                         font=FONT_BODY, text_color=CLR_SUCCESS,
+                         ).pack(padx=16, pady=12)
+            return
+
+        for idx, (cid, name, status, effort) in enumerate(recommendations):
+            item = ctk.CTkFrame(self, fg_color=CLR_SURFACE_ALT, corner_radius=8)
+            item.pack(fill="x", padx=16, pady=4)
+            priority_color = CLR_DANGER if status == "FAIL" else CLR_WARNING
+            ctk.CTkFrame(item, fg_color=priority_color, width=3,
+                         corner_radius=0).grid(row=0, column=0, sticky="ns", pady=0)
+            content = ctk.CTkFrame(item, fg_color="transparent")
+            content.grid(row=0, column=1, sticky="ew", padx=12, pady=8)
+            ctk.CTkLabel(content, text=f"{cid}: {name}",
+                         font=FONT_BODY, text_color=CLR_TEXT).pack(anchor="w")
+            ctk.CTkLabel(content, text=f"{status} • {effort}",
+                         font=FONT_SMALL, text_color=CLR_TEXT_SEC).pack(anchor="w")
+
+
+class BenchmarkComparison(ctk.CTkToplevel):
+    """Compare current assessment with previous assessments and industry benchmarks."""
+
+    def __init__(self, parent, current_results):
+        super().__init__(parent)
+        self.title("Assessment Benchmarking")
+        self.geometry("700x500")
+        self.configure(fg_color=CLR_BG)
+
+        hdr = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=50)
+        hdr.pack(fill="x")
+        hdr.pack_propagate(False)
+        ctk.CTkLabel(hdr, text="📊 Benchmarking & Comparison",
+                     font=("Segoe UI", 14, "bold"), text_color=CLR_TEXT,
+                     ).pack(anchor="w", padx=16, pady=12)
+
+        scroll = ctk.CTkScrollableFrame(self, fg_color=CLR_BG)
+        scroll.pack(fill="both", expand=True, padx=16, pady=16)
+
+        current_score = current_results.get("score", 0)
+        total_possible = current_results.get("total_possible", 120)
+        pct = (current_score / total_possible * 100) if total_possible > 0 else 0
+
+        current_frame = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE, corner_radius=8)
+        current_frame.pack(fill="x", pady=(0, 16))
+        ctk.CTkLabel(current_frame, text="Your Current Score",
+                     font=FONT_SUBHEAD, text_color=CLR_TEXT,
+                     ).pack(anchor="w", padx=16, pady=(12, 4))
+        ctk.CTkLabel(current_frame,
+                     text=f"{current_score} / {total_possible} ({pct:.0f}%)",
+                     font=("Segoe UI", 24, "bold"), text_color=CLR_SUCCESS,
+                     ).pack(anchor="w", padx=16, pady=(0, 12))
+
+        ctk.CTkLabel(scroll, text="Benchmarks",
+                     font=FONT_SUBHEAD, text_color=CLR_TEXT,
+                     ).pack(anchor="w", pady=(0, 8))
+
+        benchmarks = [
+            ("Your Industry Average", 65), ("Zambian SME Average", 58),
+            ("Your Region Average", 62),   ("Top 25% Performance", 85),
+        ]
+        for label, score in benchmarks:
+            bench_frame = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE_ALT, corner_radius=6)
+            bench_frame.pack(fill="x", pady=4)
+            bench_frame.grid_columnconfigure(1, weight=1)
+            ctk.CTkLabel(bench_frame, text=label,
+                         font=FONT_BODY, text_color=CLR_TEXT,
+                         ).grid(row=0, column=0, padx=12, pady=8, sticky="w")
+            bar = ctk.CTkProgressBar(bench_frame, fg_color=CLR_SURFACE,
+                                     progress_color=CLR_WARNING, height=4)
+            bar.set(score / 100)
+            bar.grid(row=1, column=0, columnspan=2, padx=12, pady=(0, 8), sticky="ew")
+            ctk.CTkLabel(bench_frame, text=str(score),
+                         font=FONT_SMALL, text_color=CLR_TEXT_SEC,
+                         ).grid(row=0, column=1, padx=12, sticky="e")
+
+        footer = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=50)
+        footer.pack(fill="x")
+        footer.pack_propagate(False)
+        ctk.CTkButton(footer, text="Close", command=self.destroy,
+                      fg_color=CLR_SURFACE_ALT, text_color=CLR_TEXT,
+                      font=FONT_BODY, height=BTN_H, corner_radius=BTN_R,
+                      ).pack(side="left", padx=16, pady=12)

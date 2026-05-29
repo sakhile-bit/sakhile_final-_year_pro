@@ -1,17 +1,40 @@
 """Welcome / home screen — two-column professional layout."""
 
 import customtkinter as ctk
+
 from src.gui.theme import (
-    CLR_BRAND, CLR_BG, CLR_SURFACE, CLR_SURFACE_ALT, CLR_SURFACE_HVR,
-    CLR_ACCENT, CLR_ACCENT_HOV, CLR_ACCENT_DIM,
-    CLR_BLUE, CLR_BLUE_DIM, CLR_AMBER, CLR_AMBER_DIM,
-    CLR_TEXT, CLR_TEXT_SEC, CLR_MUTED, CLR_BORDER, CLR_DIVIDER,
-    CLR_SUCCESS, CLR_WARNING, CLR_DANGER,
-    FONT_DISPLAY, FONT_SUBHEAD, FONT_SUBTITLE, FONT_SMALL, FONT_CAPTION,
-    PAD_LG, BTN_H_LG, BTN_R, APP_NAME, APP_VERSION,
+    APP_NAME,
+    APP_VERSION,
+    BTN_H_LG,
+    BTN_R,
+    CLR_ACCENT,
+    CLR_ACCENT_DIM,
+    CLR_ACCENT_HOV,
+    CLR_AMBER,
+    CLR_AMBER_DIM,
+    CLR_BG,
+    CLR_BLUE,
+    CLR_BLUE_DIM,
+    CLR_BORDER,
+    CLR_BRAND,
+    CLR_DANGER,
+    CLR_DIVIDER,
+    CLR_MUTED,
+    CLR_SUCCESS,
+    CLR_SURFACE,
+    CLR_SURFACE_ALT,
+    CLR_SURFACE_HVR,
+    CLR_TEXT,
+    CLR_TEXT_SEC,
+    CLR_WARNING,
+    FONT_CAPTION,
+    FONT_DISPLAY,
+    FONT_SMALL,
+    FONT_SUBHEAD,
+    FONT_SUBTITLE,
+    PAD_LG,
     TIER_COLOURS,
 )
-
 
 TIER_ICON = {"GOLD": "🥇", "SILVER": "🥈", "BRONZE": "🥉", "NOT CERTIFIED": "✕"}
 
@@ -20,7 +43,9 @@ class WelcomeScreen(ctk.CTkFrame):
 
     def __init__(self, master, on_start, on_history=None, on_infra=None,
                  on_zambia_risk=None, on_policies=None,
-                 on_network=None, on_deploy=None):
+                 on_network=None, on_deploy=None, on_remediation=None,
+                 on_active_dir=None, on_export=None, on_users=None,
+                 on_audit=None, on_settings=None, on_dashboard=None):
         super().__init__(master, fg_color=CLR_BG, corner_radius=0)
         self._on_start = on_start
         self._on_history = on_history or (lambda: None)
@@ -29,6 +54,13 @@ class WelcomeScreen(ctk.CTkFrame):
         self._on_policies = on_policies or (lambda: None)
         self._on_network = on_network or (lambda: None)
         self._on_deploy = on_deploy or (lambda: None)
+        self._on_remediation = on_remediation or (lambda: None)
+        self._on_active_dir = on_active_dir or (lambda: None)
+        self._on_export = on_export or (lambda: None)
+        self._on_users = on_users or (lambda: None)
+        self._on_audit = on_audit or (lambda: None)
+        self._on_settings = on_settings or (lambda: None)
+        self._on_dashboard = on_dashboard or (lambda: None)
         self._build()
 
     # ------------------------------------------------------------------ build
@@ -259,8 +291,9 @@ class WelcomeScreen(ctk.CTkFrame):
 
     def _build_reminder(self, parent, row):
         try:
-            from src.utils.local_db import get_reassessment_date
             import datetime
+
+            from src.utils.local_db import get_reassessment_date
             due = get_reassessment_date()
             if due:
                 days = (due - datetime.date.today()).days
@@ -291,7 +324,7 @@ class WelcomeScreen(ctk.CTkFrame):
 
         grid = ctk.CTkFrame(parent, fg_color="transparent")
         grid.grid(row=row, column=0, sticky="ew")
-        grid.grid_columnconfigure((0, 1, 2), weight=1)
+        grid.grid_columnconfigure((0, 1, 2, 3), weight=1)
 
         tools = [
             (f"📋  History{' (' + str(count) + ')' if count else ''}",
@@ -301,11 +334,25 @@ class WelcomeScreen(ctk.CTkFrame):
             ("🔍  Infra Scan",
              CLR_BLUE,    CLR_BLUE_DIM,   self._on_infra,         0, 2),
             ("🇿🇲  Zambia Risk",
-             CLR_AMBER,   CLR_AMBER_DIM,  self._on_zambia_risk,   1, 0),
+             CLR_AMBER,   CLR_AMBER_DIM,  self._on_zambia_risk,   0, 3),
             ("📄  Policy Docs",
-             "#CD8A3A",   "#1A0E00",      self._on_policies,      1, 1),
+             "#CD8A3A",   "#1A0E00",      self._on_policies,      1, 0),
             ("🚀  Deploy Check",
-             CLR_SUCCESS, "#1A1730",      self._on_deploy,        1, 2),
+             CLR_SUCCESS, "#1A1730",      self._on_deploy,        1, 1),
+            ("🔧  Remediation",
+             "#FF6B9D",   "#330011",      self._on_remediation,   1, 2),
+            ("🖥️  Active Dir",
+             "#9C27B0",   "#1A0033",      self._on_active_dir,    1, 3),
+            ("📊  Dashboard",
+             "#00B386",   "#001A0F",      self._on_dashboard,     2, 0),
+            ("📥  Export",
+             "#FF9800",   "#330000",      self._on_export,        2, 1),
+            ("👥  Users",
+             "#2196F3",   "#001030",      self._on_users,         2, 2),
+            ("📋  Audit Log",
+             "#607D8B",   "#0F0F0F",      self._on_audit,         2, 3),
+            ("⚙️  Settings",
+             "#757575",   "#1A1A1A",      self._on_settings,      3, 0),
         ]
         for label, clr, hov, cmd, r, c in tools:
             btn = ctk.CTkFrame(grid, fg_color=CLR_SURFACE, corner_radius=12,

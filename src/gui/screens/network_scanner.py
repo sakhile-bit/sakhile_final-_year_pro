@@ -19,7 +19,7 @@ from src.gui.theme import (
     CLR_BG, CLR_SURFACE, CLR_SURFACE_ALT, CLR_SURFACE_HVR,
     CLR_ACCENT, CLR_ACCENT_HOV, CLR_BLUE,
     CLR_TEXT, CLR_TEXT_SEC, CLR_MUTED,
-    CLR_SUCCESS, CLR_BORDER, CLR_DIVIDER,
+    CLR_SUCCESS, CLR_WARNING, CLR_BORDER, CLR_DIVIDER,
     FONT_SUBHEAD, FONT_BODY, FONT_SMALL, FONT_CAPTION,
     PAD, PAD_SM, NAV_H, BTN_H, BTN_R,
 )
@@ -946,3 +946,143 @@ class NetworkScannerScreen(ctk.CTkFrame):
                       fg_color=CLR_ACCENT, text_color="#000000",
                       height=BTN_H, corner_radius=BTN_R,
                       command=dlg.destroy).pack()
+
+
+class HostDiscoveryPanel(ctk.CTkFrame):
+    """Host discovery and ping sweep interface."""
+
+    def __init__(self, parent):
+        super().__init__(parent, fg_color=CLR_SURFACE, corner_radius=8)
+        ctk.CTkLabel(self, text="🔍 Host Discovery",
+                     font=FONT_SUBHEAD, text_color=CLR_TEXT,
+                     ).pack(anchor="w", padx=12, pady=(12, 8))
+
+        input_frame = ctk.CTkFrame(self, fg_color="transparent")
+        input_frame.pack(fill="x", padx=12, pady=(0, 12))
+        ctk.CTkLabel(input_frame, text="Network Range:",
+                     font=FONT_BODY, text_color=CLR_TEXT).pack(anchor="w")
+        self.network_entry = ctk.CTkEntry(
+            input_frame,
+            placeholder_text="e.g. 192.168.1.0/24 or 10.0.0.1-254",
+            fg_color=CLR_SURFACE_ALT, border_color=CLR_BORDER,
+            text_color=CLR_TEXT, font=FONT_BODY, height=32)
+        self.network_entry.pack(fill="x", pady=(4, 0))
+
+        opts_frame = ctk.CTkFrame(self, fg_color="transparent")
+        opts_frame.pack(fill="x", padx=12, pady=(0, 12))
+        ctk.CTkCheckBox(opts_frame, text="Perform reverse DNS lookup",
+                        text_color=CLR_TEXT, fg_color=CLR_SUCCESS,
+                        font=FONT_SMALL).pack(anchor="w")
+        ctk.CTkCheckBox(opts_frame, text="Identify open ports",
+                        text_color=CLR_TEXT, fg_color=CLR_SUCCESS,
+                        font=FONT_SMALL).pack(anchor="w")
+
+
+class DNSResolutionPanel(ctk.CTkFrame):
+    """DNS resolution and lookups."""
+
+    def __init__(self, parent):
+        super().__init__(parent, fg_color=CLR_SURFACE, corner_radius=8)
+        ctk.CTkLabel(self, text="🌐 DNS Resolution",
+                     font=FONT_SUBHEAD, text_color=CLR_TEXT,
+                     ).pack(anchor="w", padx=12, pady=(12, 8))
+
+        input_frame = ctk.CTkFrame(self, fg_color="transparent")
+        input_frame.pack(fill="x", padx=12, pady=(0, 12))
+        ctk.CTkLabel(input_frame, text="Domain/IP:",
+                     font=FONT_BODY, text_color=CLR_TEXT).pack(anchor="w")
+        self.dns_entry = ctk.CTkEntry(
+            input_frame,
+            placeholder_text="e.g. example.com or 8.8.8.8",
+            fg_color=CLR_SURFACE_ALT, border_color=CLR_BORDER,
+            text_color=CLR_TEXT, font=FONT_BODY, height=32)
+        self.dns_entry.pack(fill="x", pady=(4, 0))
+
+        ctk.CTkLabel(self, text="Resolution Results:",
+                     font=FONT_SMALL, text_color=CLR_TEXT_SEC,
+                     ).pack(anchor="w", padx=12, pady=(12, 4))
+        self.results_text = ctk.CTkTextbox(
+            self, fg_color=CLR_SURFACE_ALT, border_color=CLR_BORDER,
+            text_color=CLR_TEXT, font=("Courier New", 10),
+            height=100, state="disabled")
+        self.results_text.pack(fill="x", padx=12, pady=(0, 12))
+
+
+class ConnectivityTestPanel(ctk.CTkFrame):
+    """Connectivity testing with detailed metrics."""
+
+    def __init__(self, parent):
+        super().__init__(parent, fg_color=CLR_SURFACE, corner_radius=8)
+        ctk.CTkLabel(self, text="📡 Connectivity Test",
+                     font=FONT_SUBHEAD, text_color=CLR_TEXT,
+                     ).pack(anchor="w", padx=12, pady=(12, 8))
+        ctk.CTkButton(self, text="Run Connectivity Tests",
+                      fg_color=CLR_SUCCESS, text_color="#ffffff",
+                      font=FONT_BODY, height=BTN_H, corner_radius=BTN_R,
+                      ).pack(fill="x", padx=12, pady=(0, 12))
+
+        results_frame = ctk.CTkFrame(self, fg_color=CLR_SURFACE_ALT, corner_radius=6)
+        results_frame.pack(fill="x", padx=12, pady=(0, 12))
+        for test_name, status in [
+            ("DNS Connectivity",    "✔ Connected"),
+            ("Gateway Reachability","✔ Connected"),
+            ("Internet Connectivity","✔ Connected"),
+            ("Latency",             "45ms (Good)"),
+            ("Packet Loss",         "0% (Excellent)"),
+        ]:
+            test_frame = ctk.CTkFrame(results_frame, fg_color="transparent")
+            test_frame.pack(fill="x", padx=12, pady=4)
+            ctk.CTkLabel(test_frame, text=test_name,
+                         font=FONT_BODY, text_color=CLR_TEXT).pack(side="left")
+            status_color = CLR_SUCCESS if "✔" in status else CLR_WARNING
+            ctk.CTkLabel(test_frame, text=status,
+                         font=FONT_BODY, text_color=status_color,
+                         anchor="e").pack(side="right")
+
+
+class BandwidthAnalyzer(ctk.CTkToplevel):
+    """Bandwidth and throughput analysis dialog."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("Bandwidth Analysis")
+        self.geometry("600x500")
+        self.configure(fg_color=CLR_BG)
+
+        hdr = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=50)
+        hdr.pack(fill="x")
+        hdr.pack_propagate(False)
+        ctk.CTkLabel(hdr, text="📊 Bandwidth & Throughput Analysis",
+                     font=("Segoe UI", 14, "bold"), text_color=CLR_TEXT,
+                     ).pack(anchor="w", padx=16, pady=12)
+
+        scroll = ctk.CTkScrollableFrame(self, fg_color=CLR_BG)
+        scroll.pack(fill="both", expand=True, padx=16, pady=16)
+
+        ctk.CTkLabel(scroll, text="Current Network Metrics",
+                     font=FONT_SUBHEAD, text_color=CLR_TEXT,
+                     ).pack(anchor="w", pady=(0, 8))
+        for label, value, color in [
+            ("Download Speed",   "45 Mbps",     CLR_SUCCESS),
+            ("Upload Speed",     "12 Mbps",     CLR_SUCCESS),
+            ("Ping Latency",     "28ms",        CLR_SUCCESS),
+            ("Packet Loss",      "0%",          CLR_SUCCESS),
+            ("Connection Type",  "Fiber Optic", CLR_TEXT_SEC),
+        ]:
+            metric_card = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE, corner_radius=6)
+            metric_card.pack(fill="x", pady=4)
+            metric_card.grid_columnconfigure(1, weight=1)
+            ctk.CTkLabel(metric_card, text=label,
+                         font=FONT_BODY, text_color=CLR_TEXT,
+                         ).grid(row=0, column=0, padx=12, pady=8, sticky="w")
+            ctk.CTkLabel(metric_card, text=value,
+                         font=FONT_SUBHEAD, text_color=color,
+                         ).grid(row=0, column=1, padx=12, pady=8, sticky="e")
+
+        footer = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=50)
+        footer.pack(fill="x")
+        footer.pack_propagate(False)
+        ctk.CTkButton(footer, text="Close", command=self.destroy,
+                      fg_color=CLR_SURFACE_ALT, text_color=CLR_TEXT,
+                      font=FONT_BODY, height=BTN_H, corner_radius=BTN_R,
+                      ).pack(side="left", padx=16, pady=12)

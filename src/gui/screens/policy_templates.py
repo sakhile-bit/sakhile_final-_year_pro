@@ -3,9 +3,9 @@
 import customtkinter as ctk
 from tkinter import filedialog
 from src.gui.theme import (
-    CLR_BG, CLR_SURFACE, CLR_SURFACE_ALT, CLR_ACCENT, CLR_TEXT, CLR_MUTED,
+    CLR_BG, CLR_SURFACE, CLR_SURFACE_ALT, CLR_ACCENT, CLR_TEXT, CLR_TEXT_SEC, CLR_MUTED,
     CLR_BORDER, CLR_SUCCESS,
-    FONT_HEADING, FONT_BODY, FONT_SMALL, PAD,
+    FONT_HEADING, FONT_BODY, FONT_SMALL, PAD, BTN_H, BTN_R,
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -560,3 +560,135 @@ class PolicyTemplatesScreen(ctk.CTkFrame):
             dlg, text="OK", fg_color=CLR_ACCENT, text_color="#000000",
             command=dlg.destroy,
         ).pack()
+
+
+class TemplateCustomizer(ctk.CTkToplevel):
+    """Customize policy template with organization details."""
+
+    def __init__(self, parent, template_title, template_content):
+        super().__init__(parent)
+        self.title(f"Customize — {template_title}")
+        self.geometry("800x600")
+        self.configure(fg_color=CLR_BG)
+        self.customized_content = None
+
+        hdr = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=50)
+        hdr.pack(fill="x")
+        hdr.pack_propagate(False)
+        ctk.CTkLabel(hdr, text=f"✏️ Customize: {template_title}",
+                     font=("Segoe UI", 14, "bold"), text_color=CLR_TEXT,
+                     ).pack(anchor="w", padx=16, pady=12)
+
+        form = ctk.CTkScrollableFrame(self, fg_color=CLR_BG)
+        form.pack(fill="both", expand=True, padx=16, pady=16)
+
+        for field_label, placeholder in [
+            ("Organization Name:", "Your organization name"),
+            ("Contact Person:",    "Name and title"),
+            ("Effective Date:",    "YYYY-MM-DD"),
+        ]:
+            ctk.CTkLabel(form, text=field_label,
+                         font=FONT_BODY, text_color=CLR_TEXT,
+                         ).pack(anchor="w", pady=(0, 4))
+            ctk.CTkEntry(form, placeholder_text=placeholder,
+                         fg_color=CLR_SURFACE_ALT, border_color=CLR_BORDER,
+                         text_color=CLR_TEXT, font=FONT_BODY, height=32,
+                         ).pack(fill="x", pady=(0, 16))
+
+        ctk.CTkLabel(form, text="Additional Notes:",
+                     font=FONT_BODY, text_color=CLR_TEXT,
+                     ).pack(anchor="w", pady=(0, 4))
+        ctk.CTkTextbox(form, fg_color=CLR_SURFACE_ALT, border_color=CLR_BORDER,
+                       text_color=CLR_TEXT, font=("Segoe UI", 11), height=100,
+                       ).pack(fill="x", pady=(0, 16))
+
+        footer = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=50)
+        footer.pack(fill="x")
+        footer.pack_propagate(False)
+        ctk.CTkButton(footer, text="Cancel", command=self.destroy,
+                      fg_color=CLR_SURFACE_ALT, text_color=CLR_TEXT,
+                      font=FONT_BODY, height=BTN_H, corner_radius=BTN_R,
+                      width=120).pack(side="left", padx=8, pady=12)
+        ctk.CTkButton(footer, text="📥 Download Customized",
+                      command=self.destroy,
+                      fg_color=CLR_SUCCESS, text_color="#ffffff",
+                      font=FONT_BODY, height=BTN_H, corner_radius=BTN_R,
+                      ).pack(side="right", padx=8, pady=12)
+
+
+class TemplatePreview(ctk.CTkToplevel):
+    """Preview a policy template before downloading."""
+
+    def __init__(self, parent, template_title, template_content):
+        super().__init__(parent)
+        self.title(f"Preview — {template_title}")
+        self.geometry("900x600")
+        self.configure(fg_color=CLR_BG)
+
+        hdr = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=50)
+        hdr.pack(fill="x")
+        hdr.pack_propagate(False)
+        ctk.CTkLabel(hdr, text=f"👁️ Preview: {template_title}",
+                     font=("Segoe UI", 14, "bold"), text_color=CLR_TEXT,
+                     ).pack(anchor="w", padx=16, pady=12)
+
+        text = ctk.CTkTextbox(self, fg_color=CLR_SURFACE_ALT,
+                               text_color=CLR_TEXT, border_color=CLR_BORDER,
+                               font=("Courier New", 10))
+        text.pack(fill="both", expand=True, padx=16, pady=16)
+        text.insert("1.0", template_content)
+        text.configure(state="disabled")
+
+        footer = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=50)
+        footer.pack(fill="x")
+        footer.pack_propagate(False)
+        ctk.CTkButton(footer, text="Close", command=self.destroy,
+                      fg_color=CLR_SURFACE_ALT, text_color=CLR_TEXT,
+                      font=FONT_BODY, height=BTN_H, corner_radius=BTN_R,
+                      ).pack(side="right", padx=8, pady=12)
+
+
+class BatchDownloadDialog(ctk.CTkToplevel):
+    """Select multiple templates for batch download."""
+
+    def __init__(self, parent, available_templates):
+        super().__init__(parent)
+        self.title("Batch Download Templates")
+        self.geometry("600x500")
+        self.configure(fg_color=CLR_BG)
+        self.selected = set()
+
+        hdr = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=50)
+        hdr.pack(fill="x")
+        hdr.pack_propagate(False)
+        ctk.CTkLabel(hdr, text="📦 Download Multiple Templates",
+                     font=("Segoe UI", 14, "bold"), text_color=CLR_TEXT,
+                     ).pack(anchor="w", padx=16, pady=12)
+
+        scroll = ctk.CTkScrollableFrame(self, fg_color=CLR_BG)
+        scroll.pack(fill="both", expand=True, padx=16, pady=16)
+        for template in available_templates:
+            frame = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE, corner_radius=8)
+            frame.pack(fill="x", pady=6)
+            ctk.CTkCheckBox(frame,
+                            text=f"{template['icon']} {template['title']}",
+                            variable=ctk.BooleanVar(),
+                            text_color=CLR_TEXT, fg_color=CLR_SUCCESS,
+                            font=FONT_BODY,
+                            ).pack(anchor="w", padx=12, pady=8)
+            ctk.CTkLabel(frame, text=template["description"],
+                         font=FONT_SMALL, text_color=CLR_TEXT_SEC,
+                         wraplength=500,
+                         ).pack(anchor="w", padx=24, pady=(0, 8))
+
+        footer = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=50)
+        footer.pack(fill="x")
+        footer.pack_propagate(False)
+        ctk.CTkButton(footer, text="Cancel", command=self.destroy,
+                      fg_color=CLR_SURFACE_ALT, text_color=CLR_TEXT,
+                      font=FONT_BODY, height=BTN_H, corner_radius=BTN_R,
+                      width=120).pack(side="left", padx=8, pady=12)
+        ctk.CTkButton(footer, text="📥 Download Selected",
+                      fg_color=CLR_SUCCESS, text_color="#ffffff",
+                      font=FONT_BODY, height=BTN_H, corner_radius=BTN_R,
+                      ).pack(side="right", padx=8, pady=12)

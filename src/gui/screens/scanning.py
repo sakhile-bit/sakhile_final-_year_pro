@@ -445,3 +445,105 @@ class ScanningScreen(ctk.CTkFrame):
     def _skip(self):
         if self._on_skip:
             self._on_skip(self._results)
+
+
+class ScanningLogsViewer(ctk.CTkToplevel):
+    """Detailed logs viewer for scanning operations."""
+
+    def __init__(self, parent, check_id, check_name, logs):
+        super().__init__(parent)
+        self.title(f"Detailed Logs — {check_id}: {check_name}")
+        self.geometry("800x600")
+        self.configure(fg_color=CLR_BG)
+
+        hdr = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=50)
+        hdr.pack(fill="x")
+        hdr.pack_propagate(False)
+        ctk.CTkLabel(hdr, text=f"📋 Scan Logs: {check_id} — {check_name}",
+                     font=("Segoe UI", 14, "bold"), text_color=CLR_TEXT,
+                     ).pack(anchor="w", padx=16, pady=12)
+
+        scroll = ctk.CTkScrollableFrame(self, fg_color=CLR_BG)
+        scroll.pack(fill="both", expand=True, padx=12, pady=12)
+
+        if not logs:
+            ctk.CTkLabel(scroll, text="No logs available.",
+                         font=FONT_BODY, text_color=CLR_MUTED).pack(pady=48)
+        else:
+            for idx, log_entry in enumerate(logs):
+                self._build_log_entry(scroll, idx, log_entry)
+
+        footer = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=50)
+        footer.pack(fill="x")
+        footer.pack_propagate(False)
+        ctk.CTkButton(footer, text="Close", command=self.destroy,
+                      fg_color=CLR_SURFACE_ALT, text_color=CLR_TEXT,
+                      font=FONT_BODY, height=BTN_H, corner_radius=BTN_R,
+                      ).pack(side="left", padx=16, pady=12)
+
+    def _build_log_entry(self, parent, idx, entry):
+        card = ctk.CTkFrame(parent, fg_color=CLR_SURFACE_ALT, corner_radius=8)
+        card.pack(fill="x", pady=6)
+        header = ctk.CTkFrame(card, fg_color="transparent")
+        header.pack(fill="x", padx=12, pady=(8, 4))
+        timestamp = entry.get("timestamp", "N/A")
+        level = entry.get("level", "INFO")
+        level_color = {"INFO": CLR_SUCCESS, "WARNING": CLR_WARNING,
+                       "ERROR": CLR_DANGER}.get(level, CLR_MUTED)
+        ctk.CTkLabel(header, text=f"[{timestamp}]",
+                     font=FONT_SMALL, text_color=CLR_TEXT_SEC,
+                     ).pack(anchor="w", side="left")
+        ctk.CTkLabel(header, text=level,
+                     font=FONT_SMALL, text_color=level_color,
+                     ).pack(anchor="e", side="right")
+        ctk.CTkLabel(card, text=entry.get("message", ""),
+                     font=FONT_SMALL, text_color=CLR_TEXT,
+                     wraplength=700, justify="left",
+                     ).pack(anchor="w", padx=12, pady=(0, 8))
+
+
+class DetailedCheckInfo(ctk.CTkToplevel):
+    """Detailed information about a specific security check."""
+
+    def __init__(self, parent, check_id, check_name, description, remediation_steps):
+        super().__init__(parent)
+        self.title(f"Check Details — {check_id}")
+        self.geometry("700x500")
+        self.configure(fg_color=CLR_BG)
+
+        hdr = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=50)
+        hdr.pack(fill="x")
+        hdr.pack_propagate(False)
+        ctk.CTkLabel(hdr, text=f"🔍 {check_id}: {check_name}",
+                     font=("Segoe UI", 14, "bold"), text_color=CLR_TEXT,
+                     ).pack(anchor="w", padx=16, pady=12)
+
+        scroll = ctk.CTkScrollableFrame(self, fg_color=CLR_BG)
+        scroll.pack(fill="both", expand=True, padx=16, pady=16)
+
+        ctk.CTkLabel(scroll, text="Description",
+                     font=("Segoe UI", 12, "bold"), text_color=CLR_TEXT,
+                     ).pack(anchor="w")
+        ctk.CTkLabel(scroll, text=description,
+                     font=FONT_BODY, text_color=CLR_TEXT_SEC,
+                     wraplength=600, justify="left",
+                     ).pack(anchor="w", pady=(4, 16))
+
+        ctk.CTkLabel(scroll, text="Remediation Steps",
+                     font=("Segoe UI", 12, "bold"), text_color=CLR_TEXT,
+                     ).pack(anchor="w")
+        for idx, step in enumerate(remediation_steps, 1):
+            step_frame = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE_ALT, corner_radius=6)
+            step_frame.pack(fill="x", pady=4)
+            ctk.CTkLabel(step_frame, text=f"Step {idx}: {step}",
+                         font=FONT_SMALL, text_color=CLR_TEXT,
+                         wraplength=600, justify="left",
+                         ).pack(anchor="w", padx=12, pady=8)
+
+        footer = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=50)
+        footer.pack(fill="x")
+        footer.pack_propagate(False)
+        ctk.CTkButton(footer, text="Close", command=self.destroy,
+                      fg_color=CLR_SURFACE_ALT, text_color=CLR_TEXT,
+                      font=FONT_BODY, height=BTN_H, corner_radius=BTN_R,
+                      ).pack(side="left", padx=16, pady=12)
