@@ -9,14 +9,11 @@ from __future__ import annotations
 
 import json
 import socket
+from datetime import datetime, timezone
 from pathlib import Path
-from datetime import datetime
 
+from src.security.assessment.assessor import BusinessInfo, DigitalHygieneAssessor
 from src.security.deployment.checker import PreDeploymentChecker
-from src.security.assessment.assessor import (
-    BusinessInfo, DigitalHygieneAssessor,
-)
-
 
 REPORT_DIR = Path("instance/agent_reports")
 
@@ -35,7 +32,7 @@ def collect_local_report(business_name: str = "local-host") -> dict:
     assessment = assessor.run_assessment()
 
     out = {
-        "collected_at": datetime.utcnow().isoformat() + 'Z',
+        "collected_at": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
         "hostname": socket.gethostname(),
         "readiness": readiness.to_dict(),
         "assessment": {
@@ -46,7 +43,7 @@ def collect_local_report(business_name: str = "local-host") -> dict:
         },
     }
 
-    path = REPORT_DIR / f"{out['hostname']}-{int(datetime.utcnow().timestamp())}.json"
+    path = REPORT_DIR / f"{out['hostname']}-{int(datetime.now(timezone.utc).timestamp())}.json"
     path.write_text(json.dumps(out, indent=2))
     return {"report_path": str(path), "report": out}
 
