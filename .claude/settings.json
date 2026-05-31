@@ -22,7 +22,12 @@
       "Bash(python -m py_compile src/security/active_directory/checks.py)",
       "Bash(python -m mypy src/security/ src/web/app.py --ignore-missing-imports --no-strict-optional --follow-imports=silent)",
       "Bash(git commit -m 'chore: remove stray git merge entry from allowed commands *)",
-      "Bash(python -m src.gui.app)"
+      "Bash(python -m src.gui.app)",
+      "Bash(.venv/Scripts/python.exe -c \"import customtkinter; import PIL; print\\('deps ok'\\)\")",
+      "Bash(.venv/Scripts/python.exe -c \"import pyautogui; print\\('pyautogui ok'\\)\")",
+      "Bash(.venv/Scripts/python.exe -m py_compile src/gui/app.py src/gui/screens/welcome.py src/gui/screens/audit_log_viewer.py src/gui/screens/assessment_dashboard.py src/gui/screens/export_reports.py src/gui/screens/remediation_guidance.py src/gui/screens/settings.py src/gui/screens/active_directory.py)",
+      "Bash(.venv/Scripts/pip install *)",
+      "Bash(.venv/Scripts/python.exe test_gui_runner.py)"
     ]
   }
 }
