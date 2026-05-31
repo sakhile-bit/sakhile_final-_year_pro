@@ -35,12 +35,15 @@ class AssessmentDashboardScreen(ctk.CTkFrame):
         self._build()
 
     def _build(self):
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
+
         # Header
         _header(self, "Assessment Dashboard", "", 0.0)
 
         # Main container
         main_frame = ctk.CTkFrame(self, fg_color=CLR_BG)
-        main_frame.pack(fill="both", expand=True, padx=PAD, pady=PAD)
+        main_frame.grid(row=1, column=0, sticky="nsew", padx=PAD, pady=PAD)
         main_frame.grid_columnconfigure(0, weight=1)
 
         # Statistics overview
@@ -80,8 +83,8 @@ class AssessmentDashboardScreen(ctk.CTkFrame):
 
         # Footer
         footer = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0, height=NAV_H)
-        footer.pack(side="bottom", fill="x")
-        footer.pack_propagate(False)
+        footer.grid(row=2, column=0, sticky="ew")
+        footer.grid_propagate(False)
 
         btn_new = ctk.CTkButton(
             footer,
