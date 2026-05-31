@@ -123,7 +123,7 @@ class ResultsScreen(ctk.CTkFrame):
         tier_clr = TIER_COLOURS.get(tier, CLR_DANGER)
         certified = tier != "NOT CERTIFIED"
 
-        _header(self, "Assessment Results", "4 of 4", 1.0)
+        _header(self, "Assessment Results", "5 of 5", 1.0)
 
         scroll = ctk.CTkScrollableFrame(self, fg_color=CLR_BG, corner_radius=0)
         scroll.grid(row=1, column=0, sticky="nsew")
