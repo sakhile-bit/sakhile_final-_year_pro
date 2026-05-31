@@ -18,10 +18,20 @@ class DigitalHygieneApp(ctk.CTk):
         self.minsize(800, 560)
         self.configure(fg_color=CLR_BG)
 
-        # Centre the window on screen
+        # Centre the window within the usable work area (excludes taskbar)
         self.update_idletasks()
-        x = (self.winfo_screenwidth() - WIN_W) // 2
-        y = (self.winfo_screenheight() - WIN_H) // 2
+        import sys
+        if sys.platform == "win32":
+            import ctypes, ctypes.wintypes
+            wa = ctypes.wintypes.RECT()
+            ctypes.windll.user32.SystemParametersInfoW(48, 0, ctypes.byref(wa), 0)
+            work_w = wa.right  - wa.left
+            work_h = wa.bottom - wa.top
+            x = wa.left + max(0, (work_w - WIN_W) // 2)
+            y = wa.top  + max(0, (work_h - WIN_H) // 2)
+        else:
+            x = (self.winfo_screenwidth()  - WIN_W) // 2
+            y = (self.winfo_screenheight() - WIN_H) // 2
         self.geometry(f"{WIN_W}x{WIN_H}+{x}+{y}")
 
         self._business_info = None
