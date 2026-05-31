@@ -30,7 +30,8 @@
       "Bash(.venv/Scripts/python.exe test_gui_runner.py)",
       "Bash(.venv/Scripts/python.exe -m py_compile src/gui/screens/tools_profile.py src/gui/screens/business_info.py src/gui/screens/manual_checks.py src/gui/screens/results.py src/gui/app.py src/security/assessment/assessor.py)",
       "Bash(not exist *)",
-      "Bash(.venv/Scripts/python.exe verify_flow.py)"
+      "Bash(.venv/Scripts/python.exe verify_flow.py)",
+      "PowerShell(Get-Process -Name \"ZambiaDigitalHygiene\" -ErrorAction SilentlyContinue)"
     ]
   }
 }
