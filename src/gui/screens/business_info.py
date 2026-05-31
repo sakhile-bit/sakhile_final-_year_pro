@@ -1,4 +1,4 @@
-"""Business information form — step 1 of 4.
+"""Business information form — step 1 of 5.
 
 Exports _header() and _nav() helpers used by every other screen.
 """
@@ -50,10 +50,13 @@ def _header(parent, title: str, step: str, progress_val: float):
 
     # Step indicator (right side)
     try:
-        step_num = int(step.split(" ")[0])
+        parts = step.split(" of ")
+        step_num = int(parts[0].strip())
+        total_steps = int(parts[1].strip()) if len(parts) == 2 else 4
         is_assessment = step_num > 0
     except (ValueError, IndexError):
         step_num = 0
+        total_steps = 4
         is_assessment = False
 
     dots = ctk.CTkFrame(hdr, fg_color="transparent")
@@ -64,14 +67,14 @@ def _header(parent, title: str, step: str, progress_val: float):
             dots, text=f"Step {step}",
             font=FONT_CAPTION, text_color=CLR_MUTED,
         ).pack(side="left", padx=(0, 8))
-        for i in range(4):
+        for i in range(total_steps):
             size = 10 if i == step_num - 1 else 7
             clr = CLR_ACCENT if i < step_num else CLR_BORDER
             ctk.CTkFrame(
                 dots, fg_color=clr,
                 width=size, height=size, corner_radius=size // 2,
             ).pack(side="left", pady=2)
-            if i < 3:
+            if i < total_steps - 1:
                 conn = CLR_ACCENT if i < step_num - 1 else CLR_BORDER
                 ctk.CTkFrame(
                     dots, fg_color=conn,
@@ -139,7 +142,7 @@ class BusinessInfoScreen(ctk.CTkFrame):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
 
-        _header(self, "Business & Contact Details", "1 of 4", 0.25)
+        _header(self, "Business & Contact Details", "1 of 5", 0.20)
 
         scroll = ctk.CTkScrollableFrame(self, fg_color=CLR_BG, corner_radius=0)
         scroll.grid(row=1, column=0, sticky="nsew")

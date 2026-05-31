@@ -216,6 +216,60 @@ CONTROL_CATALOGUE: Dict[str, Dict[str, Any]] = {
 # Total possible score across all 15 controls
 TOTAL_POSSIBLE_SCORE = sum(c["weight"] for c in CONTROL_CATALOGUE.values())  # 120
 
+# ── Optional tool controls (C16-C20) — added only when the business selects them ──
+TOOL_CONTROLS: Dict[str, Dict[str, Any]] = {
+    "C16_active_directory": {
+        "id": "C16", "name": "Active Directory Security",
+        "weight": 8, "critical": False,
+        "category": "technical", "verification": "manual",
+        "tool_id": "active_dir",
+        "description": "AD password policies, privileged account management, stale account review",
+        "cis_mapping": "CIS Control 5 – Account Management",
+        "nist_mapping": "PR.AC-1, PR.AC-4",
+    },
+    "C17_network_scan": {
+        "id": "C17", "name": "Network Architecture Assessment",
+        "weight": 7, "critical": False,
+        "category": "technical", "verification": "manual",
+        "tool_id": "network_scan",
+        "description": "Network device inventory, unauthorized device detection, port exposure, segmentation",
+        "cis_mapping": "CIS Control 9 – Network Infrastructure Management",
+        "nist_mapping": "PR.AC-5, DE.AE-1",
+    },
+    "C18_infra_scan": {
+        "id": "C18", "name": "Infrastructure Security Assessment",
+        "weight": 7, "critical": False,
+        "category": "technical", "verification": "manual",
+        "tool_id": "infra_scan",
+        "description": "Public-facing SSL/TLS validity, HTTP security headers, risky open ports",
+        "cis_mapping": "CIS Control 7 – Continuous Vulnerability Management",
+        "nist_mapping": "ID.RA-1, DE.CM-8",
+    },
+    "C19_zambia_risk": {
+        "id": "C19", "name": "Zambia Local Threat Mitigation",
+        "weight": 8, "critical": False,
+        "category": "administrative", "verification": "manual",
+        "tool_id": "zambia_risk",
+        "description": "SIM swap & mobile money controls, local-threat training, Data Protection Act compliance",
+        "cis_mapping": "CIS Control 17 – Incident Response",
+        "nist_mapping": "ID.RA-3, RS.CO-5",
+    },
+    "C20_remediation": {
+        "id": "C20", "name": "Remediation Process",
+        "weight": 6, "critical": False,
+        "category": "administrative", "verification": "manual",
+        "tool_id": "remediation",
+        "description": "Tracked remediation of findings with assigned owners and defined SLAs",
+        "cis_mapping": "CIS Control 7 – Continuous Vulnerability Management",
+        "nist_mapping": "RS.MI-3, PR.IP-12",
+    },
+}
+
+# Maps tool_id → control key for quick lookup
+TOOL_ID_TO_CONTROL: Dict[str, str] = {
+    v["tool_id"]: k for k, v in TOOL_CONTROLS.items()
+}
+
 
 class DigitalHygieneAssessor:
     """Main assessment class implementing all 15 digital hygiene controls.
@@ -234,14 +288,19 @@ class DigitalHygieneAssessor:
         business_info: BusinessInfo,
         manual_answers: Optional[Dict[str, int]] = None,
         assessment_tier: str = "automated",
+        selected_tools: Optional[set] = None,
     ):
         self.business_info = business_info
         self.logger = logger
         self.manual_answers = manual_answers or {}
         self.assessment_tier = assessment_tier
+        self.selected_tools: set = selected_tools or set()
 
-        # Full 15-control catalogue
-        self.controls = CONTROL_CATALOGUE
+        # Core 15-control catalogue + any selected tool controls
+        self.controls = dict(CONTROL_CATALOGUE)
+        for ctrl_key, ctrl_def in TOOL_CONTROLS.items():
+            if ctrl_def["tool_id"] in self.selected_tools:
+                self.controls[ctrl_key] = ctrl_def
 
     def run_assessment(self) -> AssessmentResults:
         """Run complete assessment across all 15 controls."""
@@ -272,14 +331,23 @@ class DigitalHygieneAssessor:
         results["C14_vendor_risk"] = self._evaluate_manual("C14_vendor_risk")
         results["C15_regulatory_compliance"] = self._evaluate_manual("C15_regulatory_compliance")
 
+        # ── Optional tool controls (C16-C20) — evaluated when selected ──
+        for ctrl_key, ctrl_def in TOOL_CONTROLS.items():
+            if ctrl_def["tool_id"] in self.selected_tools:
+                results[ctrl_key] = self._evaluate_manual(ctrl_key)
+
         # Count critical failures
         for key, ctrl_def in self.controls.items():
             if ctrl_def.get("critical") and results[key].status == "FAIL":
                 critical_failures += 1
 
-        # Calculate total score
+        # Calculate total score (core + selected tool weights)
         total_score = sum(control.score for control in results.values())
-        total_possible = TOTAL_POSSIBLE_SCORE
+        total_possible = TOTAL_POSSIBLE_SCORE + sum(
+            TOOL_CONTROLS[k]["weight"]
+            for k in TOOL_CONTROLS
+            if TOOL_CONTROLS[k]["tool_id"] in self.selected_tools
+        )
 
         # Determine certification level with critical-failure gate
         percentage = (total_score / total_possible) * 100 if total_possible > 0 else 0

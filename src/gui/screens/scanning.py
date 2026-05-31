@@ -96,7 +96,7 @@ class ScanningScreen(ctk.CTkFrame):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
 
-        _header(self, "Automated Security Checks", "2 of 4", 0.50)
+        _header(self, "Automated Security Checks", "3 of 5", 0.60)
 
         body = ctk.CTkScrollableFrame(self, fg_color=CLR_BG, corner_radius=0)
         body.grid(row=1, column=0, sticky="nsew", padx=PAD, pady=PAD)
