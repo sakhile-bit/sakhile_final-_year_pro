@@ -46,6 +46,17 @@ EFFORT = {
     "C13_acceptable_use":        ("📆 This Month", "#F0A500"),
     "C14_vendor_risk":           ("🔁 Ongoing",    "#5A7490"),
     "C15_regulatory_compliance": ("🔁 Ongoing",    "#5A7490"),
+    # Tool controls C16-C20
+    "C16_active_directory":      ("📅 This Week",  "#6C5FC7"),
+    "C17_network_scan":          ("📆 This Month", "#2485E8"),
+    "C18_infra_scan":            ("📆 This Month", "#5A7490"),
+    "C19_zambia_risk":           ("📆 This Month", "#F0A500"),
+    "C20_remediation":           ("🔁 Ongoing",    "#27AE60"),
+}
+
+TOOL_CONTROL_KEYS = {
+    "C16_active_directory", "C17_network_scan",
+    "C18_infra_scan", "C19_zambia_risk", "C20_remediation",
 }
 
 
@@ -244,25 +255,22 @@ class ResultsScreen(ctk.CTkFrame):
             b.grid(row=2, sticky="ew")
 
         # ── Control breakdown ──────────────────────────────────────
-        ctk.CTkLabel(scroll, text="Control Breakdown",
-                     font=FONT_HEADING, text_color=CLR_TEXT,
-                     ).grid(row=4, column=0, padx=PAD,
-                            pady=(6, 4), sticky="w")
+        core_items = [(k, v) for k, v in r.controls.items()
+                      if k not in TOOL_CONTROL_KEYS]
+        tool_items = [(k, v) for k, v in r.controls.items()
+                      if k in TOOL_CONTROL_KEYS]
 
-        for i, (_, ctrl) in enumerate(r.controls.items()):
-            clr = STATUS_CLR.get(ctrl.status, CLR_MUTED)
+        def _render_ctrl_row(parent, grid_row, ctrl):
+            clr  = STATUS_CLR.get(ctrl.status, CLR_MUTED)
             icon = STATUS_ICON.get(ctrl.status, "?")
-            row_f = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE,
+            row_f = ctk.CTkFrame(parent, fg_color=CLR_SURFACE,
                                  corner_radius=12, border_width=1,
                                  border_color=CLR_BORDER)
-            row_f.grid(row=5 + i, column=0, padx=PAD, pady=3, sticky="ew")
-            row_f.grid_columnconfigure(1, weight=1)
-
-            # Left status stripe
+            row_f.grid(row=grid_row, column=0, padx=PAD, pady=3, sticky="ew")
+            row_f.grid_columnconfigure(2, weight=1)
             ctk.CTkFrame(row_f, fg_color=clr, width=4,
                          corner_radius=0).grid(row=0, column=0,
                                                sticky="ns", pady=0)
-
             ctk.CTkLabel(row_f, text=icon,
                          font=("Segoe UI", 13), text_color=clr, width=28,
                          ).grid(row=0, column=1, padx=(10, 4),
@@ -285,7 +293,29 @@ class ResultsScreen(ctk.CTkFrame):
                              ).grid(row=1, column=1, columnspan=3,
                                     padx=(10, 14), pady=(0, 10), sticky="w")
 
-        base = len(r.controls) + 5
+        # Core controls header
+        ctk.CTkLabel(scroll, text="Core Controls  (C01–C15)",
+                     font=FONT_HEADING, text_color=CLR_TEXT,
+                     ).grid(row=4, column=0, padx=PAD,
+                            pady=(6, 4), sticky="w")
+        for i, (_, ctrl) in enumerate(core_items):
+            _render_ctrl_row(scroll, 5 + i, ctrl)
+
+        grid_row = 5 + len(core_items)
+
+        # Tool controls section (only when tools were selected)
+        if tool_items:
+            ctk.CTkLabel(scroll,
+                         text="Advanced Tool Assessments  (C16–C20)",
+                         font=FONT_HEADING, text_color=CLR_TEXT,
+                         ).grid(row=grid_row, column=0, padx=PAD,
+                                pady=(PAD, 4), sticky="w")
+            grid_row += 1
+            for _, ctrl in tool_items:
+                _render_ctrl_row(scroll, grid_row, ctrl)
+                grid_row += 1
+
+        base = grid_row
 
         # ── Action plan ────────────────────────────────────────────
         if r.recommendations:

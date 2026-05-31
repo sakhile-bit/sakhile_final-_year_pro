@@ -78,6 +78,117 @@ _WEIGHTS = {
 }
 _MAX = sum(_WEIGHTS.values())
 
+# ── Tool-specific questions (shown only when the business selects the tool) ──
+TOOL_QUESTIONS: dict[str, list[tuple]] = {
+    "active_dir": [
+        ("C16_active_directory", "C16", "Active Directory Security",
+         "Are AD password policies enforced? "
+         "(min 12 chars, complexity, 90-day expiry, lockout after 5 failures)",
+         "Check via Group Policy > Computer Config > Windows Settings > "
+         "Security Settings > Account Policies."),
+        ("C16_active_directory_b", "C16b", "AD Privileged Account Review",
+         "Are privileged accounts (Domain Admins, Enterprise Admins) "
+         "actively monitored and reviewed at least quarterly?",
+         "Use the AD 'Protected Users' group and enable audit logging. "
+         "Run 'Get-ADGroupMember -Identity \"Domain Admins\"' to list members."),
+        ("C16_active_directory_c", "C16c", "AD Stale Account Management",
+         "Are stale or inactive AD accounts disabled and removed "
+         "within 30 days of a staff member's departure?",
+         "Run: Get-ADUser -Filter {Enabled -eq $True} | "
+         "Where LastLogonDate -lt (Get-Date).AddDays(-90)"),
+    ],
+    "network_scan": [
+        ("C17_network_scan", "C17", "Network Device Inventory",
+         "Has a network scan been performed in the last 6 months "
+         "to detect all connected devices and identify unauthorised systems?",
+         "Use the built-in Network Scanner, Nmap, or a managed security service. "
+         "Document all approved devices."),
+        ("C17_network_scan_b", "C17b", "Network Segmentation",
+         "Are network segments properly separated? "
+         "(e.g. DMZ for public servers, internal LAN, isolated guest Wi-Fi)",
+         "Use VLANs or separate physical networks. Guests and IoT devices "
+         "must not reach internal business systems."),
+        ("C17_network_scan_c", "C17c", "Port & Service Exposure",
+         "Are only the ports and services required for business operations "
+         "exposed on the network edge — all others blocked?",
+         "Review firewall rules quarterly. Risky open ports: 23 (Telnet), "
+         "21 (FTP), 3389 (RDP), 3306 (MySQL)."),
+    ],
+    "infra_scan": [
+        ("C18_infra_scan", "C18", "SSL/TLS Certificate Validity",
+         "Does your public domain have a valid, non-expired SSL/TLS certificate "
+         "with at least 30 days remaining before expiry?",
+         "Check at ssllabs.com/ssltest/ or use the built-in Infra Scanner. "
+         "Certificates must use TLS 1.2+ (no TLS 1.0/1.1)."),
+        ("C18_infra_scan_b", "C18b", "HTTP Security Headers",
+         "Are HTTP security headers configured on your web presence? "
+         "(HSTS, X-Frame-Options, CSP, X-Content-Type-Options, Referrer-Policy)",
+         "Check at securityheaders.com. Missing headers leave your site "
+         "vulnerable to XSS, clickjacking, and content injection."),
+        ("C18_infra_scan_c", "C18c", "Risky Port Closure",
+         "Have risky or unused ports been closed on all public-facing "
+         "infrastructure? (Telnet/23, FTP/21, RDP/3389, MySQL/3306)",
+         "Only ports 80 (HTTP → redirect) and 443 (HTTPS) should be "
+         "publicly accessible for typical web services."),
+    ],
+    "zambia_risk": [
+        ("C19_zambia_risk", "C19", "Zambia Threat Awareness Training",
+         "Are staff trained on Zambia-specific threats? "
+         "(SIM swap fraud, mobile money scams, WhatsApp phishing, local social engineering)",
+         "Arrange sessions via ZICTA (zicta.zm) or CERT-ZM. "
+         "Include mobile money awareness and SIM PIN activation."),
+        ("C19_zambia_risk_b", "C19b", "Zambia Regulatory Compliance",
+         "Is the business compliant with the Data Protection Act 2021 "
+         "and the Cyber Security & Cyber Crimes Act 2021?",
+         "Register data processing activities with the Data Protection Commission (DPC). "
+         "Contact ZICTA for cybersecurity obligations guidance."),
+        ("C19_zambia_risk_c", "C19c", "Mobile Money Account Controls",
+         "Are mobile money account controls in place? "
+         "(daily transaction limits, SIM PIN enabled, no shared account PINs)",
+         "Set limits on Airtel Money, MTN MoMo, Zamtel Kwacha accounts. "
+         "Enable SIM PIN via *100# menus or by visiting your network provider."),
+    ],
+    "remediation": [
+        ("C20_remediation", "C20", "Findings Tracking Register",
+         "Are identified security findings tracked in a register with "
+         "assigned owners and target remediation dates?",
+         "Use a spreadsheet, Jira, or Trello. Each finding needs: "
+         "description, severity, owner, due date, and status."),
+        ("C20_remediation_b", "C20b", "Remediation SLA Adherence",
+         "Are critical security issues remediated within defined SLAs? "
+         "(e.g. Critical: 48 h, High: 1 week, Medium: 1 month)",
+         "Review your remediation register monthly. "
+         "Escalate overdue critical items to senior management immediately."),
+    ],
+}
+
+# Weights for tool sub-questions (map to parent control weight proportionally)
+_TOOL_Q_WEIGHTS: dict[str, int] = {
+    "C16_active_directory": 3, "C16_active_directory_b": 3, "C16_active_directory_c": 2,
+    "C17_network_scan": 3, "C17_network_scan_b": 2, "C17_network_scan_c": 2,
+    "C18_infra_scan": 3, "C18_infra_scan_b": 2, "C18_infra_scan_c": 2,
+    "C19_zambia_risk": 3, "C19_zambia_risk_b": 3, "C19_zambia_risk_c": 2,
+    "C20_remediation": 3, "C20_remediation_b": 3,
+}
+
+# Parent control key for each sub-question
+_TOOL_Q_PARENT: dict[str, str] = {
+    "C16_active_directory": "C16_active_directory",
+    "C16_active_directory_b": "C16_active_directory",
+    "C16_active_directory_c": "C16_active_directory",
+    "C17_network_scan": "C17_network_scan",
+    "C17_network_scan_b": "C17_network_scan",
+    "C17_network_scan_c": "C17_network_scan",
+    "C18_infra_scan": "C18_infra_scan",
+    "C18_infra_scan_b": "C18_infra_scan",
+    "C18_infra_scan_c": "C18_infra_scan",
+    "C19_zambia_risk": "C19_zambia_risk",
+    "C19_zambia_risk_b": "C19_zambia_risk",
+    "C19_zambia_risk_c": "C19_zambia_risk",
+    "C20_remediation": "C20_remediation",
+    "C20_remediation_b": "C20_remediation",
+}
+
 _ANS_STYLE = {
     "Yes – Fully": (CLR_SUCCESS, "#1A1730"),
     "Partially":   (CLR_WARNING, "#1A1400"),
@@ -87,22 +198,41 @@ _ANS_STYLE = {
 
 class ManualChecksScreen(ctk.CTkFrame):
 
-    def __init__(self, master, on_next, on_back):
+    def __init__(self, master, on_next, on_back, selected_tools=None):
         super().__init__(master, fg_color=CLR_BG, corner_radius=0)
         self._on_next = on_next
         self._on_back = on_back
+        self._selected_tools: set = selected_tools or set()
         self._answers: dict[str, ctk.StringVar] = {}
         self._notes: dict[str, ctk.CTkTextbox] = {}
-        self._score_var = ctk.StringVar(value="0 / 65 pts  (0%)")
-        self._done_var = ctk.StringVar(value="0 of 10 answered")
+        # Compute max points / question count AFTER methods are accessible
+        self._max_pts = _MAX + self._tool_max()
+        self._total_qs = 10 + self._tool_q_count()
+        self._score_var = ctk.StringVar(
+            value=f"0 / {self._max_pts} pts  (0%)")
+        self._done_var = ctk.StringVar(
+            value=f"0 of {self._total_qs} answered")
         self._build()
+
+    def _tool_max(self) -> int:
+        total = 0
+        for tid in self._selected_tools:
+            for qkey, _, _, _, _ in TOOL_QUESTIONS.get(tid, []):
+                total += _TOOL_Q_WEIGHTS.get(qkey, 0)
+        return total
+
+    def _tool_q_count(self) -> int:
+        return sum(
+            len(TOOL_QUESTIONS.get(tid, []))
+            for tid in self._selected_tools
+        )
 
     # ------------------------------------------------------------------ build
     def _build(self):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(2, weight=1)
 
-        _header(self, "Manual Assessment Questions", "3 of 4", 0.75)
+        _header(self, "Manual Assessment Questions", "4 of 5", 0.80)
 
         # ── Live score strip ──────────────────────────────────────
         score_bar = ctk.CTkFrame(self, fg_color=CLR_SURFACE,
@@ -151,6 +281,46 @@ class ManualChecksScreen(ctk.CTkFrame):
             var.trace_add("write", lambda *_: self._update_score())
             self._make_question(scroll, idx + 1, ctrl_key,
                                 cid, cname, question, hint, var)
+
+        # ── Tool-specific sections ────────────────────────────────
+        TOOL_LABELS = {
+            "active_dir":   ("🔐", "Active Directory Security",   "#6C5FC7"),
+            "network_scan": ("🌐", "Network Architecture",        "#2485E8"),
+            "infra_scan":   ("🖥",  "Infrastructure Security",     "#5A7490"),
+            "zambia_risk":  ("🇿🇲", "Zambia Local Threat Mitigation", "#F0A500"),
+            "remediation":  ("🔧", "Remediation Process",         "#27AE60"),
+        }
+        q_offset = len(MANUAL_CONTROLS) + 1
+        for tid in ("active_dir", "network_scan", "infra_scan",
+                    "zambia_risk", "remediation"):
+            if tid not in self._selected_tools:
+                continue
+            icon, label, colour = TOOL_LABELS[tid]
+            # Section divider
+            sec = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE,
+                               corner_radius=10, border_width=1,
+                               border_color=colour)
+            sec.grid(row=q_offset, column=0, sticky="ew",
+                     padx=PAD, pady=(PAD, 4))
+            sec.grid_columnconfigure(1, weight=1)
+            q_offset += 1
+            ctk.CTkFrame(sec, fg_color=colour, width=5,
+                         corner_radius=0).grid(row=0, column=0,
+                                               sticky="ns", pady=0)
+            sec.grid_propagate(False)
+            sec.configure(height=44)
+            ctk.CTkLabel(sec, text=f"{icon}  {label} — Additional Controls",
+                         font=("Segoe UI", 12, "bold"),
+                         text_color=colour).grid(
+                row=0, column=1, padx=14, pady=12, sticky="w")
+
+            for ctrl_key, cid, cname, question, hint in TOOL_QUESTIONS[tid]:
+                var = ctk.StringVar(value="No")
+                self._answers[ctrl_key] = var
+                var.trace_add("write", lambda *_: self._update_score())
+                self._make_question(scroll, q_offset, ctrl_key,
+                                    cid, cname, question, hint, var)
+                q_offset += 1
 
         # ── Nav ───────────────────────────────────────────────────
         nav = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0,
@@ -267,21 +437,45 @@ class ManualChecksScreen(ctk.CTkFrame):
         answered = 0
         for k, var in self._answers.items():
             choice = var.get()
-            total += round(_WEIGHTS.get(k, 0) * ANSWER_SCORE.get(choice, 0.0))
+            w = _WEIGHTS.get(k) or _TOOL_Q_WEIGHTS.get(k, 0)
+            total += round(w * ANSWER_SCORE.get(choice, 0.0))
             if choice in ("Yes – Fully", "Partially"):
                 answered += 1
-        pct = round(total / _MAX * 100) if _MAX else 0
-        self._score_var.set(f"{total} / {_MAX} pts  ({pct}%)")
-        self._done_var.set(f"{answered} of 10 answered")
+        pct = round(total / self._max_pts * 100) if self._max_pts else 0
+        self._score_var.set(f"{total} / {self._max_pts} pts  ({pct}%)")
+        self._done_var.set(f"{answered} of {self._total_qs} answered")
 
     # ---------------------------------------------------------------- submit
     def _submit(self):
-        from src.security.assessment.assessor import CONTROL_CATALOGUE
+        from src.security.assessment.assessor import CONTROL_CATALOGUE, TOOL_CONTROLS
         manual_scores: dict[str, int] = {}
+
+        # Aggregate core C06-C15 directly
         for ctrl_key, var in self._answers.items():
-            weight = CONTROL_CATALOGUE[ctrl_key]["weight"]
-            manual_scores[ctrl_key] = round(
-                weight * ANSWER_SCORE[var.get()])
+            if ctrl_key in CONTROL_CATALOGUE:
+                w = CONTROL_CATALOGUE[ctrl_key]["weight"]
+                manual_scores[ctrl_key] = round(w * ANSWER_SCORE[var.get()])
+
+        # Aggregate tool sub-questions → their parent C16-C20 control
+        parent_scores: dict[str, list[int]] = {}
+        parent_maxes:  dict[str, int]       = {}
+        for ctrl_key, var in self._answers.items():
+            if ctrl_key not in CONTROL_CATALOGUE and ctrl_key in _TOOL_Q_PARENT:
+                parent = _TOOL_Q_PARENT[ctrl_key]
+                pts = round(_TOOL_Q_WEIGHTS.get(ctrl_key, 0)
+                            * ANSWER_SCORE[var.get()])
+                parent_scores.setdefault(parent, []).append(pts)
+                parent_maxes[parent] = parent_maxes.get(parent, 0) + \
+                    _TOOL_Q_WEIGHTS.get(ctrl_key, 0)
+
+        for parent, scores in parent_scores.items():
+            if parent in TOOL_CONTROLS:
+                ctrl_weight = TOOL_CONTROLS[parent]["weight"]
+                sub_total   = sum(scores)
+                sub_max     = parent_maxes.get(parent, 1)
+                manual_scores[parent] = round(
+                    ctrl_weight * sub_total / sub_max) if sub_max else 0
+
         evidence: dict[str, str] = {}
         for ctrl_key, tb in self._notes.items():
             txt = tb.get("1.0", "end").strip()

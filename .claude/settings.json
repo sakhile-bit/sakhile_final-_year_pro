@@ -27,7 +27,9 @@
       "Bash(.venv/Scripts/python.exe -c \"import pyautogui; print\\('pyautogui ok'\\)\")",
       "Bash(.venv/Scripts/python.exe -m py_compile src/gui/app.py src/gui/screens/welcome.py src/gui/screens/audit_log_viewer.py src/gui/screens/assessment_dashboard.py src/gui/screens/export_reports.py src/gui/screens/remediation_guidance.py src/gui/screens/settings.py src/gui/screens/active_directory.py)",
       "Bash(.venv/Scripts/pip install *)",
-      "Bash(.venv/Scripts/python.exe test_gui_runner.py)"
+      "Bash(.venv/Scripts/python.exe test_gui_runner.py)",
+      "Bash(.venv/Scripts/python.exe -m py_compile src/gui/screens/tools_profile.py src/gui/screens/business_info.py src/gui/screens/manual_checks.py src/gui/screens/results.py src/gui/app.py src/security/assessment/assessor.py)",
+      "Bash(not exist *)"
     ]
   }
 }

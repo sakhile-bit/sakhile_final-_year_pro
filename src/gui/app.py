@@ -35,6 +35,7 @@ class DigitalHygieneApp(ctk.CTk):
         self.geometry(f"{WIN_W}x{WIN_H}+{x}+{y}")
 
         self._business_info = None
+        self._selected_tools: set = set()
         self._auto_results = {}
 
         self._current_screen = None
@@ -119,18 +120,28 @@ class DigitalHygieneApp(ctk.CTk):
         from src.gui.screens.business_info import BusinessInfoScreen
         self._swap(BusinessInfoScreen(
             self,
-            on_next=self._show_scanning,
+            on_next=self._show_tools_profile,
             on_back=self._show_welcome,
         ))
 
-    def _show_scanning(self, business_info):
+    def _show_tools_profile(self, business_info):
         self._business_info = business_info
+        from src.gui.screens.tools_profile import ToolsProfileScreen
+        self._swap(ToolsProfileScreen(
+            self,
+            on_next=self._show_scanning,
+            on_back=self._show_business_info,
+        ))
+
+    def _show_scanning(self, selected_tools=None):
+        if selected_tools is not None:
+            self._selected_tools = selected_tools
         from src.gui.screens.scanning import ScanningScreen
         self._swap(ScanningScreen(
             self,
-            business_info=business_info,
+            business_info=self._business_info,
             on_next=self._show_manual,
-            on_back=self._show_business_info,
+            on_back=lambda: self._show_tools_profile(self._business_info),
             on_skip=self._show_quick_results,
         ))
 
@@ -139,8 +150,9 @@ class DigitalHygieneApp(ctk.CTk):
         from src.gui.screens.manual_checks import ManualChecksScreen
         self._swap(ManualChecksScreen(
             self,
+            selected_tools=self._selected_tools,
             on_next=self._show_results,
-            on_back=lambda: self._show_scanning(self._business_info),  # type: ignore[arg-type]
+            on_back=lambda: self._show_scanning(),
         ))
 
     def _show_quick_results(self, auto_results):
@@ -160,6 +172,7 @@ class DigitalHygieneApp(ctk.CTk):
             self._business_info,
             manual_answers=manual_scores,
             assessment_tier="full",
+            selected_tools=self._selected_tools,
         )
         # Patch in the already-computed automated results
         results = assessor.run_assessment()
