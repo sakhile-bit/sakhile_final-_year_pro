@@ -513,7 +513,7 @@ def index():
     dl_url = os.environ.get(
         'DOWNLOAD_URL',
         'https://github.com/sakhile-bit/sakhile_final-_year_pro'
-        '/releases/latest/download/ZambiaDigitalHygiene.exe',
+        '/releases/download/v1.0.0/ZambiaDigitalHygiene.exe',
     )
     return render_template('index.html', download_url=dl_url)
 
@@ -2336,7 +2336,7 @@ def download():
     """Redirect to the latest Windows .exe on GitHub Releases."""
     download_url = os.environ.get(
         'DOWNLOAD_URL',
-        'https://github.com/sakhile-bit/sakhile_final-_year_pro/releases/latest/download/ZambiaDigitalHygiene.exe',
+        'https://github.com/sakhile-bit/sakhile_final-_year_pro/releases/download/v1.0.0/ZambiaDigitalHygiene.exe',
     )
     return redirect(download_url)
 
