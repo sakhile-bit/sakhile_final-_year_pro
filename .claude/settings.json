@@ -38,7 +38,13 @@
       "Bash(curl -s -o /dev/null -w \"/admin → %{http_code}\\\\n\" http://127.0.0.1:5000/admin)",
       "Bash(curl -s -o /dev/null -w \"/api → %{http_code}\\\\n\" http://127.0.0.1:5000/api)",
       "Bash(curl -s -o /dev/null -w \"/health → %{http_code}\\\\n\" http://127.0.0.1:5000/health)",
-      "Bash(curl -s http://127.0.0.1:5000/health)"
+      "Bash(curl -s http://127.0.0.1:5000/health)",
+      "PowerShell(cd \"c:\\\\Users\\\\Hello\\\\Desktop\\\\sakhile_final-_year_pro\"; $env:FLASK_APP=\"src/web/app.py\"; $env:FLASK_ENV=\"development\"; Start-Process -FilePath \".\\\\.venv\\\\Scripts\\\\python.exe\" -ArgumentList \"-m flask run --reload\" -NoNewWindow -PassThru | Out-Null; Write-Host \"Flask starting...\")",
+      "Bash(curl -sc /tmp/zdh_cookies.txt http://127.0.0.1:5000/login)",
+      "Bash(curl -sc /tmp/zdh2.txt http://127.0.0.1:5000/login -o /tmp/login_page.html)",
+      "Read(//tmp/**)",
+      "PowerShell(cd \"c:\\\\Users\\\\Hello\\\\Desktop\\\\sakhile_final-_year_pro\"; $env:PYTHONIOENCODING=\"utf-8\"; .\\\\.venv\\\\Scripts\\\\python.exe verify_web.py 2>&1)",
+      "PowerShell(cd \"c:\\\\Users\\\\Hello\\\\Desktop\\\\sakhile_final-_year_pro\"; Get-Process python -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Milliseconds 800; $env:FLASK_APP=\"src/web/app.py\"; $env:FLASK_ENV=\"development\"; Start-Process -FilePath \".\\\\.venv\\\\Scripts\\\\python.exe\" -ArgumentList \"-m flask run --reload\" -NoNewWindow; Start-Sleep -Seconds 5; Write-Host \"Flask restarted\")"
     ]
   }
 }
