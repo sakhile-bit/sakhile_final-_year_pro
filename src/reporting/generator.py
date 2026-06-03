@@ -77,7 +77,7 @@ class ReportGenerator:
             'metadata': {
                 'generated': datetime.now().isoformat(),
                 'program': 'Zambia Digital Hygiene Certification Program',
-                'version': '2.0.0',
+                'version': '1.0.0',
                 'frameworks': ['NIST CSF v1.1', 'CIS Controls v8', 'ISO 27001:2022'],
                 'business': {
                     'name': getattr(business_info, 'name', 'Unknown'),

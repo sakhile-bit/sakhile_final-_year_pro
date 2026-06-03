@@ -4,7 +4,7 @@ Inspired by Sentry.io — dark purple-gray palette, clean typography.
 """
 
 APP_NAME    = "Zambia Digital Hygiene Certification"
-APP_VERSION = "2.0.0"
+APP_VERSION = "1.0.0"
 
 # ── Colour palette (Sentry-inspired) ─────────────────────────────────────────
 CLR_BRAND       = "#100E18"   # very dark brand panel (welcome left side)
