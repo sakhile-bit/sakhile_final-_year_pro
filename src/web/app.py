@@ -2353,5 +2353,470 @@ def server_error(e):
     return render_template('500.html'), 500
 
 
+# ------------------------------------------------------------------
+# Health check (no auth — for load balancers / hosting platforms)
+# ------------------------------------------------------------------
+@app.route('/health')
+def health():
+    return jsonify({'status': 'ok', 'service': 'zdh-web'})
+
+
+# ------------------------------------------------------------------
+# Network Scanner
+# ------------------------------------------------------------------
+_NET_SCAN_PORTS = [21, 22, 23, 25, 53, 80, 135, 139, 443, 445,
+                   1433, 3306, 3389, 5432, 8080, 8443]
+
+_NET_PORT_INFO: dict[int, tuple[str, str, str]] = {
+    21:   ("FTP",        "HIGH",     "Unencrypted file transfer — use SFTP"),
+    22:   ("SSH",        "INFO",     "Secure remote access"),
+    23:   ("Telnet",     "CRITICAL", "Unencrypted remote access — disable now"),
+    25:   ("SMTP",       "MEDIUM",   "Mail relay — verify not open to internet"),
+    53:   ("DNS",        "INFO",     "DNS resolver"),
+    80:   ("HTTP",       "LOW",      "Unencrypted web — redirect to HTTPS"),
+    135:  ("MS-RPC",     "HIGH",     "Windows RPC — restrict to internal only"),
+    139:  ("NetBIOS",    "HIGH",     "Legacy Windows sharing — disable if unused"),
+    443:  ("HTTPS",      "INFO",     "Secure web server"),
+    445:  ("SMB",        "CRITICAL", "Windows file sharing — prime ransomware vector"),
+    1433: ("MS-SQL",     "HIGH",     "SQL Server exposed — restrict access"),
+    3306: ("MySQL",      "HIGH",     "MySQL database exposed to network"),
+    3389: ("RDP",        "CRITICAL", "Remote Desktop — critical ransomware risk"),
+    5432: ("PostgreSQL", "HIGH",     "PostgreSQL database exposed"),
+    8080: ("HTTP-alt",   "LOW",      "Alternative web server"),
+    8443: ("HTTPS-alt",  "INFO",     "Alternative HTTPS server"),
+}
+
+_NET_RISK_ORDER = {"CRITICAL": 5, "HIGH": 4, "MEDIUM": 3, "LOW": 2, "INFO": 1, "SAFE": 0}
+
+
+def _net_scan_port(ip: str, port: int, timeout: float = 0.5) -> bool:
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(timeout)
+        r = s.connect_ex((ip, port))
+        s.close()
+        return r == 0
+    except Exception:
+        return False
+
+
+def _net_scan_device(ip: str) -> dict:
+    from concurrent.futures import ThreadPoolExecutor, as_completed as _ac
+    open_ports: list[int] = []
+    with ThreadPoolExecutor(max_workers=16) as ex:
+        futs = {ex.submit(_net_scan_port, ip, p): p for p in _NET_SCAN_PORTS}
+        for fut in _ac(futs):
+            if fut.result():
+                open_ports.append(futs[fut])
+    try:
+        hostname = socket.gethostbyaddr(ip)[0]
+    except Exception:
+        hostname = ip
+    risk_level = "SAFE"
+    for p in open_ports:
+        lvl = _NET_PORT_INFO.get(p, ("", "INFO", ""))[1]
+        if _NET_RISK_ORDER.get(lvl, 0) > _NET_RISK_ORDER.get(risk_level, 0):
+            risk_level = lvl
+    port_details = []
+    for p in sorted(open_ports):
+        name, risk, desc = _NET_PORT_INFO.get(p, (str(p), "INFO", ""))
+        port_details.append({"port": p, "name": name, "risk": risk, "desc": desc})
+    return {"ip": ip, "hostname": hostname, "open_ports": open_ports,
+            "port_details": port_details, "risk_level": risk_level}
+
+
+def _net_arp_hosts(prefix: str) -> list[str]:
+    hosts: set[str] = set()
+    try:
+        result = subprocess.run(["arp", "-a"], capture_output=True, text=True, timeout=5)
+        for line in result.stdout.splitlines():
+            m = re.search(r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", line)
+            if m and m.group(1).startswith(prefix):
+                hosts.add(m.group(1))
+    except Exception:
+        pass
+    return sorted(hosts)
+
+
+@app.route('/network-scan', methods=['GET', 'POST'])
+@login_required
+def network_scan():
+    results: list[dict] = []
+    subnet = ""
+    error = None
+    local_ip = "127.0.0.1"
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 53))
+        local_ip = s.getsockname()[0]
+        s.close()
+    except Exception:
+        pass
+
+    if request.method == 'POST':
+        subnet = request.form.get('subnet', '.'.join(local_ip.split('.')[:3])).strip()
+        if not re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}$', subnet):
+            error = "Invalid subnet prefix — enter like: 192.168.1"
+        else:
+            hosts = list(set(_net_arp_hosts(subnet) + (
+                [local_ip] if local_ip.startswith(subnet) else [])))
+            if not hosts:
+                error = (f"No devices found on {subnet}.0/24 in the ARP cache. "
+                         "Try pinging a few devices first, then re-scan.")
+            else:
+                from concurrent.futures import ThreadPoolExecutor, as_completed as _ac
+                with ThreadPoolExecutor(max_workers=8) as ex:
+                    futs = {ex.submit(_net_scan_device, ip): ip for ip in hosts[:50]}
+                    for fut in _ac(futs):
+                        results.append(fut.result())
+                results.sort(
+                    key=lambda d: _NET_RISK_ORDER.get(d['risk_level'], 0),
+                    reverse=True)
+
+    default_subnet = '.'.join(local_ip.split('.')[:3])
+    return render_template('network_scan.html', results=results, subnet=subnet,
+                           local_ip=local_ip, default_subnet=default_subnet,
+                           error=error, port_info=_NET_PORT_INFO)
+
+
+# ------------------------------------------------------------------
+# Policy Template Library
+# ------------------------------------------------------------------
+_POLICY_TEMPLATES = [
+    {
+        "id": "aup",
+        "icon": "fa-file-contract",
+        "title": "Acceptable Use Policy (AUP)",
+        "description": "Rules governing how staff may use company computers, internet, and devices.",
+        "framework": "CIS Control 14 · ISO 27001 A.8",
+        "content": """\
+ACCEPTABLE USE POLICY
+=====================
+[BUSINESS NAME]
+Effective Date: [DATE]
+Version: 1.0
+Approved by: [MANAGEMENT NAME / TITLE]
+
+1. PURPOSE
+   This policy defines acceptable use of [BUSINESS NAME]'s information technology
+   resources to protect the organisation, its employees, partners, and customers.
+
+2. SCOPE
+   This policy applies to ALL employees, contractors, and third parties who access
+   [BUSINESS NAME]'s IT systems, networks, or data.
+
+3. ACCEPTABLE USE
+   3.1 IT resources shall be used primarily for legitimate business purposes.
+   3.2 Limited personal use is permitted provided it does not interfere with work.
+   3.3 Users must keep passwords confidential and not share them with others.
+   3.4 Users must lock their computer screen when leaving their workstation.
+
+4. PROHIBITED ACTIVITIES
+   4.1 Accessing, downloading, or distributing illegal or inappropriate content.
+   4.2 Installing unlicensed software on company devices.
+   4.3 Sharing company data or credentials with unauthorised persons.
+   4.4 Using company email for personal business or chain letters.
+   4.5 Attempting to bypass security controls or access unauthorised systems.
+   4.6 Using company systems for cryptocurrency mining or personal financial gain.
+   4.7 Connecting personal USB drives without IT approval.
+
+5. MOBILE DEVICES
+   5.1 All company mobile devices must have a PIN/password lock.
+   5.2 Employees must report lost or stolen devices to management immediately.
+   5.3 Only apps from official app stores may be installed.
+
+6. DATA PROTECTION
+   6.1 Customer data must be handled in accordance with the Zambia Data Protection
+       Act No. 3 of 2021.
+   6.2 Sensitive data must not be stored on personal devices or unapproved cloud services.
+
+7. INCIDENT REPORTING
+   All suspected security incidents must be reported to [IT CONTACT NAME] at [EMAIL/PHONE].
+   ZICTA: +260 211 369 000 | CERT-ZM: cert@zicta.zm
+
+8. CONSEQUENCES
+   Violations may result in disciplinary action up to and including termination,
+   and referral to law enforcement under the Cyber Security and Cyber Crimes Act, 2021.
+
+9. ACKNOWLEDGEMENT
+   I, [EMPLOYEE NAME], have read, understood, and agree to comply with this policy.
+
+   Signature: ___________________________   Date: _______________
+   Printed Name: ________________________   Department: __________
+""",
+    },
+    {
+        "id": "irp",
+        "icon": "fa-triangle-exclamation",
+        "title": "Incident Response Plan (IRP)",
+        "description": "Step-by-step plan for responding to cybersecurity incidents.",
+        "framework": "CIS Control 17 · NIST RS.RP-1 · ISO 27001 A.16",
+        "content": """\
+INCIDENT RESPONSE PLAN
+=======================
+[BUSINESS NAME]
+Effective Date: [DATE]
+Version: 1.0
+Plan Owner: [IT MANAGER / OWNER NAME]
+
+1. PURPOSE
+   This plan defines how [BUSINESS NAME] will detect, respond to, and recover from
+   cybersecurity incidents to minimise damage and restore normal operations quickly.
+
+2. INCIDENT TYPES COVERED
+   - Data breach or unauthorised access
+   - Ransomware or malware infection
+   - Phishing attack (successful or attempted)
+   - Loss or theft of devices containing company data
+   - System outage caused by a cyberattack
+
+3. RESPONSE TEAM
+   Incident Commander:  [NAME] — [PHONE] — [EMAIL]
+   IT Support Contact:  [NAME / COMPANY] — [PHONE]
+   Management Notifier: [NAME] — [PHONE]
+
+4. EXTERNAL CONTACTS
+   ZICTA:  +260 211 369 000  |  info@zicta.zm
+   CERT-ZM: cert@zicta.zm
+   Zambia Police (Cybercrime): +260 211 251 222
+
+5. RESPONSE STEPS
+
+   STEP 1 — IDENTIFY (First 15 minutes)
+   [ ] Who noticed the incident? _______________  Time: _________
+   [ ] What systems/data are affected?
+   [ ] Is the incident still ongoing?
+
+   STEP 2 — CONTAIN (First 1 hour)
+   [ ] Disconnect affected computers from the network.
+   [ ] Do NOT turn off the computer unless ransomware is actively encrypting files.
+   [ ] Preserve evidence — take photos of error messages.
+   [ ] Change passwords for affected accounts from a clean device.
+
+   STEP 3 — ERADICATE (Hours 1–24)
+   [ ] Run a full antivirus scan on affected systems.
+   [ ] Remove malware identified.
+   [ ] Patch any vulnerability that was exploited.
+   [ ] Reset all potentially compromised credentials.
+
+   STEP 4 — RECOVER (Hours 24–72)
+   [ ] Restore data from the most recent clean backup.
+   [ ] Verify systems are clean before reconnecting to the network.
+
+   STEP 5 — REPORT & LEARN (Within 7 days)
+   [ ] Report to ZICTA / CERT-ZM if customer data was breached.
+   [ ] Notify affected customers if their data was exposed (required by DPA 2021).
+   [ ] Document what happened, timeline, impact, and actions taken.
+
+6. DATA BREACH NOTIFICATION (Zambia DPA 2021)
+   - Notify the Data Protection Commissioner within 72 hours.
+   - Notify affected individuals without undue delay.
+
+7. PLAN REVIEW
+   This plan is reviewed annually or after any significant incident.
+   Last reviewed: [DATE]   Next review: [DATE]
+""",
+    },
+    {
+        "id": "acp",
+        "icon": "fa-key",
+        "title": "Access Control Policy",
+        "description": "Policy for managing who can access company systems and data.",
+        "framework": "CIS Control 5 · NIST PR.AC-4 · ISO 27001 A.9",
+        "content": """\
+ACCESS CONTROL POLICY
+======================
+[BUSINESS NAME]
+Effective Date: [DATE]
+Version: 1.0
+
+1. PURPOSE
+   To ensure access to information systems and data is granted on a
+   least-privilege, need-to-know basis.
+
+2. ACCESS PRINCIPLES
+   2.1 Least Privilege: Users receive only the minimum access required.
+   2.2 Need to Know: Sensitive data restricted to those with a legitimate need.
+   2.3 Separation of Duties: Critical tasks require more than one approver.
+
+3. USER ACCOUNT MANAGEMENT
+   3.1 New accounts require written manager approval.
+   3.2 When an employee leaves, access is revoked on their LAST DAY.
+   3.3 Shared passwords must be changed when an employee with that access leaves.
+
+4. PASSWORD REQUIREMENTS
+   [ ] Minimum 8 characters (12 recommended)
+   [ ] Uppercase, lowercase, numbers, and special characters
+   [ ] Passwords expire every 90 days
+   [ ] Accounts lock after 5 failed attempts
+   [ ] MFA required for: [LIST SYSTEMS]
+
+5. PRIVILEGED ACCESS
+   5.1 Admin accounts must be separate from regular accounts.
+   5.2 Privileged access must be logged and reviewed monthly.
+   5.3 Remote privileged access requires MFA and VPN.
+
+6. ACCESS REVIEWS
+   Access rights for all users shall be reviewed every 6 months.
+   Next review due: [DATE]
+
+7. VIOLATIONS
+   Unauthorised access or credential sharing is a disciplinary offence
+   under the Cyber Security and Cyber Crimes Act, 2021.
+""",
+    },
+    {
+        "id": "pwd",
+        "icon": "fa-lock",
+        "title": "Password & MFA Policy",
+        "description": "Rules for creating strong passwords and using multi-factor authentication.",
+        "framework": "CIS Control 5 · NIST PR.AC-1 · ISO 27001 A.9.4",
+        "content": """\
+PASSWORD AND MULTI-FACTOR AUTHENTICATION (MFA) POLICY
+=======================================================
+[BUSINESS NAME]
+Effective Date: [DATE]
+Version: 1.0
+
+1. PASSWORD REQUIREMENTS
+   MINIMUM LENGTH:   8 characters (12+ recommended)
+   COMPLEXITY:       Uppercase, lowercase, number, and special character
+   MAXIMUM AGE:      90 days
+   HISTORY:          Cannot reuse last 5 passwords
+   LOCKOUT:          Account locked after 5 consecutive failed attempts
+
+2. PASSPHRASE APPROACH
+   Consider using 4+ random words, e.g. "ZambiaCloud2024Secure!"
+   Use a free password manager (Bitwarden, KeePass) to store passwords.
+
+3. PROHIBITED PASSWORDS
+   [ ] Passwords containing your name, business name, or username
+   [ ] Common passwords: "password", "123456", "zambia", "lusaka"
+   [ ] Keyboard patterns: "qwerty", "asdfgh"
+
+4. MULTI-FACTOR AUTHENTICATION (MFA)
+   MFA is MANDATORY for:
+   [ ] Email accounts
+   [ ] Banking and mobile money applications
+   [ ] Cloud storage (Google Drive, OneDrive, Dropbox)
+   [ ] Any VPN or remote access system
+   Recommended apps: Google Authenticator, Microsoft Authenticator, Authy.
+
+5. PASSWORD SHARING
+   Passwords must NEVER be:
+   [ ] Shared with colleagues or IT staff
+   [ ] Written on paper and left visible
+   [ ] Sent via WhatsApp or SMS in plain text
+
+6. SUSPECTED COMPROMISE
+   1. Change the password immediately on all affected accounts.
+   2. Enable MFA on the account if not already done.
+   3. Report to [IT CONTACT] at [EMAIL/PHONE].
+   4. Check https://haveibeenpwned.com for data breach exposure.
+""",
+    },
+    {
+        "id": "dpp",
+        "icon": "fa-shield-halved",
+        "title": "Data Protection Policy",
+        "description": "How the business collects, stores, and protects personal data under Zambia's DPA 2021.",
+        "framework": "Zambia DPA 2021 · GDPR-aligned · ISO 27001 A.18",
+        "content": """\
+DATA PROTECTION POLICY
+=======================
+[BUSINESS NAME]
+Effective Date: [DATE]
+Version: 1.0
+
+1. COMMITMENT
+   [BUSINESS NAME] is committed to protecting personal data in compliance with the
+   Zambia Data Protection Act No. 3 of 2021.
+
+2. WHAT DATA WE COLLECT
+   [ ] Name, contact details (phone, email, address)
+   [ ] National Registration Card (NRC) number where required by law
+   [ ] Financial information — for payment purposes only
+   [ ] Employment records (for employees)
+   [ ] [LIST ANY OTHER DATA YOUR BUSINESS COLLECTS]
+
+3. HOW WE PROTECT DATA
+   [ ] Data is stored on password-protected systems.
+   [ ] Sensitive data is encrypted at rest where feasible.
+   [ ] Access is restricted to authorised staff only.
+   [ ] Paper records are kept in locked storage.
+
+4. DATA RETENTION
+   Customer records:   [X] years after last transaction
+   Employee records:   [X] years after employment ends
+   Financial records:  [7] years (ZRA requirements)
+
+5. DATA SUBJECT RIGHTS (Zambia DPA 2021)
+   Individuals have the right to access, correct, and request deletion of their data.
+   Contact: [EMAIL / PHONE] — we will respond within 14 days.
+
+6. DATA BREACH RESPONSE
+   1. Report to management immediately.
+   2. Notify the Data Protection Commissioner within 72 hours if required.
+   3. Notify affected individuals without undue delay.
+
+7. REGISTRATION
+   [BUSINESS NAME] is registered with the Data Protection Commission (DPC) Zambia.
+   Registration Number: [DPC REG NUMBER]
+
+8. REVIEW
+   This policy is reviewed annually. Last reviewed: [DATE]
+""",
+    },
+]
+
+
+@app.route('/policy-templates')
+@login_required
+def policy_templates():
+    return render_template('policy_templates.html', templates=_POLICY_TEMPLATES)
+
+
+@app.route('/policy-templates/<template_id>/download')
+@login_required
+def policy_template_download(template_id):
+    tmpl = next((t for t in _POLICY_TEMPLATES if t['id'] == template_id), None)
+    if not tmpl:
+        abort(404)
+    buf = io.BytesIO(tmpl['content'].encode('utf-8'))
+    return send_file(buf, as_attachment=True,
+                     download_name=f"{template_id}_policy_template.txt",
+                     mimetype='text/plain')
+
+
+# ------------------------------------------------------------------
+# User Settings
+# ------------------------------------------------------------------
+@app.route('/settings', methods=['GET', 'POST'])
+@login_required
+def settings():
+    if request.method == 'POST':
+        new_email = request.form.get('email', '').strip()
+        if new_email and new_email != current_user.email:
+            if User.query.filter(
+                User.email == new_email,
+                User.id != current_user.id,
+            ).first():
+                flash('That email address is already in use.', 'error')
+            elif not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', new_email):
+                flash('Invalid email address.', 'error')
+            else:
+                current_user.email = new_email
+                db.session.commit()
+                log = AuditLog(user_id=current_user.id, action='settings_update',
+                               resource_type='user', resource_id=current_user.id,
+                               details={'field': 'email', 'ip': request.remote_addr})
+                db.session.add(log)
+                db.session.commit()
+                flash('Email updated successfully.', 'success')
+        elif not new_email:
+            flash('Email address cannot be empty.', 'error')
+    return render_template('settings.html', user=current_user)
+
+
 if __name__ == '__main__':
     create_app().run(debug=True)
