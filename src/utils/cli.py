@@ -59,7 +59,7 @@ logger = get_logger(__name__)
 # ──────────────────────────────────────────────────────────────────────────────
 
 @click.group()
-@click.version_option(version="2.0.0")
+@click.version_option(version="1.0.0")
 @click.option('--config', 'config_file', type=click.Path(exists=True),
               help='Path to YAML configuration file')
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose / DEBUG output')

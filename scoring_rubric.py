@@ -19,7 +19,7 @@ from typing import Any, Dict
 SCORING_RUBRIC: Dict[str, Any] = {
     "program": {
         "name": "Zambia Digital Hygiene Certification Program",
-        "version": "2.0.0",
+        "version": "1.0.0",
         "total_possible": 120,
         "frameworks": [
             "NIST Cybersecurity Framework v1.1",

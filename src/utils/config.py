@@ -37,7 +37,7 @@ class Config:
         return {
             'app': {
                 'name': 'Zambia Digital Hygiene Assessment Tool',
-                'version': '2.0.0',
+                'version': '1.0.0',
                 'log_level': os.getenv('LOG_LEVEL', 'INFO'),
                 'log_file': os.getenv('LOG_FILE', 'logs/app.log'),
                 'debug': os.getenv('DEBUG', 'false').lower() == 'true'
