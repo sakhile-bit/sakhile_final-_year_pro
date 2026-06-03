@@ -213,9 +213,11 @@
           <ul class="dropdown-menu">
             <li><a class="dropdown-item" href="{{ url_for('system_scan') }}"><i class="fas fa-laptop-code"></i>System Scan</a></li>
             <li><a class="dropdown-item" href="{{ url_for('infrastructure_scan') }}"><i class="fas fa-network-wired"></i>Infra Scan</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('network_scan') }}"><i class="fas fa-sitemap"></i>Network Scan</a></li>
             <li><a class="dropdown-item" href="{{ url_for('zambia_assessment') }}"><i class="fas fa-flag"></i>Zambia Risk</a></li>
             <li><a class="dropdown-item" href="{{ url_for('predeploy_check') }}"><i class="fas fa-rocket"></i>Pre-Deploy</a></li>
             <li><div class="dropdown-divider"></div></li>
+            <li><a class="dropdown-item" href="{{ url_for('policy_templates') }}"><i class="fas fa-file-contract"></i>Policy Templates</a></li>
             <li><a class="dropdown-item" href="{{ url_for('schedule_scan') }}"><i class="fas fa-clock"></i>Schedule Scan</a></li>
           </ul>
         </li>
@@ -234,6 +236,7 @@
             <li class="px-3 py-1" style="font-size:.73rem;color:var(--muted)">{{ current_user.email }}</li>
             <li><div class="dropdown-divider"></div></li>
             <li><a class="dropdown-item" href="{{ url_for('profile') }}"><i class="fas fa-user"></i>Profile</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('settings') }}"><i class="fas fa-gear"></i>Settings</a></li>
             <li><a class="dropdown-item" href="{{ url_for('change_password') }}"><i class="fas fa-key"></i>Change Password</a></li>
             <li><a class="dropdown-item" href="{{ url_for('mfa_setup') }}"><i class="fas fa-shield-halved"></i>MFA{% if current_user.mfa_enabled %}<span style="font-size:.62rem;background:rgba(43,162,43,.14);color:#4DC34D;border-radius:3px;padding:.05rem .32rem;margin-left:.3rem">ON</span>{% endif %}</a></li>
             <li><div class="dropdown-divider"></div></li>

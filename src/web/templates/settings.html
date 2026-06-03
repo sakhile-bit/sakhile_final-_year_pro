@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% block title %}Settings — ZDH{% endblock %}
+{% block content %}
+<div class="container py-4" style="max-width:700px">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><i class="fas fa-gear me-2 text-brand"></i>Account Settings</h1>
+      <nav aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="{{ url_for('dashboard') }}">Dashboard</a></li><li class="breadcrumb-item active">Settings</li></ol></nav>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header"><i class="fas fa-user me-1"></i>Profile</div>
+    <div class="card-body">
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Username</strong>
+            <p>Your unique login name. Contact an admin to change this.</p>
+          </div>
+          <div class="setting-control">
+            <input type="text" class="form-control" value="{{ user.username }}" disabled>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Email Address</strong>
+            <p>Used for account notifications and recovery.</p>
+          </div>
+          <div class="setting-control">
+            <input type="email" name="email" class="form-control"
+                   value="{{ user.email }}" required>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Role</strong>
+            <p>Assigned by an administrator.</p>
+          </div>
+          <div class="setting-control">
+            <input type="text" class="form-control" value="{{ user.role | replace('_', ' ') | title }}" disabled>
+          </div>
+        </div>
+
+        <div class="d-flex justify-content-end pt-3">
+          <button type="submit" class="btn-brand btn">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header"><i class="fas fa-shield-halved me-1"></i>Security</div>
+    <div class="card-body">
+      <div class="setting-row">
+        <div class="setting-label">
+          <strong>Password</strong>
+          <p>Change your login password.</p>
+        </div>
+        <div class="setting-control">
+          <a href="{{ url_for('change_password') }}" class="btn-secondary btn btn-sm">Change Password</a>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div class="setting-label">
+          <strong>Two-Factor Authentication (MFA)</strong>
+          <p>Add an extra layer of security to your account.</p>
+        </div>
+        <div class="setting-control d-flex align-items-center gap-2">
+          {% if user.mfa_enabled %}
+            <span class="status-pill status-pass"><i class="fas fa-circle-check"></i>Enabled</span>
+          {% else %}
+            <span class="status-pill status-fail"><i class="fas fa-circle-xmark"></i>Disabled</span>
+          {% endif %}
+          <a href="{{ url_for('mfa_setup') }}" class="btn-secondary btn btn-sm">
+            {{ 'Manage MFA' if user.mfa_enabled else 'Enable MFA' }}
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><i class="fas fa-circle-info me-1"></i>Account Info</div>
+    <div class="card-body">
+      <div class="setting-row">
+        <div class="setting-label"><strong>Account Created</strong></div>
+        <div class="setting-control" style="color:var(--text-sec);font-size:.83rem">
+          {{ user.created_at.strftime('%d %B %Y') if user.created_at else '—' }}
+        </div>
+      </div>
+      <div class="setting-row">
+        <div class="setting-label"><strong>Account Status</strong></div>
+        <div class="setting-control">
+          {% if user.is_active %}
+            <span class="status-pill status-pass"><i class="fas fa-circle-check"></i>Active</span>
+          {% else %}
+            <span class="status-pill status-fail"><i class="fas fa-circle-xmark"></i>Disabled</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
