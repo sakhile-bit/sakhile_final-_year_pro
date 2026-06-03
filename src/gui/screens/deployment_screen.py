@@ -112,6 +112,8 @@ class CodeSecurityChecker:
             self._check_hardcoded_http_urls(),
             self._check_sql_injection_patterns(),
             self._check_command_injection(),
+            self._check_html_injection(),
+            self._check_js_injection(),
             self._check_backup_temp_files(),
             self._check_requirements_pinned(),
             self._check_broad_exception_handlers(),
@@ -232,8 +234,109 @@ class CodeSecurityChecker:
             "validate/whitelist all inputs before passing to subprocess",
             "code")
 
+    def _check_html_injection(self) -> CheckResult:
+        """CCS-04  Unsanitized user input rendered into HTML output (XSS risk)."""
+        patterns = [
+            # Jinja |safe filter — any use is risky with user-controlled data
+            re.compile(r'\|\s*safe\b'),
+            # Flask Markup() wrapping dynamic/user data
+            re.compile(r'Markup\s*\(\s*(?![\"\'])', re.I),
+            # PHP: echo/print with superglobals
+            re.compile(r'(?:echo|print)\s+.*\$_(GET|POST|REQUEST|COOKIE|SERVER)', re.I),
+            # innerHTML / outerHTML = variable (not an empty-string reset)
+            re.compile(r'\.(?:innerHTML|outerHTML)\s*\+?=\s*(?!\s*["\'][\s"\']*;)', re.I),
+            # document.write() with a non-literal argument
+            re.compile(r'document\.write\s*\(\s*(?!\s*["\'])', re.I),
+            # Ruby on Rails: raw() or html_safe on params
+            re.compile(r'(?:raw|html_safe)\s*[\(]?\s*params', re.I),
+            # Java: PrintWriter.write/print(request.getParameter(...))
+            re.compile(r'getWriter\(\)\.\s*(?:write|print)\s*\(.*getParameter', re.I),
+        ]
+        hits = []
+        for fpath in self._code_files():
+            lines = self._read(fpath)
+            for i, line in enumerate(lines, 1):
+                stripped = line.lstrip()
+                if stripped.startswith(("#", "//", "*", "<!--")):
+                    continue
+                for pat in patterns:
+                    if pat.search(line):
+                        rel = fpath.relative_to(self.root)
+                        hits.append(f"{rel}:{i}")
+                        break
+                if len(hits) >= 5:
+                    break
+            if len(hits) >= 5:
+                break
+
+        if not hits:
+            return CheckResult(
+                "CCS-04", "HTML Injection / XSS", True, "CRITICAL",
+                "No unsanitized HTML output patterns detected",
+                category="code")
+        return CheckResult(
+            "CCS-04", "HTML Injection / XSS", False, "CRITICAL",
+            f"Potential XSS in: {', '.join(hits)}",
+            "Never insert user input directly into HTML. Use template auto-escaping, "
+            "escape()/htmlspecialchars(), or a safe HTML library. "
+            "Avoid |safe in Jinja unless the value is fully server-controlled.",
+            "code")
+
+    def _check_js_injection(self) -> CheckResult:
+        """CCS-05  Dangerous JavaScript patterns that enable script injection."""
+        patterns = [
+            # eval() with a non-literal argument
+            re.compile(r'\beval\s*\(\s*(?!["\'])'),
+            # new Function() construction from strings
+            re.compile(r'\bnew\s+Function\s*\('),
+            # setTimeout/setInterval called with a string argument
+            re.compile(r'(?:setTimeout|setInterval)\s*\(\s*["`]'),
+            # innerHTML/outerHTML assigned a variable (not a literal string reset)
+            re.compile(r'\.(?:innerHTML|outerHTML)\s*\+?=\s*(?!\s*["\'][\s"\']*;)'),
+            # jQuery .html() called with a variable
+            re.compile(r'\$\s*\([^)]*\)\s*\.html\s*\(\s*(?!["\'])'),
+            # document.write() with a variable
+            re.compile(r'document\.write\s*\(\s*(?!["\'])'),
+            # insertAdjacentHTML — almost always risky
+            re.compile(r'insertAdjacentHTML\s*\('),
+            # Open redirect: location assigned a variable
+            re.compile(r'(?:location\.href|window\.location)\s*=\s*(?!["\'])'),
+        ]
+        js_ext = {".js", ".ts", ".jsx", ".tsx"}
+        hits = []
+        for fpath in self._code_files():
+            if fpath.suffix not in js_ext:
+                continue
+            lines = self._read(fpath)
+            for i, line in enumerate(lines, 1):
+                stripped = line.lstrip()
+                if stripped.startswith(("//", "/*", "*")):
+                    continue
+                for pat in patterns:
+                    if pat.search(line):
+                        rel = fpath.relative_to(self.root)
+                        hits.append(f"{rel}:{i}")
+                        break
+                if len(hits) >= 5:
+                    break
+            if len(hits) >= 5:
+                break
+
+        if not hits:
+            return CheckResult(
+                "CCS-05", "JavaScript Injection", True, "CRITICAL",
+                "No dangerous JavaScript injection patterns detected in JS/TS files",
+                category="code")
+        return CheckResult(
+            "CCS-05", "JavaScript Injection", False, "CRITICAL",
+            f"JS injection risk in: {', '.join(hits)}",
+            "Avoid eval(), innerHTML with user data, and new Function(). "
+            "Use textContent instead of innerHTML, DOMPurify to sanitize HTML, "
+            "and JSON.parse() instead of eval() for data parsing.",
+            "code")
+
     def _check_backup_temp_files(self) -> CheckResult:
-        """CCS-04  Backup / temp / test-data files left in the project."""
+        """CCS-06  Backup / temp / test-data files left in the project."""
         BAD_EXT = {".bak", ".orig", ".tmp", ".swp", ".old", ".save"}
         BAD_NAMES = {"test_data.sql", "dump.sql", "backup.sql",
                      "test.db", "dev.db", "secrets.txt"}
@@ -257,22 +360,22 @@ class CodeSecurityChecker:
 
         if not hits:
             return CheckResult(
-                "CCS-04", "Backup / Temp Files", True, "LOW",
+                "CCS-06", "Backup / Temp Files", True, "LOW",
                 "No backup or temporary files found in project tree",
                 category="code")
         return CheckResult(
-            "CCS-04", "Backup / Temp Files", False, "LOW",
+            "CCS-06", "Backup / Temp Files", False, "LOW",
             f"Stale files found: {', '.join(hits)}",
             "Delete backup/temp files before deploying. Add *.bak, *.tmp "
             "to .gitignore to prevent future commits",
             "code")
 
     def _check_requirements_pinned(self) -> CheckResult:
-        """CCS-05  requirements.txt exists and uses pinned versions (==)."""
+        """CCS-07  requirements.txt exists and uses pinned versions (==)."""
         req = self.root / "requirements.txt"
         if not req.exists():
             return CheckResult(
-                "CCS-05", "Pinned Dependencies", False, "HIGH",
+                "CCS-07", "Pinned Dependencies", False, "HIGH",
                 "requirements.txt not found",
                 "Create requirements.txt with `pip freeze > requirements.txt` "
                 "to pin all dependency versions for reproducible deploys",
@@ -283,18 +386,18 @@ class CodeSecurityChecker:
                     and not ln.startswith("-")]
         if not unpinned:
             return CheckResult(
-                "CCS-05", "Pinned Dependencies", True, "HIGH",
+                "CCS-07", "Pinned Dependencies", True, "HIGH",
                 f"All {len(lines)} dependencies are version-pinned",
                 category="code")
         return CheckResult(
-            "CCS-05", "Pinned Dependencies", False, "HIGH",
+            "CCS-07", "Pinned Dependencies", False, "HIGH",
             f"{len(unpinned)} unpinned: {', '.join(unpinned[:4])}{'…' if len(unpinned) > 4 else ''}",
             "Pin all versions with == (e.g. flask==3.0.2) to prevent "
             "unexpected upgrades breaking production",
             "code")
 
     def _check_broad_exception_handlers(self) -> CheckResult:
-        """CCS-06  Bare except / except Exception that swallow errors silently."""
+        """CCS-08  Bare except / except Exception that swallow errors silently."""
         pattern_bare  = re.compile(r'^\s*except\s*:', re.M)
         pattern_broad = re.compile(r'^\s*except\s+(Exception|BaseException)\s*:', re.M)
         hits = []
@@ -319,11 +422,11 @@ class CodeSecurityChecker:
 
         if not hits:
             return CheckResult(
-                "CCS-06", "Exception Handling", True, "MEDIUM",
+                "CCS-08", "Exception Handling", True, "MEDIUM",
                 "No silent broad exception handlers detected",
                 category="code")
         return CheckResult(
-            "CCS-06", "Exception Handling", False, "MEDIUM",
+            "CCS-08", "Exception Handling", False, "MEDIUM",
             f"Silent exception handlers in: {', '.join(hits)}",
             "Replace bare except/pass with specific exceptions and proper "
             "logging so errors are not silently swallowed in production",
@@ -677,7 +780,7 @@ class DeploymentCheckerScreen(ctk.CTkFrame):
         self._placeholder = ctk.CTkLabel(
             body,
             text="Select your project folder and click  ▶ Run Security Check\n\n"
-                 "21 checks across 5 categories — works with any tech stack:\n"
+                 "23 checks across 5 categories — works with any tech stack:\n"
                  "Node.js  ·  Python  ·  PHP  ·  Java  ·  Go  ·  Ruby  ·  .NET  ·  Rust  ·  and more",
             font=FONT_BODY, text_color=CLR_MUTED, justify="center",
         )
@@ -758,8 +861,8 @@ class DeploymentCheckerScreen(ctk.CTkFrame):
         app_checker  = ApplicationHygieneChecker(project_root=root)
         code_checker = CodeSecurityChecker(project_root=root)
 
-        # Total: 7 system/network + 3 secrets + 5 app + 6 code = 21
-        total_checks = 21
+        # Total: 7 system/network + 3 secrets + 5 app + 8 code = 23
+        total_checks = 23
         done = [0]
 
         def run_and_track(method, label):
@@ -792,11 +895,13 @@ class DeploymentCheckerScreen(ctk.CTkFrame):
             (app_checker._check_production_config,   "Application: Production config…"),
         ]
 
-        # Code scanning checks (6)
+        # Code scanning checks (8)
         code_checks_labeled = [
             (code_checker._check_hardcoded_http_urls,       "Code: Non-HTTPS URLs…"),
             (code_checker._check_sql_injection_patterns,    "Code: SQL injection patterns…"),
             (code_checker._check_command_injection,         "Code: Command injection…"),
+            (code_checker._check_html_injection,            "Code: HTML injection / XSS…"),
+            (code_checker._check_js_injection,              "Code: JavaScript injection…"),
             (code_checker._check_backup_temp_files,         "Code: Backup/temp files…"),
             (code_checker._check_requirements_pinned,       "Code: Dependency manifests…"),
             (code_checker._check_broad_exception_handlers,  "Code: Exception handling…"),
