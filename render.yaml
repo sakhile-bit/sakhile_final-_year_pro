@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: zambia-digital-hygiene
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    healthCheckPath: /health
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SESSION_COOKIE_SECURE
+        value: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: zdh-db
+          property: connectionString
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: LOG_LEVEL
+        value: INFO
+
+databases:
+  - name: zdh-db
+    databaseName: digital_hygiene
+    plan: free

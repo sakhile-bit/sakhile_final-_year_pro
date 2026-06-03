@@ -139,9 +139,14 @@ class Config:
         2. MySQL when the driver is installed AND authentication succeeds.
         3. SQLite fallback for local dev / testing.
         """
-        # 1. Explicit override via env var (supports sqlite:/// and postgres:// too)
+        # 1. Explicit override via env var (Render / Railway / Heroku inject this)
         explicit = os.environ.get('DATABASE_URL', '').strip()
         if explicit:
+            # Render provides postgres:// — SQLAlchemy 2.x requires postgresql+psycopg2://
+            if explicit.startswith('postgres://'):
+                explicit = 'postgresql+psycopg2://' + explicit[len('postgres://'):]
+            elif explicit.startswith('postgresql://'):
+                explicit = 'postgresql+psycopg2://' + explicit[len('postgresql://'):]
             return explicit
 
         db_config = self.database
