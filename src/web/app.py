@@ -76,8 +76,8 @@ logger = get_logger(__name__)
 # Initialize Flask app and extensions (application factory pattern)
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', config.web.get('secret_key', 'dev-secret-key'))
-# Session cookies — SECURE only when not in debug / local dev
-app.config['SESSION_COOKIE_SECURE'] = not config.web.get('debug', False)
+# Session cookies — read directly from env so dev (.env) and prod can differ
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=1)
@@ -424,9 +424,7 @@ def create_app(db_uri: str | None = None) -> Flask:
             pass  # engine may not exist yet on first call
 
     # Session security — disable secure cookie flag in test/local mode
-    if not app.config.get('TESTING'):
-        app.config.setdefault('SESSION_COOKIE_SECURE', not config.web.get('debug', False))
-    else:
+    if app.config.get('TESTING'):
         app.config['SESSION_COOKIE_SECURE'] = False
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
