@@ -1585,43 +1585,63 @@ class InfrastructureAssessor:
             return f"DNS resolution failed: {exc}"
 
     def _check_dns_security(self) -> Dict[str, str]:
-        """Check DNS security records: SPF, DMARC, DKIM (selector _domainkey)."""
+        """Check DNS security records: SPF, DMARC — works on Windows and Linux."""
         results = {'spf': 'Not checked', 'dmarc': 'Not checked', 'notes': ''}
         if self.target in ('localhost', '127.0.0.1'):
             results['notes'] = 'Local host – DNS security check skipped'
             return results
-        try:
-            import subprocess
-            # SPF record check
+
+        import subprocess
+        import platform
+
+        is_windows = platform.system() == 'Windows'
+
+        def _query_txt(domain: str) -> str:
+            """Return combined stdout+stderr from a TXT DNS query."""
             try:
-                r = subprocess.run(
-                    ['dig', '+short', 'TXT', self.target],
-                    capture_output=True, text=True, timeout=5,
-                )
-                txt_records = r.stdout.strip()
-                if 'v=spf1' in txt_records:
+                if is_windows:
+                    # nslookup is available on every Windows install
+                    r = subprocess.run(
+                        ['nslookup', '-type=TXT', domain],
+                        capture_output=True, text=True, timeout=8,
+                    )
+                    return r.stdout + r.stderr
+                else:
+                    # dig is the standard on Linux/macOS
+                    r = subprocess.run(
+                        ['dig', '+short', 'TXT', domain],
+                        capture_output=True, text=True, timeout=8,
+                    )
+                    return r.stdout
+            except Exception:
+                return ''
+
+        # SPF
+        try:
+            out = _query_txt(self.target)
+            if out:
+                if 'v=spf1' in out:
                     results['spf'] = 'SPF record found'
                 else:
                     results['spf'] = 'No SPF record – email spoofing risk'
-            except Exception:
-                results['spf'] = 'Unable to check SPF (dig not available)'
+            else:
+                results['spf'] = 'Unable to query SPF (DNS lookup failed)'
+        except Exception as exc:
+            results['spf'] = f'SPF check error: {exc}'
 
-            # DMARC record check
-            try:
-                r = subprocess.run(
-                    ['dig', '+short', 'TXT', f'_dmarc.{self.target}'],
-                    capture_output=True, text=True, timeout=5,
-                )
-                dmarc_out = r.stdout.strip()
-                if 'v=DMARC1' in dmarc_out:
+        # DMARC
+        try:
+            out = _query_txt(f'_dmarc.{self.target}')
+            if out:
+                if 'v=DMARC1' in out:
                     results['dmarc'] = 'DMARC record found'
                 else:
                     results['dmarc'] = 'No DMARC record – phishing risk'
-            except Exception:
-                results['dmarc'] = 'Unable to check DMARC (dig not available)'
-
+            else:
+                results['dmarc'] = 'Unable to query DMARC (DNS lookup failed)'
         except Exception as exc:
-            results['notes'] = f'DNS security check error: {exc}'
+            results['dmarc'] = f'DMARC check error: {exc}'
+
         return results
 
     def _check_ssl_certificate(self) -> str:
@@ -1658,6 +1678,7 @@ class InfrastructureAssessor:
         if self.target in ('localhost', '127.0.0.1'):
             return 'Local host – TLS version check skipped'
         issues = []
+        reachable = False
         for proto_name, proto_const in [('TLSv1.0', ssl.TLSVersion.TLSv1), ('TLSv1.1', ssl.TLSVersion.TLSv1_1)]:
             try:
                 ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
@@ -1666,12 +1687,19 @@ class InfrastructureAssessor:
                 ctx.check_hostname = False
                 ctx.verify_mode = ssl.CERT_NONE
                 with socket.create_connection((self.target, 443), timeout=3) as s:
+                    reachable = True
                     with ctx.wrap_socket(s, server_hostname=self.target):
                         issues.append(f"{proto_name} accepted (deprecated – disable it)")
-            except (ssl.SSLError, AttributeError, OSError):
+            except ssl.SSLError:
+                # Connection reached the server but TLS version was rejected — good
+                reachable = True
+            except (AttributeError, OSError):
+                # DNS failure or host unreachable — don't mark as reachable
                 pass
             except Exception:
                 pass
+        if not reachable:
+            return 'Unable to check – host unreachable or DNS resolution failed'
         if issues:
             return "WARNING – deprecated TLS versions accepted: " + "; ".join(issues)
         return "Good – only TLS 1.2+ accepted"

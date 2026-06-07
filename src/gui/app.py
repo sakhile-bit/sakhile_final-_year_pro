@@ -39,7 +39,22 @@ class DigitalHygieneApp(ctk.CTk):
         self._auto_results = {}
 
         self._current_screen = None
-        self._show_welcome()
+
+        # Route through auth before showing the app
+        from src.utils.auth import is_setup
+        if is_setup():
+            self._show_login()
+        else:
+            self._show_setup()
+
+    # ─────────────────────────────────────── auth screens
+    def _show_setup(self):
+        from src.gui.screens.setup_screen import SetupScreen
+        self._swap(SetupScreen(self, on_done=self._show_welcome))
+
+    def _show_login(self):
+        from src.gui.screens.login_screen import LoginScreen
+        self._swap(LoginScreen(self, on_success=self._show_welcome))
 
     # ─────────────────────────────────────── screen management
     def _swap(self, screen):
