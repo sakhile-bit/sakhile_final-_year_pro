@@ -1,122 +1,143 @@
-"""Login screen — shown on every launch after first-time setup."""
+"""Login popup — small modal dialog shown on every launch after first setup."""
 from __future__ import annotations
 
 import customtkinter as ctk
 
 from src.gui.theme import (
     APP_NAME, APP_VERSION,
-    CLR_BG, CLR_SURFACE, CLR_SURFACE_ALT, CLR_BORDER,
+    CLR_SURFACE, CLR_SURFACE_ALT, CLR_BORDER,
     CLR_ACCENT, CLR_ACCENT_HOV, CLR_TEXT, CLR_TEXT_SEC, CLR_MUTED,
     CLR_DANGER,
-    FONT_HEADING, FONT_BODY, FONT_SMALL, FONT_CAPTION,
-    BTN_H, BTN_R, PAD,
+    FONT_BODY, FONT_SMALL, FONT_CAPTION,
+    BTN_R,
 )
 from src.utils.auth import get_username, verify
 
 _MAX_ATTEMPTS = 5
+_W, _H = 380, 310
 
 
-class LoginScreen(ctk.CTkFrame):
-    """Password gate — user must authenticate before accessing the app."""
+class LoginScreen(ctk.CTkToplevel):
+    """Small modal login popup — blocks the main window until authenticated."""
 
     def __init__(self, master, on_success: callable):
-        super().__init__(master, fg_color=CLR_BG, corner_radius=0)
+        super().__init__(master)
         self._on_success = on_success
         self._attempts = 0
+
+        # ── Window setup ─────────────────────────────────────────────
+        self.title(f"{APP_NAME}  v{APP_VERSION}")
+        self.geometry(f"{_W}x{_H}")
+        self.resizable(False, False)
+        self.configure(fg_color=CLR_SURFACE)
+
+        # Closing the dialog exits the whole app
+        self.protocol("WM_DELETE_WINDOW", master.destroy)
+
+        # Centre on screen
+        self.update_idletasks()
+        sw = self.winfo_screenwidth()
+        sh = self.winfo_screenheight()
+        self.geometry(f"{_W}x{_H}+{(sw - _W) // 2}+{(sh - _H) // 2}")
+
         self._build()
 
+        # Force to front AFTER building — CTkToplevel on Windows needs this
+        self.after(50, self._force_focus)
+
     def _build(self):
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1)
+        # ── Accent bar at top ─────────────────────────────────────────
+        ctk.CTkFrame(self, fg_color=CLR_ACCENT, height=4,
+                     corner_radius=0).pack(fill="x")
 
-        # ── Centre card ───────────────────────────────────────────────
-        card = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=16,
-                            border_width=1, border_color=CLR_BORDER,
-                            width=420)
-        card.grid(row=0, column=0, padx=40, pady=40)
-        card.grid_columnconfigure(0, weight=1)
+        # ── Icon + app name ───────────────────────────────────────────
+        top = ctk.CTkFrame(self, fg_color="transparent")
+        top.pack(pady=(18, 4))
 
-        # Brand strip
-        ctk.CTkFrame(card, fg_color=CLR_ACCENT, corner_radius=0,
-                     height=5).grid(row=0, column=0, sticky="ew")
+        ctk.CTkLabel(top, text="🔐",
+                     font=("Segoe UI Emoji", 30)
+                     ).pack(side="left", padx=(0, 10))
 
-        # Icon + heading
-        ctk.CTkLabel(card, text="🔐",
-                     font=("Segoe UI Emoji", 42)
-                     ).grid(row=1, column=0, pady=(28, 4))
-
-        ctk.CTkLabel(card, text=APP_NAME,
-                     font=FONT_HEADING, text_color=CLR_TEXT
-                     ).grid(row=2, column=0, padx=PAD)
-
-        ctk.CTkLabel(card, text=f"v{APP_VERSION}",
-                     font=FONT_CAPTION, text_color=CLR_MUTED
-                     ).grid(row=3, column=0, pady=(2, 18))
+        info = ctk.CTkFrame(top, fg_color="transparent")
+        info.pack(side="left")
+        ctk.CTkLabel(info, text=APP_NAME,
+                     font=("Segoe UI", 13, "bold"),
+                     text_color=CLR_TEXT, anchor="w"
+                     ).pack(anchor="w")
+        ctk.CTkLabel(info, text=f"v{APP_VERSION}  ·  Enter your password to continue",
+                     font=FONT_CAPTION, text_color=CLR_MUTED, anchor="w"
+                     ).pack(anchor="w")
 
         # Divider
-        ctk.CTkFrame(card, fg_color=CLR_BORDER, height=1
-                     ).grid(row=4, column=0, sticky="ew", padx=PAD)
+        ctk.CTkFrame(self, fg_color=CLR_BORDER, height=1
+                     ).pack(fill="x", padx=20, pady=(10, 0))
 
-        # ── Form ─────────────────────────────────────────────────────
-        form = ctk.CTkFrame(card, fg_color="transparent")
-        form.grid(row=5, column=0, padx=PAD, pady=20, sticky="ew")
-        form.grid_columnconfigure(0, weight=1)
+        # ── Form ──────────────────────────────────────────────────────
+        form = ctk.CTkFrame(self, fg_color="transparent")
+        form.pack(fill="x", padx=24, pady=16)
 
-        # Username (pre-filled, read-only display)
-        stored_user = get_username()
+        # Username — read-only, pre-filled
         ctk.CTkLabel(form, text="Username", font=FONT_SMALL,
                      text_color=CLR_TEXT_SEC, anchor="w"
-                     ).grid(row=0, column=0, sticky="w", pady=(0, 4))
-        ctk.CTkEntry(
+                     ).pack(anchor="w", pady=(0, 3))
+
+        user_entry = ctk.CTkEntry(
             form, font=FONT_BODY, fg_color=CLR_SURFACE_ALT,
             border_color=CLR_BORDER, border_width=1,
-            text_color=CLR_MUTED, height=38, corner_radius=8,
-            state="disabled",
-        ).grid(row=1, column=0, sticky="ew", pady=(0, 14))
-        # Insert stored username into the disabled field
-        _u = form.winfo_children()[-1]
-        _u.configure(state="normal")
-        _u.insert(0, stored_user)
-        _u.configure(state="disabled")
+            text_color=CLR_MUTED, height=36, corner_radius=7,
+            state="normal",
+        )
+        user_entry.insert(0, get_username())
+        user_entry.configure(state="disabled")
+        user_entry.pack(fill="x", pady=(0, 12))
 
         # Password
         ctk.CTkLabel(form, text="Password", font=FONT_SMALL,
                      text_color=CLR_TEXT_SEC, anchor="w"
-                     ).grid(row=2, column=0, sticky="w", pady=(0, 4))
+                     ).pack(anchor="w", pady=(0, 3))
+
         self._password = ctk.CTkEntry(
-            form, placeholder_text="Enter your password",
+            form, placeholder_text="Enter password",
             show="•", font=FONT_BODY, fg_color=CLR_SURFACE_ALT,
             border_color=CLR_BORDER, border_width=1,
-            text_color=CLR_TEXT, height=38, corner_radius=8,
+            text_color=CLR_TEXT, height=36, corner_radius=7,
         )
-        self._password.grid(row=3, column=0, sticky="ew", pady=(0, 6))
+        self._password.pack(fill="x")
         self._password.bind("<Return>", lambda e: self._submit())
 
         # Error label
         self._error_lbl = ctk.CTkLabel(
             form, text="", font=FONT_CAPTION,
-            text_color=CLR_DANGER, anchor="w", wraplength=360,
+            text_color=CLR_DANGER, anchor="w", wraplength=320,
         )
-        self._error_lbl.grid(row=4, column=0, sticky="w", pady=(0, 10))
+        self._error_lbl.pack(anchor="w", pady=(5, 0))
 
-        # Login button
+        # ── Sign In button ────────────────────────────────────────────
         self._btn = ctk.CTkButton(
-            form, text="Sign In →",
+            self, text="Sign In  →",
             font=("Segoe UI", 12, "bold"),
             fg_color=CLR_ACCENT, hover_color=CLR_ACCENT_HOV,
-            text_color="#000000", height=42, corner_radius=BTN_R,
+            text_color="#000000", height=40, corner_radius=BTN_R,
             command=self._submit,
         )
-        self._btn.grid(row=5, column=0, sticky="ew")
+        self._btn.pack(fill="x", padx=24, pady=(4, 14))
 
-        # Footer note
-        ctk.CTkLabel(card,
-                     text="🔒  Secured with local credential storage.",
+        # Footer
+        ctk.CTkLabel(self,
+                     text="🔒  Local credentials only — not sent anywhere.",
                      font=FONT_CAPTION, text_color=CLR_MUTED,
-                     ).grid(row=6, column=0, padx=PAD, pady=(4, 24))
+                     ).pack(pady=(0, 10))
 
-        # Auto-focus password field
-        self.after(100, self._password.focus)
+        # Focus is handled by _force_focus() called after event loop starts
+
+    def _force_focus(self):
+        """Bring dialog to front and grab input — must run after event loop starts."""
+        self.lift()                          # raise above main window
+        self.attributes("-topmost", True)    # force to top of z-order
+        self.after(10, lambda: self.attributes("-topmost", False))  # release topmost so it behaves normally
+        self.grab_set()                      # block main window
+        self.focus_force()                   # focus the dialog
+        self._password.focus()              # cursor straight into password field
 
     def _error(self, msg: str):
         self._error_lbl.configure(text=f"⚠  {msg}")
@@ -129,6 +150,8 @@ class LoginScreen(ctk.CTkFrame):
         password = self._password.get()
 
         if verify(username, password):
+            self.grab_release()
+            self.destroy()
             self._on_success()
         else:
             self._attempts += 1
