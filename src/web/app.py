@@ -2795,10 +2795,10 @@ def settings():
     if request.method == 'POST':
         new_email = request.form.get('email', '').strip()
         if new_email and new_email != current_user.email:
-            if User.query.filter(
-                User.email == new_email,
-                User.id != current_user.id,
-            ).first():
+            if (User.query
+                    .filter_by(email=new_email)
+                    .filter(User.id != int(current_user.id))
+                    .first()):
                 flash('That email address is already in use.', 'error')
             elif not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', new_email):
                 flash('Invalid email address.', 'error')

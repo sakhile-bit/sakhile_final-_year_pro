@@ -3,14 +3,15 @@ from __future__ import annotations
 
 import re
 import customtkinter as ctk
+from typing import Callable
 
 from src.gui.theme import (
     APP_NAME, APP_VERSION,
     CLR_BG, CLR_SURFACE, CLR_SURFACE_ALT, CLR_BORDER,
     CLR_ACCENT, CLR_ACCENT_HOV, CLR_TEXT, CLR_TEXT_SEC, CLR_MUTED,
-    CLR_SUCCESS, CLR_DANGER,
+    CLR_DANGER,
     FONT_HEADING, FONT_BODY, FONT_SMALL, FONT_CAPTION,
-    BTN_H, BTN_R, PAD,
+    BTN_R, PAD,
 )
 from src.utils.auth import save_credentials
 
@@ -38,7 +39,7 @@ _STRENGTH_CLR = ["#E84040", "#E84040", "#E87000", "#F0A500", "#2BA22B"]
 class SetupScreen(ctk.CTkFrame):
     """Shown on first launch — user creates their root account."""
 
-    def __init__(self, master, on_done: callable):
+    def __init__(self, master, on_done: Callable):
         super().__init__(master, fg_color=CLR_BG, corner_radius=0)
         self._on_done = on_done
         self._build()
@@ -198,4 +199,4 @@ class SetupScreen(ctk.CTkFrame):
         self._on_done()
 
     def _error(self, msg: str):
-        self._error_lbl.configure(text=f"⚠  {msg}")
+        self._error_lbl.configure(text=f"! {msg}")

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import customtkinter as ctk
+from typing import Callable
 
 from src.gui.theme import (
     APP_NAME, APP_VERSION,
@@ -20,7 +21,7 @@ _W, _H = 380, 310
 class LoginScreen(ctk.CTkToplevel):
     """Small modal login popup — blocks the main window until authenticated."""
 
-    def __init__(self, master, on_success: callable):
+    def __init__(self, master, on_success: Callable):
         super().__init__(master)
         self._on_success = on_success
         self._attempts = 0
@@ -132,15 +133,32 @@ class LoginScreen(ctk.CTkToplevel):
 
     def _force_focus(self):
         """Bring dialog to front and grab input — must run after event loop starts."""
-        self.lift()                          # raise above main window
-        self.attributes("-topmost", True)    # force to top of z-order
-        self.after(10, lambda: self.attributes("-topmost", False))  # release topmost so it behaves normally
-        self.grab_set()                      # block main window
-        self.focus_force()                   # focus the dialog
-        self._password.focus()              # cursor straight into password field
+        try:
+            self.lift()
+            self.attributes("-topmost", True)
+
+            def _release_topmost():
+                try:
+                    self.attributes("-topmost", False)
+                except Exception:
+                    pass
+
+            self.after(10, _release_topmost)
+
+            try:
+                self.grab_set()
+            except Exception:
+                # grab_set can fail if another window holds the grab;
+                # the dialog still works — focus just isn't forced
+                pass
+
+            self.focus_force()
+            self._password.focus()
+        except Exception:
+            pass
 
     def _error(self, msg: str):
-        self._error_lbl.configure(text=f"⚠  {msg}")
+        self._error_lbl.configure(text=f"! {msg}")
 
     def _submit(self):
         if self._attempts >= _MAX_ATTEMPTS:
@@ -161,5 +179,5 @@ class LoginScreen(ctk.CTkToplevel):
             else:
                 self._error("Too many failed attempts. Closing app.")
                 self._btn.configure(state="disabled")
-                self.after(2000, self.winfo_toplevel().destroy)
+                self.after(2000, self.master.destroy)
             self._password.delete(0, "end")
