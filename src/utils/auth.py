@@ -6,11 +6,29 @@ werkzeug.security handles the hashing — same library used by the web app.
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
-_CRED_FILE = Path(__file__).resolve().parent.parent.parent / "instance" / "credentials.json"
+
+def _resolve_cred_file() -> Path:
+    """Return a stable credentials path that survives across exe launches.
+
+    PyInstaller extracts bundled files into a temp _MEIPASS directory that is
+    deleted when the exe closes — using __file__ would lose credentials every
+    run.  When frozen we anchor to the directory containing the exe instead.
+    """
+    if getattr(sys, "frozen", False):
+        # Running as compiled .exe — store next to the exe so it persists
+        base = Path(sys.executable).parent
+    else:
+        # Running from source — store in project root/instance/
+        base = Path(__file__).resolve().parent.parent.parent
+    return base / "instance" / "credentials.json"
+
+
+_CRED_FILE = _resolve_cred_file()
 
 
 def is_setup() -> bool:

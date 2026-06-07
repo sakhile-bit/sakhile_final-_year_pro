@@ -22,7 +22,8 @@ class DigitalHygieneApp(ctk.CTk):
         self.update_idletasks()
         import sys
         if sys.platform == "win32":
-            import ctypes, ctypes.wintypes
+            import ctypes
+            import ctypes.wintypes
             wa = ctypes.wintypes.RECT()
             ctypes.windll.user32.SystemParametersInfoW(48, 0, ctypes.byref(wa), 0)
             work_w = wa.right  - wa.left
@@ -54,7 +55,8 @@ class DigitalHygieneApp(ctk.CTk):
 
     def _show_login(self):
         from src.gui.screens.login_screen import LoginScreen
-        self._swap(LoginScreen(self, on_success=self._show_welcome))
+        # Popup dialog — sits on top of the empty main window, no _swap needed
+        LoginScreen(self, on_success=self._show_welcome)
 
     # ─────────────────────────────────────── screen management
     def _swap(self, screen):
