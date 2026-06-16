@@ -1,4 +1,4 @@
-# Zambia Digital Hygiene Certification Program
+ī# Zambia Digital Hygiene Certification Program
 
 [![CI/CD Pipeline](https://github.com/yourusername/zambia-digital-hygiene/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/yourusername/zambia-digital-hygiene/actions/workflows/ci-cd.yml)
 [![Coverage](https://img.shields.io/badge/coverage-80%25-green)](https://yourusername.github.io/zambia-digital-hygiene/htmlcov/)
@@ -521,8 +521,8 @@ Key documentation files for your project:
 
 - **Documentation**: [Read the Docs](https://zambia-digital-hygiene.readthedocs.io/)
 - **Issues**: [GitHub Issues](https://github.com/yourusername/zambia-digital-hygiene/issues)
-- **Email**: digitalhygiene@zambia.gov.zm
-- **Phone**: +260 211 123456
+- **Email**: Stanford.sakhile@cs.unza.zm/misheck.trinity.chama@cs.unza.zm
+- **Phone**: +260 969274765
 
 ## � Production Deployment
 
