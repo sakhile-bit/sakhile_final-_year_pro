@@ -1,0 +1,32 @@
+{% extends 'base.html' %} {% block content %}
+<div class="container py-5">
+  <div class="card card-surface shadow-soft mx-auto" style="max-width: 720px">
+    <div class="card-body">
+      <div class="section-heading">Infrastructure Scan</div>
+      <p class="text-muted mb-4">
+        Verify DNS, SSL/TLS, HTTPS redirect behavior, and common public service
+        ports for a public-facing host.
+      </p>
+      <form method="post" class="row g-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <div class="col-12">
+          <label for="domain" class="form-label">Domain or Host</label>
+          <input
+            type="text"
+            name="domain"
+            id="domain"
+            class="form-control"
+            placeholder="example.com or localhost"
+            required
+          />
+        </div>
+        <div class="col-12 d-flex justify-content-end">
+          <button type="submit" class="btn btn-brand">
+            Run Infrastructure Scan
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

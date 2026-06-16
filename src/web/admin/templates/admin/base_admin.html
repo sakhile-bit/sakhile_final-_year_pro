@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Admin · {% block admin_title %}Dashboard{% endblock %} – ZDH{% endblock %}
+
+{% block head %}
+<style>
+  .admin-wrap { display: flex; min-height: calc(100vh - 55px); }
+  .admin-sidebar {
+    width: 214px; flex-shrink: 0;
+    background: #141319;
+    border-right: 1px solid rgba(255,255,255,.06);
+    display: flex; flex-direction: column;
+    position: sticky; top: 55px; height: calc(100vh - 55px); overflow-y: auto;
+  }
+  .admin-sidebar::-webkit-scrollbar { width: 3px; }
+  .admin-sidebar::-webkit-scrollbar-thumb { background: rgba(108,95,199,.3); }
+  .sb-brand { padding: .85rem 1.1rem .65rem; border-bottom: 1px solid rgba(255,255,255,.06); font-size: .68rem; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); font-weight: 800; display: flex; align-items: center; gap: .5rem; }
+  .sb-brand i { color: #F5C518; font-size: .85rem; }
+  .sb-sec { padding: .25rem 0; }
+  .sb-lbl { font-size: .6rem; text-transform: uppercase; letter-spacing: .12em; color: rgba(124,118,145,.35); padding: .55rem 1.1rem .2rem; font-weight: 800; }
+  .sl { display: flex; align-items: center; gap: .6rem; padding: .45rem 1.1rem; color: var(--muted); text-decoration: none; font-size: .82rem; transition: all .13s; border-left: 2px solid transparent; }
+  .sl:hover { color: var(--text); background: rgba(255,255,255,.03); }
+  .sl.active { color: var(--brand); background: rgba(108,95,199,.08); border-left-color: var(--brand); font-weight: 600; }
+  .sl i { width: 13px; text-align: center; font-size: .78rem; opacity: .8; }
+  .admin-main { flex: 1; min-width: 0; padding: 1.5rem 1.75rem; background: var(--bg); }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.1rem 1.3rem; transition: border-color .15s; }
+  .kpi:hover { border-color: rgba(108,95,199,.3); }
+  .kpi-lbl { font-size: .67rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .15rem; font-weight: 600; }
+  .kpi-val { font-size: 1.85rem; font-weight: 700; line-height: 1.1; }
+  .kpi-sub { font-size: .73rem; color: var(--muted); margin-top: .2rem; }
+  .ac { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .ac-hdr { padding: .75rem 1.1rem; border-bottom: 1px solid rgba(255,255,255,.06); display: flex; align-items: center; justify-content: space-between; font-weight: 600; font-size: .845rem; color: var(--text); }
+  .at { width: 100%; border-collapse: collapse; }
+  .at th { font-size: .66rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 700; padding: .58rem .95rem; border-bottom: 1px solid rgba(255,255,255,.07); text-align: left; }
+  .at td { padding: .65rem .95rem; border-bottom: 1px solid rgba(255,255,255,.04); font-size: .835rem; vertical-align: middle; color: var(--text); }
+  .at tbody tr:hover { background: rgba(255,255,255,.022); }
+  .at tbody tr:last-child td { border-bottom: none; }
+  .sp { display: inline-flex; align-items: center; border-radius: 3px; padding: .13rem .5rem; font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .sp-green  { background: rgba(43,162,43,.13);    color: #4DC34D; }
+  .sp-red    { background: rgba(224,62,63,.13);    color: #E96869; }
+  .sp-amber  { background: rgba(217,162,34,.13);   color: #E8B84B; }
+  .sp-blue   { background: rgba(70,116,202,.13);   color: #6B9AE8; }
+  .sp-gray   { background: rgba(124,118,145,.12);  color: var(--muted); }
+  .sp-gold   { background: rgba(245,197,24,.12);   color: #F5C518; }
+  .sp-silver { background: rgba(192,188,200,.1);   color: #C0BCC8; }
+  .sp-bronze { background: rgba(196,123,56,.12);   color: #C47B38; }
+  .ab { display: inline-flex; align-items: center; gap: .3rem; padding: .26rem .65rem; border-radius: 5px; font-size: .75rem; font-weight: 500; cursor: pointer; text-decoration: none; border: 1px solid; transition: all .13s; font-family: inherit; }
+  .ab-ghost { border-color: var(--border); color: var(--text-sec); background: transparent; }
+  .ab-ghost:hover { border-color: rgba(108,95,199,.4); color: var(--brand); }
+  .ab-primary { border-color: var(--brand); color: #fff; background: var(--brand); }
+  .ab-primary:hover { background: var(--brand-hov); }
+  .ab-danger { border-color: rgba(224,62,63,.5); color: #E96869; background: transparent; }
+  .ab-danger:hover { background: rgba(224,62,63,.1); }
+  .ab-warn { border-color: rgba(217,162,34,.5); color: #E8B84B; background: transparent; }
+  .ab-warn:hover { background: rgba(217,162,34,.1); }
+  .apg { display: flex; gap: .25rem; justify-content: center; margin-top: .85rem; }
+  .apg a,.apg span { display: inline-flex; align-items: center; justify-content: center; width: 29px; height: 29px; border-radius: 5px; font-size: .78rem; text-decoration: none; border: 1px solid var(--border); color: var(--muted); background: var(--surface); transition: all .13s; }
+  .apg a:hover { border-color: var(--brand); color: var(--brand); }
+  .apg .cur { background: var(--brand); color: #fff; border-color: var(--brand); font-weight: 700; }
+  .apg .dis { opacity: .25; pointer-events: none; }
+  .ai { background: var(--surface-alt); border: 1px solid var(--border); border-radius: 5px; color: var(--text); padding: .42rem .85rem; font-size: .83rem; font-family: inherit; }
+  .ai:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(108,95,199,.14); }
+  .ai::placeholder { color: var(--muted); }
+  .as { background: var(--surface-alt); border: 1px solid var(--border); border-radius: 5px; color: var(--text); padding: .42rem .85rem; font-size: .83rem; font-family: inherit; cursor: pointer; }
+  .as:focus { outline: none; border-color: var(--brand); }
+  .as option { background: #211F2B; }
+  @media (max-width: 767px) { .admin-sidebar { display: none !important; } .admin-main { padding: 1rem; } }
+</style>
+{% block admin_head %}{% endblock %}
+{% endblock %}
+
+{% block content %}
+<div class="admin-wrap">
+  <nav class="admin-sidebar d-none d-md-flex flex-column">
+    <div class="sb-brand"><i class="fas fa-crown"></i>Admin Panel</div>
+    <div class="sb-sec">
+      <a href="{{ url_for('admin.dashboard') }}" class="sl {% if request.endpoint == 'admin.dashboard' %}active{% endif %}"><i class="fas fa-gauge-high"></i>Overview</a>
+    </div>
+    <div class="sb-sec">
+      <div class="sb-lbl">Management</div>
+      <a href="{{ url_for('admin.users') }}" class="sl {% if request.endpoint and 'admin.user' in request.endpoint %}active{% endif %}"><i class="fas fa-users"></i>Users</a>
+      <a href="{{ url_for('admin.businesses') }}" class="sl {% if request.endpoint and 'admin.business' in request.endpoint %}active{% endif %}"><i class="fas fa-building"></i>Businesses</a>
+      <a href="{{ url_for('admin.assessments') }}" class="sl {% if request.endpoint == 'admin.assessments' %}active{% endif %}"><i class="fas fa-clipboard-check"></i>Assessments</a>
+      <a href="{{ url_for('admin.certificates') }}" class="sl {% if request.endpoint and 'admin.certificate' in request.endpoint %}active{% endif %}"><i class="fas fa-certificate"></i>Certificates</a>
+    </div>
+    <div class="sb-sec">
+      <div class="sb-lbl">Operations</div>
+      <a href="{{ url_for('admin.audit_logs') }}" class="sl {% if request.endpoint == 'admin.audit_logs' %}active{% endif %}"><i class="fas fa-scroll"></i>Audit Logs</a>
+      <a href="{{ url_for('admin.system') }}" class="sl {% if request.endpoint == 'admin.system' %}active{% endif %}"><i class="fas fa-server"></i>System</a>
+    </div>
+    <div class="sb-sec">
+      <div class="sb-lbl">Export</div>
+      <a href="{{ url_for('admin.admin_export', resource='users', fmt='csv') }}" class="sl"><i class="fas fa-file-csv"></i>Users CSV</a>
+      <a href="{{ url_for('admin.admin_export', resource='assessments', fmt='csv') }}" class="sl"><i class="fas fa-file-csv"></i>Assessments CSV</a>
+      <a href="{{ url_for('admin.admin_export', resource='businesses', fmt='csv') }}" class="sl"><i class="fas fa-file-csv"></i>Businesses CSV</a>
+    </div>
+    <div class="mt-auto p-3" style="border-top:1px solid rgba(255,255,255,.05)">
+      <a href="{{ url_for('dashboard') }}" class="sl" style="font-size:.76rem"><i class="fas fa-arrow-left"></i>Back to App</a>
+    </div>
+  </nav>
+  <main class="admin-main">
+    <div class="d-md-none mb-3">
+      <button class="ab ab-ghost" type="button" data-bs-toggle="offcanvas" data-bs-target="#adminMob"><i class="fas fa-bars"></i>Menu</button>
+    </div>
+    {% block admin_content %}{% endblock %}
+  </main>
+</div>
+
+<div class="offcanvas offcanvas-start" tabindex="-1" id="adminMob" style="background:#141319;color:var(--text);width:214px;border-right:1px solid rgba(255,255,255,.06)">
+  <div class="offcanvas-header pb-2" style="border-bottom:1px solid rgba(255,255,255,.06)">
+    <span style="color:#F5C518;font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em"><i class="fas fa-crown me-2"></i>Admin</span>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body p-0">
+    <a href="{{ url_for('admin.dashboard') }}" class="sl"><i class="fas fa-gauge-high"></i>Overview</a>
+    <a href="{{ url_for('admin.users') }}" class="sl"><i class="fas fa-users"></i>Users</a>
+    <a href="{{ url_for('admin.businesses') }}" class="sl"><i class="fas fa-building"></i>Businesses</a>
+    <a href="{{ url_for('admin.assessments') }}" class="sl"><i class="fas fa-clipboard-check"></i>Assessments</a>
+    <a href="{{ url_for('admin.certificates') }}" class="sl"><i class="fas fa-certificate"></i>Certificates</a>
+    <a href="{{ url_for('admin.audit_logs') }}" class="sl"><i class="fas fa-scroll"></i>Audit Logs</a>
+    <a href="{{ url_for('admin.system') }}" class="sl"><i class="fas fa-server"></i>System</a>
+    <div style="border-top:1px solid rgba(255,255,255,.06);margin:.3rem 0"></div>
+    <a href="{{ url_for('dashboard') }}" class="sl"><i class="fas fa-arrow-left"></i>Back to App</a>
+  </div>
+</div>
+
+{% block scripts %}{{ super() }}{% block admin_scripts %}{% endblock %}{% endblock %}
+{% endblock %}

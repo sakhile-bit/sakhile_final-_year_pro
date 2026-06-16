@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block title %}Profile{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h2>Profile</h2>
+  <p><strong>Username:</strong> {{ user.username }}</p>
+  <p><strong>Email:</strong> {{ user.email }}</p>
+  <p><strong>Role:</strong> {{ user.role }}</p>
+  <h5 class="mt-4">Recent Logins</h5>
+  <table class="table table-bordered">
+    <thead>
+      <tr>
+        <th>IP</th>
+        <th>User Agent</th>
+        <th>Time</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in recent_logins %}
+      <tr>
+        <td>{{ log.ip_address or '—' }}</td>
+        <td>{{ (log.user_agent or '')[:40] }}{% if log.user_agent and log.user_agent|length > 40 %}…{% endif %}</td>
+        <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M') if log.timestamp else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

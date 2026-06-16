@@ -1,0 +1,51 @@
+{% extends 'base.html' %} {% block title %}MFA Verification - Zambia Digital
+Hygiene{% endblock %} {% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-5 col-lg-4">
+      <div class="card shadow">
+        <div class="card-header bg-primary text-white text-center">
+          <h4 class="mb-0">
+            <i class="fas fa-shield-alt me-2"></i>MFA Verification
+          </h4>
+        </div>
+        <div class="card-body">
+          <p class="text-muted text-center">
+            Enter the 6-digit code from your authenticator app.
+          </p>
+          <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <div class="mb-3">
+              <label for="mfa_code" class="form-label"
+                >Authentication Code</label
+              >
+              <input
+                type="text"
+                class="form-control text-center"
+                id="mfa_code"
+                name="mfa_code"
+                maxlength="6"
+                pattern="[0-9]{6}"
+                required
+                placeholder="000000"
+                autofocus
+                style="font-size: 1.5em; letter-spacing: 0.5em"
+              />
+            </div>
+            <div class="d-grid">
+              <button type="submit" class="btn btn-primary">
+                <i class="fas fa-check me-2"></i>Verify
+              </button>
+            </div>
+          </form>
+        </div>
+        <div class="card-footer text-center">
+          <a href="{{ url_for('login') }}" class="text-muted small"
+            >Back to Login</a
+          >
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

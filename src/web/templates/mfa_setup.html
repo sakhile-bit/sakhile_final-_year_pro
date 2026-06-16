@@ -1,0 +1,91 @@
+{% extends 'base.html' %} {% block content %}
+<div class="container mt-4">
+  <h2>
+    <i class="fas fa-shield-alt me-2"></i>Multi-Factor Authentication (MFA)
+  </h2>
+
+  {% if not mfa_available %}
+  <div class="alert alert-warning">
+    <strong>MFA Not Available:</strong> The required packages
+    (<code>pyotp</code>, <code>qrcode</code>) are not installed. <br />Install
+    them with: <code>pip install pyotp qrcode[pil]</code>
+  </div>
+
+  {% elif step is defined and step == 'verify' %}
+  <div class="card shadow mt-3">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0">Step 2: Scan QR Code &amp; Verify</h5>
+    </div>
+    <div class="card-body text-center">
+      <p>
+        Scan this QR code with your authenticator app (Google Authenticator,
+        Authy, etc.):
+      </p>
+      <img
+        src="data:image/png;base64,{{ qr_code }}"
+        alt="MFA QR Code"
+        class="img-fluid mb-3"
+        style="max-width: 250px"
+      />
+      <p class="text-muted small">
+        Or enter this secret manually: <code>{{ secret }}</code>
+      </p>
+      <hr />
+      <form method="POST" class="d-inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <input type="hidden" name="action" value="verify" />
+        <div class="mb-3" style="max-width: 300px; margin: 0 auto">
+          <label for="mfa_code" class="form-label"
+            >Enter the 6-digit code from your app:</label
+          >
+          <input
+            type="text"
+            class="form-control text-center"
+            id="mfa_code"
+            name="mfa_code"
+            maxlength="6"
+            pattern="[0-9]{6}"
+            required
+            placeholder="000000"
+            style="font-size: 1.5em; letter-spacing: 0.5em"
+          />
+        </div>
+        <button type="submit" class="btn btn-success">
+          <i class="fas fa-check me-2"></i>Verify &amp; Enable MFA
+        </button>
+      </form>
+    </div>
+  </div>
+
+  {% elif mfa_enabled %}
+  <div class="alert alert-success">
+    <i class="fas fa-check-circle me-2"></i>MFA is <strong>enabled</strong> for
+    your account.
+  </div>
+  <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <input type="hidden" name="action" value="disable" />
+    <button
+      type="submit"
+      class="btn btn-outline-danger"
+      onclick="return confirm('Are you sure you want to disable MFA?');"
+    >
+      <i class="fas fa-times me-2"></i>Disable MFA
+    </button>
+  </form>
+
+  {% else %}
+  <div class="alert alert-info">
+    <i class="fas fa-info-circle me-2"></i>MFA adds an extra layer of security
+    to your account by requiring a one-time code from an authenticator app.
+  </div>
+  <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <input type="hidden" name="action" value="enable" />
+    <button type="submit" class="btn btn-primary">
+      <i class="fas fa-key me-2"></i>Set Up MFA
+    </button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

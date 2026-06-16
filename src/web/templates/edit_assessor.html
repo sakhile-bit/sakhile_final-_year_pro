@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Assessor{% endblock %}
+
+{% block content %}
+
+<div class="container mt-4">
+
+    <div class="card shadow">
+
+        <div class="card-header bg-primary text-white">
+            <h4>Edit Assessor</h4>
+        </div>
+
+        <div class="card-body">
+
+            <form method="POST">
+
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <div class="mb-3">
+                    <label class="form-label">Username</label>
+
+                    <input type="text" class="form-control" name="username" value="{{ assessor.username }}" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Email</label>
+
+                    <input type="email" class="form-control" name="email" value="{{ assessor.email }}" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">
+                        New Password
+                    </label>
+
+                    <input type="password" class="form-control" name="password">
+
+                    <small class="text-muted">
+                        Leave blank to keep the current password.
+                    </small>
+                </div>
+
+                <button class="btn btn-success">
+                    Save Changes
+                </button>
+
+                <a href="{{ url_for('manage_assessors') }}" class="btn btn-secondary">
+
+                    Cancel
+
+                </a>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}

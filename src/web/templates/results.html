@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% block title %}Assessment Results – Zambia Digital Hygiene{% endblock %}
+
+{% block head %}
+<style>
+  .tier-hero {
+    border-radius: 1.25rem; padding: 2rem;
+    border: 2px solid var(--tier-clr, var(--brand));
+    background: color-mix(in srgb, var(--tier-clr, var(--brand)) 6%, transparent);
+    position: relative; overflow: hidden;
+  }
+  .tier-hero::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--tier-clr, var(--brand));
+  }
+  .ring-wrap { position: relative; width: 160px; height: 160px; }
+  .ring-wrap canvas { width: 160px !important; height: 160px !important; }
+  .ring-centre {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .ctrl-card {
+    display: flex; border-radius: .85rem;
+    border: 1px solid var(--border); overflow: hidden; margin-bottom: .5rem;
+    background: var(--panel);
+  }
+  .ctrl-stripe { width: 5px; flex-shrink: 0; }
+  .ctrl-inner { padding: .8rem 1rem; display: flex; align-items: flex-start; gap: .8rem; flex: 1; }
+  .ctrl-icon { font-size: 1rem; margin-top: 2px; width: 18px; text-align: center; }
+  .ctrl-name { font-weight: 600; font-size: .88rem; }
+  .ctrl-detail { font-size: .78rem; color: var(--muted); margin-top: .12rem; }
+  .ctrl-score { font-size: .82rem; font-weight: 700; margin-left: auto; white-space: nowrap; }
+  .section-label {
+    font-size: .72rem; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--muted); font-weight: 600; margin-bottom: .7rem;
+  }
+  .cert-pill {
+    display: inline-flex; align-items: center; gap: .4rem;
+    border-radius: 999px; padding: .28rem .75rem; font-size: .78rem; font-weight: 700;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set pct = (results.score / results.total_possible * 100)|round|int if results.total_possible else 0 %}
+{% if results.certification_level == 'GOLD' %}
+  {% set tier_clr = '#FFD700' %}{% set tier_icon = '🥇' %}
+{% elif results.certification_level == 'SILVER' %}
+  {% set tier_clr = '#C0C0C0' %}{% set tier_icon = '🥈' %}
+{% elif results.certification_level == 'BRONZE' %}
+  {% set tier_clr = '#CD7F32' %}{% set tier_icon = '🥉' %}
+{% else %}
+  {% set tier_clr = '#E84040' %}{% set tier_icon = '✕' %}
+{% endif %}
+
+<div class="container py-4">
+
+  <!-- Tier hero -->
+  <div class="tier-hero mb-4" style="--tier-clr:{{ tier_clr }}">
+    <div class="row align-items-center g-4">
+
+      <div class="col-auto d-none d-md-block">
+        <div class="ring-wrap">
+          <canvas id="ringChart"></canvas>
+          <div class="ring-centre">
+            <span style="font-size:1.7rem;font-weight:800;color:{{ tier_clr }}">{{ pct }}%</span>
+            <span style="font-size:.68rem;color:var(--muted)">Score</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="col">
+        <p class="mb-1" style="color:var(--muted);font-size:.83rem">
+          <i class="fas fa-building me-1"></i>{{ business_info.name }}
+          {% if business_info.id %}&nbsp;·&nbsp;{{ business_info.id }}{% endif %}
+        </p>
+        <h3 class="fw-bold mb-1" style="color:{{ tier_clr }}">
+          {{ tier_icon }}&nbsp;{{ results.certification_level }}
+        </h3>
+        <p class="mb-2" style="color:var(--muted);font-size:.88rem">
+          {% if results.certification_level == 'GOLD' %}Excellent — your business meets a high standard of cybersecurity.
+          {% elif results.certification_level == 'SILVER' %}Good foundations — address the highlighted issues to reach Gold.
+          {% elif results.certification_level == 'BRONZE' %}A start has been made — work through the action plan below.
+          {% else %}Significant gaps found — please act on the recommendations below.{% endif %}
+        </p>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <span style="font-size:1.4rem;font-weight:800;color:{{ tier_clr }}">
+            {{ results.score }}&nbsp;/&nbsp;{{ results.total_possible }}&nbsp;pts
+          </span>
+          {% if results.critical_failures %}
+          <span class="status-pill status-fail">
+            <i class="fas fa-triangle-exclamation"></i>{{ results.critical_failures }} critical
+          </span>
+          {% endif %}
+          {% if certificate %}
+          <span class="cert-pill" style="background:rgba(0,209,155,.12);color:var(--brand);border:1px solid rgba(0,209,155,.3)">
+            <i class="fas fa-certificate"></i>{{ certificate.certificate_number }}
+          </span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="col-md-auto d-flex flex-column gap-2">
+        <a href="{{ url_for('download_report', assessment_id=assessment_id, format='pdf') }}"
+           class="btn btn-brand btn-sm"><i class="fas fa-file-pdf me-1"></i>PDF Report</a>
+        <a href="{{ url_for('download_report', assessment_id=assessment_id, format='html') }}"
+           class="btn btn-outline-brand btn-sm"><i class="fas fa-file-code me-1"></i>HTML</a>
+        <a href="{{ url_for('download_report', assessment_id=assessment_id, format='json') }}"
+           class="btn btn-outline-brand btn-sm"><i class="fas fa-code me-1"></i>JSON</a>
+        <a href="{{ url_for('remediation_list', assessment_id=assessment_id) }}"
+           class="btn btn-sm"
+           style="background:rgba(240,165,0,.12);color:#F0A500;border:1px solid rgba(240,165,0,.28)">
+          <i class="fas fa-wrench me-1"></i>Remediation
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="row g-3 mb-4">
+    {% set passed = results.controls.values() | selectattr('status','equalto','PASS') | list | length %}
+    {% set warned = results.controls.values() | selectattr('status','equalto','WARNING') | list | length %}
+    {% set failed = results.controls.values() | selectattr('status','equalto','FAIL') | list | length %}
+    <div class="col-4">
+      <div class="card card-surface text-center py-3">
+        <div style="font-size:1.9rem;font-weight:800;color:#00C896">{{ passed }}</div>
+        <div class="text-muted small">Passed</div>
+      </div>
+    </div>
+    <div class="col-4">
+      <div class="card card-surface text-center py-3">
+        <div style="font-size:1.9rem;font-weight:800;color:#F0A500">{{ warned }}</div>
+        <div class="text-muted small">Review</div>
+      </div>
+    </div>
+    <div class="col-4">
+      <div class="card card-surface text-center py-3">
+        <div style="font-size:1.9rem;font-weight:800;color:#E84040">{{ failed }}</div>
+        <div class="text-muted small">Failed</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Control breakdown -->
+  <div class="row g-4 mb-4">
+    <div class="col-lg-6">
+      <div class="section-label">Automated Controls (C01–C05)</div>
+      {% for cid, ctrl in results.controls.items() %}
+        {% set cid_val = ctrl.control_id if ctrl.control_id is defined else cid %}
+        {% if cid_val in ('C01','C02','C03','C04','C05') %}
+          {% set st = ctrl.status if ctrl.status is defined else 'NOT_ASSESSED' %}
+          {% if st == 'PASS' %}{% set clr='#00C896' %}{% set ico='fa-check' %}
+          {% elif st == 'WARNING' %}{% set clr='#F0A500' %}{% set ico='fa-triangle-exclamation' %}
+          {% elif st == 'FAIL' %}{% set clr='#E84040' %}{% set ico='fa-xmark' %}
+          {% else %}{% set clr='#94a6c0' %}{% set ico='fa-minus' %}{% endif %}
+          <div class="ctrl-card">
+            <div class="ctrl-stripe" style="background:{{ clr }}"></div>
+            <div class="ctrl-inner">
+              <span class="ctrl-icon" style="color:{{ clr }}"><i class="fas {{ ico }}"></i></span>
+              <div class="flex-grow-1">
+                <div class="ctrl-name">{{ cid_val }}&nbsp;&nbsp;{{ ctrl.name if ctrl.name is defined else '' }}</div>
+                {% if ctrl.details is defined and ctrl.details %}
+                <div class="ctrl-detail">{{ ctrl.details[:85] }}{% if ctrl.details|length > 85 %}…{% endif %}</div>
+                {% endif %}
+              </div>
+              <span class="ctrl-score" style="color:{{ clr }}">
+                {{ ctrl.score if ctrl.score is defined else '—' }}/{{ ctrl.weight if ctrl.weight is defined else '—' }}
+              </span>
+            </div>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+
+    <div class="col-lg-6">
+      <div class="section-label">Manual Controls (C06–C15)</div>
+      {% for cid, ctrl in results.controls.items() %}
+        {% set cid_val = ctrl.control_id if ctrl.control_id is defined else cid %}
+        {% if cid_val not in ('C01','C02','C03','C04','C05') %}
+          {% set st = ctrl.status if ctrl.status is defined else 'NOT_ASSESSED' %}
+          {% if st == 'PASS' %}{% set clr='#00C896' %}{% set ico='fa-check' %}
+          {% elif st == 'WARNING' %}{% set clr='#F0A500' %}{% set ico='fa-triangle-exclamation' %}
+          {% elif st == 'FAIL' %}{% set clr='#E84040' %}{% set ico='fa-xmark' %}
+          {% else %}{% set clr='#94a6c0' %}{% set ico='fa-minus' %}{% endif %}
+          <div class="ctrl-card">
+            <div class="ctrl-stripe" style="background:{{ clr }}"></div>
+            <div class="ctrl-inner">
+              <span class="ctrl-icon" style="color:{{ clr }}"><i class="fas {{ ico }}"></i></span>
+              <div class="flex-grow-1">
+                <div class="ctrl-name">{{ cid_val }}&nbsp;&nbsp;{{ ctrl.name if ctrl.name is defined else '' }}</div>
+                {% if ctrl.details is defined and ctrl.details %}
+                <div class="ctrl-detail">{{ ctrl.details[:85] }}{% if ctrl.details|length > 85 %}…{% endif %}</div>
+                {% endif %}
+              </div>
+              <span class="ctrl-score" style="color:{{ clr }}">
+                {{ ctrl.score if ctrl.score is defined else '—' }}/{{ ctrl.weight if ctrl.weight is defined else '—' }}
+              </span>
+            </div>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Action plan -->
+  {% if results.recommendations %}
+  <div class="card card-surface mb-4">
+    <div class="card-body">
+      <div class="section-label"><i class="fas fa-list-check me-1"></i>Action Plan</div>
+      {% for rec in results.recommendations %}
+      <div class="d-flex gap-3 align-items-start py-2 border-bottom" style="border-color:var(--border)!important">
+        <span style="font-size:.95rem;margin-top:1px">
+          {% if '🔴' in rec %}🔴{% elif '🟡' in rec %}🟡{% else %}📋{% endif %}
+        </span>
+        <p class="mb-0" style="font-size:.86rem">{{ rec }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Nav -->
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-brand">
+      <i class="fas fa-arrow-left me-1"></i>Dashboard
+    </a>
+    {% if current_user.role in ('assessor','admin') %}
+    <a href="{{ url_for('assess') }}" class="btn btn-brand">
+      <i class="fas fa-plus me-1"></i>New Assessment
+    </a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var pct = {{ pct }};
+  var clr = "{{ tier_clr }}";
+  var ctx = document.getElementById('ringChart');
+  if (!ctx) return;
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      datasets: [{
+        data: [pct, 100 - pct],
+        backgroundColor: [clr, 'rgba(255,255,255,.05)'],
+        borderWidth: 0, hoverOffset: 0,
+      }]
+    },
+    options: {
+      responsive: false, cutout: '78%',
+      animation: { animateRotate: true, duration: 900 },
+      plugins: { legend: { display: false }, tooltip: { enabled: false } }
+    }
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,167 @@
+{% extends "admin/base_admin.html" %}
+{% block admin_title %}Dashboard{% endblock %}
+
+{% block admin_content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <h1 class="mb-0" style="font-size:1.3rem;font-weight:700;color:var(--text)">
+    <i class="fas fa-gauge-high me-2" style="color:var(--brand)"></i>Admin Overview
+  </h1>
+  <span style="font-size:.78rem;color:var(--muted)">
+    <i class="fas fa-clock me-1"></i>{{ now().strftime('%d %b %Y, %H:%M UTC') }}
+  </span>
+</div>
+
+<!-- KPI row -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <div class="kpi">
+      <div class="kpi-lbl"><i class="fas fa-users me-1"></i>Total Users</div>
+      <div class="kpi-val" style="color:var(--brand)">{{ total_users }}</div>
+      <div class="kpi-sub">{{ active_users }} active</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="kpi">
+      <div class="kpi-lbl"><i class="fas fa-building me-1"></i>Businesses</div>
+      <div class="kpi-val" style="color:#2485E8">{{ total_businesses }}</div>
+      <div class="kpi-sub">Registered</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="kpi">
+      <div class="kpi-lbl"><i class="fas fa-clipboard-check me-1"></i>Assessments</div>
+      <div class="kpi-val" style="color:#F0A500">{{ total_assessments }}</div>
+      <div class="kpi-sub">{{ assessments_this_month }} this month</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="kpi">
+      <div class="kpi-lbl"><i class="fas fa-certificate me-1"></i>Certificates</div>
+      <div class="kpi-val" style="color:#F5C518">{{ total_certs }}</div>
+      {% if expiring_soon %}<div class="kpi-sub" style="color:#E84040"><i class="fas fa-triangle-exclamation me-1"></i>{{ expiring_soon }} expiring</div>{% else %}<div class="kpi-sub">All valid</div>{% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Charts -->
+<div class="row g-3 mb-4">
+  <div class="col-lg-4">
+    <div class="ac h-100">
+      <div class="ac-hdr"><span><i class="fas fa-chart-pie me-2" style="color:var(--brand)"></i>Certification Levels</span></div>
+      <div class="p-3" style="position:relative;height:220px"><canvas id="certChart"></canvas></div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="ac h-100">
+      <div class="ac-hdr"><span><i class="fas fa-chart-bar me-2" style="color:#2485E8"></i>Monthly Assessments</span></div>
+      <div class="p-3" style="position:relative;height:220px"><canvas id="monthChart"></canvas></div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="ac h-100">
+      <div class="ac-hdr"><span><i class="fas fa-chart-line me-2" style="color:#F0A500"></i>Avg Score Trend</span></div>
+      <div class="p-3" style="position:relative;height:220px"><canvas id="scoreChart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- Activity + Recent Assessments -->
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="ac">
+      <div class="ac-hdr">
+        <span><i class="fas fa-scroll me-2" style="color:var(--brand)"></i>Recent Activity</span>
+        <a href="{{ url_for('admin.audit_logs') }}" class="ab ab-ghost" style="font-size:.72rem">View All</a>
+      </div>
+      <table class="at">
+        <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Resource</th></tr></thead>
+        <tbody>
+          {% for log in recent_logs %}
+          <tr>
+            <td style="color:var(--muted);font-size:.78rem;white-space:nowrap">{{ log.timestamp.strftime('%d %b %H:%M') }}</td>
+            <td style="font-weight:600">{{ log.user.username if log.user else '—' }}</td>
+            <td><span class="sp sp-blue">{{ log.action }}</span></td>
+            <td style="color:var(--muted);font-size:.78rem">{{ (log.resource_type or '') }} {{ (log.resource_id or '') }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:1.5rem">No activity yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="ac mb-3">
+      <div class="ac-hdr"><span><i class="fas fa-list-check me-2" style="color:#F0A500"></i>Recent Assessments</span></div>
+      {% for a in recent_assessments %}
+      <div class="d-flex align-items-center justify-content-between px-3 py-2" style="border-bottom:1px solid rgba(255,255,255,.05)">
+        <div>
+          <div style="font-weight:600;font-size:.875rem">{{ a.business.name if a.business else 'N/A' }}</div>
+          <div style="font-size:.73rem;color:var(--muted)">{{ a.created_at.strftime('%d %b %Y') }}</div>
+        </div>
+        <div class="text-end">
+          {% if a.certification_level == 'GOLD' %}<span class="sp sp-gold">🥇 Gold</span>
+          {% elif a.certification_level == 'SILVER' %}<span class="sp sp-silver">🥈 Silver</span>
+          {% elif a.certification_level == 'BRONZE' %}<span class="sp sp-bronze">🥉 Bronze</span>
+          {% else %}<span class="sp sp-red">✕ Not Cert.</span>{% endif %}
+          <div style="font-size:.73rem;color:var(--muted);margin-top:.15rem">{{ a.total_score }}/120</div>
+        </div>
+      </div>
+      {% else %}
+      <div style="text-align:center;color:var(--muted);padding:1.5rem;font-size:.875rem">No assessments yet.</div>
+      {% endfor %}
+    </div>
+    <div class="ac">
+      <div class="ac-hdr"><span><i class="fas fa-server me-2" style="color:var(--muted)"></i>System</span></div>
+      <div style="padding:.75rem 1.2rem;font-size:.82rem;color:var(--muted)">
+        <div class="d-flex justify-content-between py-1"><span>OS</span><span style="color:var(--text)">{{ system_info.os }}</span></div>
+        <div class="d-flex justify-content-between py-1"><span>Python</span><span style="color:var(--text)">{{ system_info.python }}</span></div>
+        <div class="d-flex justify-content-between py-1"><span>Database</span><code style="color:var(--brand);font-size:.75rem">{{ system_info.db_uri }}</code></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block admin_scripts %}
+<script>
+const DARK = { color: '#94a6c0', grid: 'rgba(255,255,255,.05)' };
+Chart.defaults.color = DARK.color;
+
+// Cert doughnut
+const certData = {{ cert_levels | tojson }};
+new Chart(document.getElementById('certChart'), {
+  type: 'doughnut',
+  data: {
+    labels: Object.keys(certData),
+    datasets: [{ data: Object.values(certData), backgroundColor: ['#F5C518','#C0CDD8','#D4873A','#E84040'], borderColor: '#0a1420', borderWidth: 2, hoverOffset: 4 }]
+  },
+  options: { responsive: true, maintainAspectRatio: false, cutout: '68%', plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 10 } } } }
+});
+
+// Monthly bar
+fetch('/admin/api/stats')
+  .then(r => r.json())
+  .then(d => {
+    new Chart(document.getElementById('monthChart'), {
+      type: 'bar',
+      data: {
+        labels: d.monthly_assessments.map(m => m.label),
+        datasets: [{ label: 'Assessments', data: d.monthly_assessments.map(m => m.count), backgroundColor: 'rgba(36,133,232,.55)', borderRadius: 5 }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { color: DARK.grid } }, y: { beginAtZero: true, grid: { color: DARK.grid }, ticks: { stepSize: 1 } } } }
+    });
+  }).catch(() => {});
+
+// Score trend
+const trend = {{ score_trend | tojson }};
+new Chart(document.getElementById('scoreChart'), {
+  type: 'line',
+  data: {
+    labels: trend.map(t => t.label),
+    datasets: [{ label: 'Avg Score', data: trend.map(t => t.avg), borderColor: '#F0A500', backgroundColor: 'rgba(240,165,0,.08)', fill: true, tension: 0.35, pointRadius: 3 }]
+  },
+  options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { color: DARK.grid } }, y: { beginAtZero: true, max: 120, grid: { color: DARK.grid } } } }
+});
+</script>
+{% endblock %}

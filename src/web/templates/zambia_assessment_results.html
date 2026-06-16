@@ -1,0 +1,85 @@
+{% extends 'base.html' %} {% block title %}Assessment Results - Zambia Digital
+Hygiene{% endblock %} {% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-10">
+      <div class="card shadow-soft mb-4">
+        <div class="card-header bg-success text-white">
+          <h3 class="mb-1">
+            <i class="fas fa-check-circle me-2"></i>Assessment Results
+          </h3>
+          <p class="mb-0 text-white-75">
+            Detailed findings and guidance from the completed Zambia digital
+            hygiene review.
+          </p>
+        </div>
+        <div class="card-body">
+          <div class="row gy-3">
+            <div class="col-md-4">
+              <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                  <h6 class="text-uppercase text-muted">Overall Score</h6>
+                  <p class="display-6 mb-1">{{ result.score }}</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-8">
+              <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                  <h6 class="text-uppercase text-muted">Key Findings</h6>
+                  <ul class="mb-0">
+                    {% for finding in result.findings %}
+                    <li>{{ finding }}</li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-4 row gy-4">
+            <div class="col-md-6">
+              <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                  <h5 class="mb-3">
+                    <i class="fas fa-lightbulb me-2"></i>Recommended Actions
+                  </h5>
+                  {% for tip in tips %}
+                  <div class="alert alert-warning mb-3">{{ tip }}</div>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                  <h5 class="mb-3">
+                    <i class="fas fa-mobile-alt me-2"></i>Mobile Security Tips
+                  </h5>
+                  <ul class="list-unstyled mb-0">
+                    {% for tip in tips if 'screen lock' in tip or 'Play Store'
+                    in tip or 'device OS' in tip or 'encryption' in tip or 'app
+                    permissions' in tip or 'Wi-Fi' in tip or 'security apps' in
+                    tip or 'Backup' in tip or 'SMS/WhatsApp' in tip %}
+                    <li class="mb-2">
+                      <i class="fas fa-check-circle text-success me-2"></i>{{
+                      tip }}
+                    </li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="text-end mt-4">
+            <a href="{{ url_for('dashboard') }}" class="btn btn-primary"
+              >Back to Dashboard</a
+            >
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

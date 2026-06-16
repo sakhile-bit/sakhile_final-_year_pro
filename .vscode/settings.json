@@ -1,0 +1,115 @@
+{
+  // Workspace settings for Python development
+  // These settings enhance VS Code for this project
+
+  // Python interpreter
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+  "python.linting.enabled": true,
+
+  // Linting with flake8
+  "python.linting.flake8Enabled": true,
+  "python.linting.flake8Args": [
+    "--max-line-length=120",
+    "--extend-ignore=E203,W503"
+  ],
+
+  // Code formatting with Black
+  "[python]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "ms-python.python",
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  },
+
+  "python.formatting.provider": "black",
+  "python.formatting.blackArgs": ["--line-length=120"],
+
+  // Import sorting with isort
+  "python.sortImports.args": ["--profile", "black", "--line-length", "120"],
+
+  // Type checking with Pylance
+  "pylance.typeCheckingMode": "strict",
+  "python.analysis.typeCheckingMode": "strict",
+  "python.analysis.diagnosticMode": "workspace",
+
+  // Testing with pytest
+  "python.testing.pytestEnabled": true,
+  "python.testing.pytestArgs": ["tests", "-v", "--tb=short"],
+
+  // Editor preferences
+  "editor.rulers": [80, 120],
+  "editor.wordWrap": "on",
+  "editor.trimAutoWhitespace": true,
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit"
+  },
+  "editor.tabSize": 4,
+  "editor.insertSpaces": true,
+
+  // File associations
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    "**/.pytest_cache": true,
+    "**/.mypy_cache": true,
+    "**/dist": true,
+    "**/build": true,
+    "**/*.egg-info": true
+  },
+
+  // Git settings
+  "git.ignoreLimitWarning": true,
+
+  // Extension recommendations are in extensions.json
+
+  // Search exclusions
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.venv": true,
+    "**/dist": true,
+    "**/build": true,
+    "**/.git": true,
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/.mypy_cache": true
+  },
+
+  // Markdown settings
+  "[markdown]": {
+    "editor.wordWrap": "on",
+    "editor.formatOnSave": false
+  },
+
+  // YAML settings
+  "[yaml]": {
+    "editor.insertSpaces": true,
+    "editor.tabSize": 2,
+    "editor.formatOnSave": true
+  },
+
+  // JSON settings
+  "[json]": {
+    "editor.insertSpaces": true,
+    "editor.tabSize": 2,
+    "editor.formatOnSave": true
+  },
+
+  // Code snippet settings
+  "editor.snippetSuggestions": "top",
+
+  // Terminal settings
+  "terminal.integrated.defaultProfile.linux": "bash",
+  "terminal.integrated.defaultProfile.windows": "PowerShell",
+  "terminal.integrated.defaultProfile.osx": "bash",
+
+  // Debug settings
+  "debug.showDebugOutput": true,
+
+  // Telemetry
+  "telemetry.telemetryLevel": "off",
+
+  // Autosave settings
+  "files.autoSave": "onFocusChange"
+}

@@ -1,0 +1,66 @@
+{% extends "admin/base_admin.html" %}
+{% block admin_title %}{{ 'Edit' if mode == 'edit' else 'Create' }} User{% endblock %}
+{% block admin_content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <h1 class="mb-0" style="font-size:1.3rem;font-weight:700;color:var(--text)">
+    <i class="fas fa-{{ 'user-edit' if mode == 'edit' else 'user-plus' }} me-2" style="color:var(--brand)"></i>
+    {{ 'Edit User' if mode == 'edit' else 'Create User' }}
+  </h1>
+  <a href="{{ url_for('admin.users') }}" class="ab ab-ghost"><i class="fas fa-arrow-left"></i>Back</a>
+</div>
+
+<div style="max-width:520px">
+  <div class="ac">
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="padding:1.5rem;display:flex;flex-direction:column;gap:1.1rem">
+
+        <div>
+          <label style="display:block;font-size:.75rem;font-weight:600;color:var(--muted);margin-bottom:.4rem;text-transform:uppercase;letter-spacing:.05em">Username *</label>
+          <input class="ai" type="text" name="username" required style="width:100%"
+                 value="{{ user.username if mode == 'edit' else '' }}" placeholder="e.g. john_doe">
+        </div>
+
+        <div>
+          <label style="display:block;font-size:.75rem;font-weight:600;color:var(--muted);margin-bottom:.4rem;text-transform:uppercase;letter-spacing:.05em">Email *</label>
+          <input class="ai" type="email" name="email" required style="width:100%"
+                 value="{{ user.email if mode == 'edit' else '' }}" placeholder="user@example.com">
+        </div>
+
+        <div>
+          <label style="display:block;font-size:.75rem;font-weight:600;color:var(--muted);margin-bottom:.4rem;text-transform:uppercase;letter-spacing:.05em">Role</label>
+          <select class="as" name="role" style="width:100%">
+            {% for r in ['assessor', 'business_owner', 'admin'] %}
+            <option value="{{ r }}" {{ 'selected' if (mode == 'edit' and user.role == r) or (mode == 'create' and r == 'assessor') }}>{{ r | replace('_', ' ') | title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label style="display:block;font-size:.75rem;font-weight:600;color:var(--muted);margin-bottom:.4rem;text-transform:uppercase;letter-spacing:.05em">
+            Password{% if mode == 'edit' %} (leave blank to keep current){% else %} *{% endif %}
+          </label>
+          <input class="ai" type="password" name="password" style="width:100%"
+                 {{ 'required' if mode == 'create' }} placeholder="{{ 'New password' if mode == 'edit' else 'Min. 12 characters' }}">
+        </div>
+
+        {% if mode == 'edit' %}
+        <div style="display:flex;align-items:center;gap:.75rem;padding:.75rem 1rem;background:rgba(255,255,255,.03);border-radius:.7rem;border:1px solid var(--border)">
+          <input type="checkbox" name="is_active" id="is_active" {{ 'checked' if user.is_active }}
+                 style="width:16px;height:16px;accent-color:var(--brand);cursor:pointer">
+          <label for="is_active" style="font-size:.875rem;color:var(--text);cursor:pointer;margin:0">Account is active</label>
+        </div>
+        {% endif %}
+
+        <div style="display:flex;gap:.75rem;padding-top:.5rem">
+          <button type="submit" class="ab ab-primary" style="flex:1;justify-content:center;padding:.6rem">
+            <i class="fas fa-{{ 'save' if mode == 'edit' else 'user-plus' }}"></i>
+            {{ 'Save Changes' if mode == 'edit' else 'Create User' }}
+          </button>
+          <a href="{{ url_for('admin.users') }}" class="ab ab-ghost" style="padding:.6rem 1rem">Cancel</a>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

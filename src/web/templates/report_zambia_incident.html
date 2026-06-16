@@ -1,0 +1,24 @@
+{% extends 'base.html' %} {% block content %}
+<div class="container mt-4">
+  <h2>Report Security Incident (Zambia)</h2>
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <div class="form-group">
+      <label for="incident">Describe the incident</label>
+      <textarea
+        name="incident"
+        class="form-control"
+        rows="5"
+        required
+      ></textarea>
+    </div>
+    <button type="submit" class="btn btn-danger">Submit Report</button>
+  </form>
+  <hr />
+  <h4>Local Authorities</h4>
+  <ul>
+    <li><a href="{{ zicta_url }}" target="_blank">ZICTA</a></li>
+    <li><a href="{{ cert_url }}" target="_blank">Zambia CERT</a></li>
+  </ul>
+</div>
+{% endblock %}

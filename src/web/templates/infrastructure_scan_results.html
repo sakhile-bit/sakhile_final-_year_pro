@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+{% block title %}Infrastructure Scan – {{ target }}{% endblock %}
+{% block content %}
+<div class="container py-5">
+  <div class="card card-surface shadow-soft mx-auto" style="max-width:900px">
+    <div class="card-body">
+
+      <div class="d-flex flex-column flex-md-row justify-content-between gap-3 align-items-start mb-4">
+        <div>
+          <h3 class="mb-1" style="color:var(--brand)">
+            <i class="fas fa-network-wired me-2"></i>Infrastructure Scan Results
+          </h3>
+          <p class="text-muted mb-0">Target host: <strong>{{ target }}</strong></p>
+        </div>
+        {% if recommendations %}
+        <span class="badge rounded-pill bg-warning text-dark py-2 px-3">
+          {{ recommendations | length }} issue(s) found
+        </span>
+        {% else %}
+        <span class="badge rounded-pill bg-success text-white py-2 px-3">
+          <i class="fas fa-check me-1"></i>No issues found
+        </span>
+        {% endif %}
+      </div>
+
+      <!-- Core network checks -->
+      <h6 class="text-uppercase text-muted mb-3 mt-2">Network &amp; Certificate</h6>
+      <div class="row row-cols-1 row-cols-md-2 g-3 mb-4">
+        <div class="col">
+          <div class="card feature-card p-3 h-100">
+            <div class="fw-semibold mb-1"><i class="fas fa-globe me-1"></i>DNS Resolution</div>
+            <div class="small">{{ infra_results.dns_resolution }}</div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="card feature-card p-3 h-100">
+            <div class="fw-semibold mb-1"><i class="fas fa-lock me-1"></i>SSL/TLS Certificate</div>
+            <div class="small {% if 'EXPIRED' in infra_results.ssl_certificate %}text-danger{% elif 'SOON' in infra_results.ssl_certificate %}text-warning{% endif %}">
+              {{ infra_results.ssl_certificate }}
+            </div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="card feature-card p-3 h-100">
+            <div class="fw-semibold mb-1"><i class="fas fa-arrow-right me-1"></i>HTTP → HTTPS Redirect</div>
+            <div class="small {% if 'does not redirect' in infra_results.https_redirect %}text-warning{% endif %}">
+              {{ infra_results.https_redirect }}
+            </div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="card feature-card p-3 h-100">
+            <div class="fw-semibold mb-1"><i class="fas fa-shield-alt me-1"></i>TLS Version Check</div>
+            <div class="small {% if 'WARNING' in infra_results.tls_version %}text-warning{% elif 'Good' in infra_results.tls_version %}text-success{% endif %}">
+              {{ infra_results.tls_version }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DNS Security -->
+      {% if infra_results.dns_security %}
+      <h6 class="text-uppercase text-muted mb-3">DNS Security (Email Anti-Spoofing)</h6>
+      <div class="card feature-card p-3 mb-4">
+        <div class="row g-2">
+          <div class="col-md-6">
+            <span class="fw-semibold">SPF Record:</span>
+            <span class="ms-2 small {% if 'No SPF' in infra_results.dns_security.spf %}text-danger{% elif 'found' in infra_results.dns_security.spf %}text-success{% endif %}">
+              {{ infra_results.dns_security.spf }}
+            </span>
+          </div>
+          <div class="col-md-6">
+            <span class="fw-semibold">DMARC Record:</span>
+            <span class="ms-2 small {% if 'No DMARC' in infra_results.dns_security.dmarc %}text-danger{% elif 'found' in infra_results.dns_security.dmarc %}text-success{% endif %}">
+              {{ infra_results.dns_security.dmarc }}
+            </span>
+          </div>
+          {% if infra_results.dns_security.notes %}
+          <div class="col-12"><small class="text-muted">{{ infra_results.dns_security.notes }}</small></div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- HTTP Security Headers -->
+      {% if infra_results.security_headers %}
+      <h6 class="text-uppercase text-muted mb-3">HTTP Security Headers</h6>
+      <div class="card feature-card p-3 mb-4">
+        <div class="list-group list-group-flush">
+          {% for header, status in infra_results.security_headers.items() %}
+          <div class="list-group-item bg-transparent border-0 py-2 px-0 d-flex justify-content-between align-items-start">
+            <span class="fw-semibold small" style="min-width:200px">{{ header }}</span>
+            <span class="small ms-3
+              {% if 'PRESENT' in status %}text-success{% else %}text-danger{% endif %}">
+              {{ status }}
+            </span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Open Ports -->
+      <h6 class="text-uppercase text-muted mb-3">Open Ports</h6>
+      <div class="card feature-card p-3 mb-4">
+        <div class="mb-2">
+          <span class="fw-semibold">Detected ports:</span>
+          <span class="ms-2">{{ infra_results.open_ports | join(', ') if infra_results.open_ports else 'None detected' }}</span>
+        </div>
+        {% if infra_results.risky_ports %}
+        <div class="mt-2">
+          <span class="fw-semibold text-danger">Risky ports:</span>
+          <ul class="mb-0 mt-1 small text-danger">
+            {% for p in infra_results.risky_ports %}
+            <li>{{ p }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+        <div class="mt-2 small text-muted">External IP: {{ infra_results.external_ip }}</div>
+      </div>
+
+      <!-- Recommendations -->
+      {% if recommendations %}
+      <h6 class="text-uppercase text-muted mb-3">Recommendations</h6>
+      <div class="card feature-card p-3 mb-4">
+        <ul class="mb-0 ps-3">
+          {% for rec in recommendations %}
+          <li class="py-1 small">{{ rec }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <div class="d-flex gap-2 mt-2">
+        <a href="{{ url_for('infrastructure_scan') }}" class="btn btn-outline-light">
+          <i class="fas fa-redo me-1"></i>Run another scan
+        </a>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+          <i class="fas fa-home me-1"></i>Dashboard
+        </a>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

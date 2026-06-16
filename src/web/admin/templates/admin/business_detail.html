@@ -1,0 +1,82 @@
+{% extends "admin/base_admin.html" %}
+{% block admin_title %}{{ business.name }}{% endblock %}
+{% block admin_content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <h1 class="mb-0" style="font-size:1.3rem;font-weight:700;color:var(--text)">
+    <i class="fas fa-building me-2" style="color:var(--brand)"></i>{{ business.name }}
+  </h1>
+  <a href="{{ url_for('admin.businesses') }}" class="ab ab-ghost"><i class="fas fa-arrow-left"></i>Back</a>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-5">
+    <div class="ac">
+      <div class="ac-hdr"><span><i class="fas fa-id-card me-2" style="color:var(--brand)"></i>Business Details</span></div>
+      <div style="padding:.75rem 1.2rem;font-size:.855rem">
+        {% for label, value in [
+          ('Registration', business.registration_number),
+          ('Industry', business.industry),
+          ('Contact Person', business.contact_person),
+          ('Email', business.contact_email),
+          ('Phone', business.contact_phone),
+          ('Address', business.address),
+          ('Registered', business.created_at.strftime('%d %b %Y') if business.created_at else None),
+        ] %}
+        {% if value %}
+        <div class="d-flex gap-3 py-2" style="border-bottom:1px solid rgba(255,255,255,.04)">
+          <span style="color:var(--muted);width:120px;flex-shrink:0">{{ label }}</span>
+          <span style="color:var(--text)">{{ value }}</span>
+        </div>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  <div class="col-md-7">
+    <div class="row g-3">
+      <div class="col-6"><div class="kpi"><div class="kpi-lbl">Assessments</div><div class="kpi-val" style="color:var(--brand)">{{ assessments | length }}</div></div></div>
+      <div class="col-6">
+        <div class="kpi">
+          <div class="kpi-lbl">Best Level</div>
+          {% set best = assessments | selectattr('certification_level', 'ne', 'NOT CERTIFIED') | list %}
+          {% if best %}<div class="kpi-val" style="color:#F5C518;font-size:1.4rem">{{ best[0].certification_level }}</div>{% else %}<div class="kpi-val" style="color:var(--muted);font-size:1.2rem">None yet</div>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="ac">
+  <div class="ac-hdr"><span><i class="fas fa-clipboard-check me-2" style="color:var(--brand)"></i>Assessment History</span></div>
+  <table class="at">
+    <thead><tr><th>#</th><th>Score</th><th>Level</th><th>Status</th><th>Assessor</th><th>Date</th><th>Actions</th></tr></thead>
+    <tbody>
+      {% for a in assessments %}
+      <tr>
+        <td style="color:var(--muted);font-size:.78rem">{{ a.id }}</td>
+        <td>
+          <div class="d-flex align-items-center gap-2">
+            <div style="flex:1;background:rgba(255,255,255,.07);border-radius:999px;height:5px;width:60px">
+              <div style="height:5px;border-radius:999px;width:{{ (a.total_score/120*100)|round|int }}%;background:{% if a.certification_level=='GOLD' %}#F5C518{% elif a.certification_level=='SILVER' %}#C0CDD8{% elif a.certification_level=='BRONZE' %}#D4873A{% else %}#E84040{% endif %}"></div>
+            </div>
+            <span style="font-size:.78rem;color:var(--muted)">{{ a.total_score }}/120</span>
+          </div>
+        </td>
+        <td>
+          {% if a.certification_level == 'GOLD' %}<span class="sp sp-gold">🥇 Gold</span>
+          {% elif a.certification_level == 'SILVER' %}<span class="sp sp-silver">🥈 Silver</span>
+          {% elif a.certification_level == 'BRONZE' %}<span class="sp sp-bronze">🥉 Bronze</span>
+          {% else %}<span class="sp sp-red">Not Certified</span>{% endif %}
+        </td>
+        <td><span class="sp sp-gray">{{ a.status }}</span></td>
+        <td style="color:var(--muted);font-size:.82rem">{{ a.assessor.username if a.assessor else '—' }}</td>
+        <td style="color:var(--muted);font-size:.78rem">{{ a.created_at.strftime('%d %b %Y') if a.created_at else '—' }}</td>
+        <td><a href="{{ url_for('results', assessment_id=a.id) }}" class="ab ab-ghost"><i class="fas fa-eye"></i>View</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:2rem">No assessments yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

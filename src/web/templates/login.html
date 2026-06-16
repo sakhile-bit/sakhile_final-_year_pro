@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Login - Zambia Digital Hygiene{% endblock %}
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-6 col-lg-4">
+      <div class="card shadow">
+        <div class="card-header bg-primary text-white text-center">
+          <h4 class="mb-0"><i class="fas fa-sign-in-alt me-2"></i>Login</h4>
+        </div>
+        <div class="card-body">
+          <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <div class="mb-3">
+              <label for="username" class="form-label">Username</label>
+              <input
+                type="text"
+                class="form-control"
+                id="username"
+                name="username"
+                required
+              />
+            </div>
+            <div class="mb-3">
+              <label for="password" class="form-label">Password</label>
+              <input
+                type="password"
+                class="form-control"
+                id="password"
+                name="password"
+                required
+                oninput="updateStrengthMeter()"
+              />
+              <div class="progress mt-2" style="height: 5px">
+                <div
+                  id="strengthBar"
+                  class="progress-bar"
+                  role="progressbar"
+                  style="width: 0%"
+                ></div>
+              </div>
+              <small id="strengthText" class="form-text text-muted"></small>
+            </div>
+            <div class="d-grid">
+              <button type="submit" class="btn btn-primary">
+                <i class="fas fa-sign-in-alt me-2"></i>Login
+              </button>
+            </div>
+          </form>
+        </div>
+        <div class="card-footer text-center">
+          <small class="text-muted">
+            Don't have an account?
+            <a href="{{ url_for('register') }}">Register here</a>
+          </small>
+          <br />
+          <small class="text-muted">
+            Zambia Digital Hygiene Certification Program
+          </small>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  function updateStrengthMeter() {
+    var pw = document.getElementById("password").value;
+    var bar = document.getElementById("strengthBar");
+    var text = document.getElementById("strengthText");
+    var score = 0;
+    if (pw.length >= 10) score++;
+    if (/[A-Z]/.test(pw)) score++;
+    if (/[a-z]/.test(pw)) score++;
+    if (/\d/.test(pw)) score++;
+    if (/[^A-Za-z0-9]/.test(pw)) score++;
+    bar.style.width = score * 20 + "%";
+    bar.className =
+      "progress-bar bg-" +
+      (score < 3 ? "danger" : score < 4 ? "warning" : "success");
+    text.textContent =
+      score < 3
+        ? "Weak password"
+        : score < 4
+          ? "Moderate password"
+          : "Strong password";
+  }
+</script>
+{% endblock %}

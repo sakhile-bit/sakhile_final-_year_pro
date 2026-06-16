@@ -1,0 +1,47 @@
+# Core dependencies
+psutil>=5.9.0
+click>=8.1.0
+rich>=13.0.0
+PyYAML>=6.0
+
+# Windows GUI (desktop app)
+customtkinter>=5.2.0
+Pillow>=10.0.0
+
+# Build
+pyinstaller>=6.0.0
+
+# Database
+SQLAlchemy>=2.0.0
+mysql-connector-python>=8.0.0
+psycopg2-binary>=2.9.0
+
+# Web framework
+Flask>=2.3.0
+Flask-SQLAlchemy>=3.0.0
+Flask-Login>=0.6.0
+Flask-WTF>=1.1.0
+Werkzeug>=2.3.0
+
+# Reporting
+Jinja2>=3.1.0
+
+# MFA / Two-Factor Authentication
+pyotp>=2.9.0
+qrcode[pil]>=7.4.0
+
+# Production WSGI server
+gunicorn>=21.2.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-mock>=3.11.0
+
+# Optional — install for full functionality
+requests>=2.28.0    # external IP checks, Shodan lookups (already installed)
+reportlab>=4.0.0    # PDF report generation
+# python-nmap       # vulnerability scanning (also needs nmap binary)
+# APScheduler       # scheduled scans
+ldap3>=2.9.0        # Active Directory checks (optional)
+pip-audit>=2.1.0    # dependency vulnerability scanning (optional)

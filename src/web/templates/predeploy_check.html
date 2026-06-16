@@ -1,0 +1,203 @@
+{% extends 'base.html' %}
+{% block title %}Pre-Deployment Hygiene Check{% endblock %}
+{% block content %}
+<div class="container mt-4">
+  <!-- Header -->
+  <div class="text-center mb-4">
+    <h2>
+      <i class="fas fa-rocket me-2"></i>Pre-Deployment Digital Hygiene Check
+    </h2>
+    <p class="text-muted">
+      Run a comprehensive scan of your development environment
+      <strong>before deploying</strong>.<br />
+      The checker verifies OS patches, firewall, antivirus, open ports,
+      dependency vulnerabilities, debug flags, and credential hygiene.
+    </p>
+  </div>
+
+  <!-- If we already have results, show them -->
+  {% if report %}
+
+  <!-- Verdict Banner -->
+  <div
+    class="alert alert-{{ report.verdict_colour }} text-center shadow-sm mb-4"
+    role="alert"
+  >
+    <h3 class="mb-1">
+      {% if report.verdict == 'READY' %}
+      <i class="fas fa-check-circle me-2"></i>DEPLOYMENT READY {% else %}
+      <i class="fas fa-times-circle me-2"></i>NOT READY FOR DEPLOYMENT {% endif
+      %}
+    </h3>
+    <p class="mb-0">
+      Scanned <strong>{{ report.hostname }}</strong> ({{ report.os_info }}) at
+      {{ report.timestamp[:19] }}
+    </p>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="row text-center mb-4">
+    <div class="col-md-3">
+      <div class="card card-assessment p-3">
+        <h4>{{ report.total }}</h4>
+        <small class="text-muted">Total Checks</small>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card card-assessment p-3">
+        <h4 class="text-success">{{ report.passed }}</h4>
+        <small class="text-muted">Passed</small>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card card-assessment p-3">
+        <h4 class="text-danger">{{ report.failed }}</h4>
+        <small class="text-muted">Failed</small>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card card-assessment p-3">
+        <h4
+          class="text-{{ 'danger' if report.critical_failures else 'success' }}"
+        >
+          {{ report.critical_failures }}
+        </h4>
+        <small class="text-muted">Critical Failures</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- Group checks by category -->
+  {% set categories = ['system', 'network', 'application', 'secrets'] %} {% set
+  cat_icons = {'system': 'fa-desktop', 'network': 'fa-network-wired',
+  'application': 'fa-code', 'secrets': 'fa-key'} %} {% set cat_labels =
+  {'system': 'System Checks', 'network': 'Network Checks', 'application':
+  'Application Checks', 'secrets': 'Secrets & Credentials'} %} {% for cat in
+  categories %}
+  <div class="card mb-3 shadow-sm">
+    <div class="card-header bg-dark text-white">
+      <i class="fas {{ cat_icons[cat] }} me-2"></i>{{ cat_labels[cat] }}
+    </div>
+    <ul class="list-group list-group-flush">
+      {% for c in report.checks if c.category == cat %}
+      <li
+        class="list-group-item d-flex justify-content-between align-items-start"
+      >
+        <div class="ms-2 me-auto">
+          <div class="fw-bold">
+            {% if c.passed %}
+            <i class="fas fa-check-circle text-success me-1"></i>
+            {% else %}
+            <i class="fas fa-times-circle text-danger me-1"></i>
+            {% endif %} {{ c.check_id }} – {{ c.name }}
+            <span
+              class="badge bg-{{ 'danger' if c.severity == 'CRITICAL' else 'warning text-dark' if c.severity == 'HIGH' else 'info' }} ms-2"
+              >{{ c.severity }}</span
+            >
+          </div>
+          <small>{{ c.details }}</small>
+          {% if not c.passed and c.remediation %}
+          <br /><small class="text-danger"
+            ><i class="fas fa-wrench me-1"></i>{{ c.remediation }}</small
+          >
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+
+  <!-- Action buttons -->
+  <div class="d-flex gap-2 mb-5">
+    <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <button type="submit" class="btn btn-primary">
+        <i class="fas fa-sync-alt me-1"></i>Re-Run Checks
+      </button>
+    </form>
+    <a href="{{ url_for('predeploy_json') }}" class="btn btn-outline-secondary"
+      ><i class="fas fa-download me-1"></i>Download JSON Report</a
+    >
+    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-dark"
+      >Back to Dashboard</a
+    >
+  </div>
+
+  {% else %}
+
+  <!-- Pre-run landing card -->
+  <div class="row justify-content-center">
+    <div class="col-md-8">
+      <div class="card card-assessment p-4 text-center">
+        <i class="fas fa-shield-virus fa-3x text-primary mb-3"></i>
+        <h4>What gets checked?</h4>
+        <div class="row text-start mt-3 mb-4">
+          <div class="col-md-6">
+            <ul class="list-unstyled">
+              <li>
+                <i class="fas fa-check text-success me-2"></i>OS patch status
+              </li>
+              <li>
+                <i class="fas fa-check text-success me-2"></i>Firewall enabled
+              </li>
+              <li>
+                <i class="fas fa-check text-success me-2"></i>Antivirus active
+              </li>
+              <li>
+                <i class="fas fa-check text-success me-2"></i>Disk encryption
+              </li>
+              <li>
+                <i class="fas fa-check text-success me-2"></i>Risky open ports
+              </li>
+              <li>
+                <i class="fas fa-check text-success me-2"></i>DNS resolution
+              </li>
+              <li>
+                <i class="fas fa-check text-success me-2"></i>TLS / OpenSSL
+              </li>
+            </ul>
+          </div>
+          <div class="col-md-6">
+            <ul class="list-unstyled">
+              <li>
+                <i class="fas fa-check text-success me-2"></i>Python version
+              </li>
+              <li>
+                <i class="fas fa-check text-success me-2"></i>Dependency
+                vulnerabilities
+              </li>
+              <li>
+                <i class="fas fa-check text-success me-2"></i>Debug mode flags
+              </li>
+              <li>
+                <i class="fas fa-check text-success me-2"></i>.env file exposure
+              </li>
+              <li>
+                <i class="fas fa-check text-success me-2"></i>Hard-coded secrets
+              </li>
+              <li>
+                <i class="fas fa-check text-success me-2"></i>Git secret hygiene
+              </li>
+            </ul>
+          </div>
+        </div>
+        <form method="POST">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <button type="submit" class="btn btn-primary btn-lg">
+            <i class="fas fa-play me-2"></i>Run Pre-Deployment Check
+          </button>
+        </form>
+        <p class="text-muted mt-3 mb-0">
+          <small
+            >The scan runs locally on your machine. No data is sent
+            externally.</small
+          >
+        </p>
+      </div>
+    </div>
+  </div>
+
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block title %}Policy Templates — ZDH{% endblock %}
+{% block content %}
+<div class="container py-4">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><i class="fas fa-file-contract me-2 text-brand"></i>Security Policy Template Library</h1>
+      <nav aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="{{ url_for('dashboard') }}">Dashboard</a></li><li class="breadcrumb-item active">Policy Templates</li></ol></nav>
+    </div>
+  </div>
+
+  <div class="tip-bubble mb-4">
+    <i class="fas fa-lightbulb me-2"></i>
+    Download and customise these templates — replace <code>[PLACEHOLDERS]</code> with your business details.
+    Having signed written policies is required for <strong>Silver</strong> and <strong>Gold</strong> certification under the ZDCHP framework.
+    All templates are aligned to CIS Controls v8, ISO 27001, and the Zambia Data Protection Act 2021.
+  </div>
+
+  <div class="row g-3">
+    {% for tmpl in templates %}
+    <div class="col-12">
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
+            <div class="d-flex align-items-start gap-3">
+              <div style="width:44px;height:44px;border-radius:8px;background:var(--brand-dim);border:1px solid rgba(108,95,199,.2);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                <i class="fas {{ tmpl.icon }} text-brand"></i>
+              </div>
+              <div>
+                <div style="font-size:.9rem;font-weight:600;color:var(--text)">{{ tmpl.title }}</div>
+                <div style="font-size:.8rem;color:var(--muted);margin-top:.15rem">{{ tmpl.description }}</div>
+                <div class="mt-2">
+                  <span style="font-size:.7rem;background:rgba(108,95,199,.1);color:var(--brand);border-radius:3px;padding:.12rem .42rem;font-weight:600">{{ tmpl.framework }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="d-flex gap-2 flex-shrink-0">
+              <button class="btn-secondary btn btn-sm" type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#preview-{{ tmpl.id }}">
+                <i class="fas fa-eye me-1"></i>Preview
+              </button>
+              <a href="{{ url_for('policy_template_download', template_id=tmpl.id) }}"
+                 class="btn-brand btn btn-sm">
+                <i class="fas fa-download me-1"></i>Download .txt
+              </a>
+            </div>
+          </div>
+          <div class="collapse mt-3" id="preview-{{ tmpl.id }}">
+            <pre style="background:var(--surface-alt);border:1px solid var(--border);border-radius:6px;padding:1rem;font-size:.77rem;color:var(--text-sec);max-height:340px;overflow-y:auto;white-space:pre-wrap;word-break:break-word">{{ tmpl.content }}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="mt-4 p-3 rounded" style="background:rgba(43,162,43,.06);border:1px solid rgba(43,162,43,.18)">
+    <div class="d-flex align-items-start gap-3">
+      <i class="fas fa-circle-check mt-1" style="color:#4DC34D"></i>
+      <div style="font-size:.82rem;color:var(--text-sec)">
+        <strong style="color:var(--text)">Next steps after downloading:</strong>
+        Replace all <code>[PLACEHOLDERS]</code> with your business details, have management sign off on each policy,
+        distribute to all staff, and collect signed acknowledgement forms. Store signed copies securely.
+        Review policies annually or after any significant incident.
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

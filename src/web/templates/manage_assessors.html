@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Assessors{% endblock %}
+
+{% block content %}
+
+<div class="container-fluid mt-4">
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold">Manage Assessors</h2>
+            <p class="text-muted mb-0">
+                Create, edit and manage assessor accounts.
+            </p>
+        </div>
+
+        <a href="{{ url_for('create_assessor') }}" class="btn btn-success">
+            <i class="fas fa-user-plus"></i>
+            Create Assessor
+        </a>
+    </div>
+
+    <!-- Search -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body">
+
+            <form method="GET">
+
+                <div class="input-group">
+
+                    <input type="text" class="form-control" name="search" placeholder="Search by username or email..."
+                        value="{{ request.args.get('search','') }}">
+
+                    <button class="btn btn-primary">
+                        <i class="fas fa-search"></i>
+                        Search
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+
+    <!-- Assessors Table -->
+    <div class="card shadow-sm border-0">
+
+        <div class="card-header bg-white">
+            <h5 class="mb-0">
+                Assessor Accounts
+            </h5>
+        </div>
+
+        <div class="card-body p-0">
+
+            <div class="table-responsive">
+
+                <table class="table table-hover align-middle mb-0">
+
+                    <thead class="table-light">
+
+                        <tr>
+                            <th>ID</th>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Status</th>
+                            <th>Date Created</th>
+                            <th width="250">Actions</th>
+                        </tr>
+
+                    </thead>
+
+                    <tbody>
+
+                        {% if assessors %}
+
+                        {% for assessor in assessors %}
+
+                        <tr>
+
+                            <td>{{ assessor.id }}</td>
+
+                            <td>{{ assessor.username }}</td>
+
+                            <td>{{ assessor.email }}</td>
+
+                            <td>
+
+                                {% if assessor.is_active %}
+                                <span class="badge bg-success">
+                                    Active
+                                </span>
+                                {% else %}
+                                <span class="badge bg-danger">
+                                    Disabled
+                                </span>
+                                {% endif %}
+
+                            </td>
+
+                            <td>
+                                {{ assessor.created_at.strftime('%d %b %Y') }}
+                            </td>
+
+                            <td>
+
+                                <a href="{{ url_for('edit_assessor', id=assessor.id) }}" class="btn btn-warning btn-sm">
+
+                                    <i class="fas fa-edit"></i>
+                                    Edit
+
+                                </a>
+
+                                {% if assessor.is_active %}
+
+                                <a href="{{ url_for('toggle_assessor', id=assessor.id) }}"
+                                    class="btn btn-secondary btn-sm">
+
+                                    <i class="fas fa-user-slash"></i>
+                                    Disable
+
+                                </a>
+
+                                {% else %}
+
+                                <a href="{{ url_for('toggle_assessor', id=assessor.id) }}"
+                                    class="btn btn-success btn-sm">
+
+                                    <i class="fas fa-user-check"></i>
+                                    Enable
+
+                                </a>
+
+                                {% endif %}
+
+                                <form action="{{ url_for('delete_assessor', id=assessor.id) }}" method="POST"
+                                    class="d-inline">
+
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                                    <button type="submit" class="btn btn-danger btn-sm"
+                                        onclick="return confirm('Delete this assessor?')">
+
+                                        <i class="fas fa-trash"></i>
+                                        Delete
+
+                                    </button>
+
+                                </form>
+
+                            </td>
+
+                        </tr>
+
+                        {% endfor %}
+
+                        {% else %}
+
+                        <tr>
+
+                            <td colspan="6" class="text-center py-5">
+
+                                <i class="fas fa-users fa-3x text-muted mb-3"></i>
+
+                                <h5>No Assessors Found</h5>
+
+                                <p class="text-muted">
+                                    Click "Create Assessor" to add one.
+                                </p>
+
+                            </td>
+
+                        </tr>
+
+                        {% endif %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}

@@ -1,0 +1,59 @@
+{% extends "admin/base_admin.html" %}
+{% block admin_title %}Audit Logs{% endblock %}
+{% block admin_content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <h1 class="mb-0" style="font-size:1.3rem;font-weight:700;color:var(--text)">
+    <i class="fas fa-scroll me-2" style="color:var(--brand)"></i>Audit Logs
+  </h1>
+  <a href="{{ url_for('admin.admin_export', resource='users', fmt='json') }}" class="ab ab-ghost"><i class="fas fa-download"></i>Export</a>
+</div>
+
+<form class="d-flex gap-2 mb-3 flex-wrap" method="get">
+  <select class="as" name="action" style="width:200px">
+    <option value="">All Actions</option>
+    {% for a in distinct_actions %}<option value="{{ a }}" {{ 'selected' if action_filter == a }}>{{ a }}</option>{% endfor %}
+  </select>
+  <select class="as" name="user_id" style="width:180px">
+    <option value="">All Users</option>
+    {% for u in all_users %}<option value="{{ u.id }}" {{ 'selected' if user_filter == u.id|string }}>{{ u.username }}</option>{% endfor %}
+  </select>
+  <button type="submit" class="ab ab-ghost"><i class="fas fa-filter"></i>Filter</button>
+  {% if action_filter or user_filter %}<a href="{{ url_for('admin.audit_logs') }}" class="ab ab-danger"><i class="fas fa-times"></i>Clear</a>{% endif %}
+</form>
+
+<div class="ac">
+  <table class="at">
+    <thead><tr><th>Timestamp</th><th>User</th><th>Action</th><th>Resource</th><th>IP</th></tr></thead>
+    <tbody>
+      {% for log in logs.items %}
+      <tr>
+        <td style="color:var(--muted);font-size:.78rem;white-space:nowrap">{{ log.timestamp.strftime('%d %b %Y %H:%M:%S') }}</td>
+        <td style="font-weight:600;font-size:.855rem">{{ log.user.username if log.user else '—' }}</td>
+        <td>
+          {% if 'delete' in log.action %}<span class="sp sp-red">{{ log.action }}</span>
+          {% elif 'create' in log.action or 'register' in log.action %}<span class="sp sp-green">{{ log.action }}</span>
+          {% elif 'login' in log.action %}<span class="sp sp-blue">{{ log.action }}</span>
+          {% else %}<span class="sp sp-gray">{{ log.action }}</span>{% endif %}
+        </td>
+        <td style="color:var(--muted);font-size:.8rem">{{ log.resource_type or '' }}{% if log.resource_id %} #{{ log.resource_id }}{% endif %}</td>
+        <td style="color:var(--muted);font-size:.75rem;font-family:monospace">{{ log.ip_address or '—' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:2rem">No audit logs found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if logs.pages > 1 %}
+<div class="apg">
+  {% if logs.has_prev %}<a href="{{ url_for('admin.audit_logs', page=logs.prev_num, action=action_filter, user_id=user_filter) }}">&laquo;</a>{% else %}<span class="dis">&laquo;</span>{% endif %}
+  {% for p in logs.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+    {% if p %}<a class="{{ 'cur' if p == logs.page }}" href="{{ url_for('admin.audit_logs', page=p, action=action_filter, user_id=user_filter) }}">{{ p }}</a>
+    {% else %}<span class="dis">…</span>{% endif %}
+  {% endfor %}
+  {% if logs.has_next %}<a href="{{ url_for('admin.audit_logs', page=logs.next_num, action=action_filter, user_id=user_filter) }}">&raquo;</a>{% else %}<span class="dis">&raquo;</span>{% endif %}
+</div>
+{% endif %}
+<div class="mt-2" style="font-size:.75rem;color:var(--muted)">{{ logs.total }} total log entries</div>
+{% endblock %}

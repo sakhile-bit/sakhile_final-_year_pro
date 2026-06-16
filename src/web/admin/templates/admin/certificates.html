@@ -1,0 +1,74 @@
+{% extends "admin/base_admin.html" %}
+{% block admin_title %}Certificates{% endblock %}
+{% block admin_content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <h1 class="mb-0" style="font-size:1.3rem;font-weight:700;color:var(--text)">
+    <i class="fas fa-certificate me-2" style="color:#F5C518"></i>Certificates
+  </h1>
+</div>
+
+<form class="d-flex gap-2 mb-3 flex-wrap" method="get">
+  <select class="as" name="status" onchange="this.form.submit()">
+    <option value="">All Certificates</option>
+    <option value="active" {{ 'selected' if status == 'active' }}>Active</option>
+    <option value="expiring" {{ 'selected' if status == 'expiring' }}>Expiring (30 days)</option>
+    <option value="expired" {{ 'selected' if status == 'expired' }}>Expired</option>
+  </select>
+  {% if status %}<a href="{{ url_for('admin.certificates') }}" class="ab ab-danger"><i class="fas fa-times"></i>Clear</a>{% endif %}
+</form>
+
+<div class="ac">
+  <table class="at">
+    <thead><tr><th>Cert #</th><th>Business</th><th>Level</th><th>Score</th><th>Issued</th><th>Expires</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>
+      {% for c in certificates.items %}
+      {% set expired = c.expiry_date and c.expiry_date < now().date() %}
+      <tr>
+        <td style="font-family:monospace;font-size:.78rem;color:var(--brand)">{{ c.certificate_number }}</td>
+        <td style="font-weight:600">{{ c.business_name or '—' }}</td>
+        <td>
+          {% set lvl = c.assessment.certification_level if c.assessment else '' %}
+          {% if lvl == 'GOLD' %}<span class="sp sp-gold">🥇 Gold</span>
+          {% elif lvl == 'SILVER' %}<span class="sp sp-silver">🥈 Silver</span>
+          {% elif lvl == 'BRONZE' %}<span class="sp sp-bronze">🥉 Bronze</span>
+          {% else %}<span class="sp sp-gray">{{ lvl or '—' }}</span>{% endif %}
+        </td>
+        <td style="color:var(--muted);font-size:.82rem">{{ c.score }}/{{ c.total_possible }}</td>
+        <td style="color:var(--muted);font-size:.78rem">{{ c.issued_date.strftime('%d %b %Y') if c.issued_date else '—' }}</td>
+        <td style="font-size:.78rem;color:{% if expired %}#E84040{% else %}var(--muted){% endif %}">
+          {{ c.expiry_date.strftime('%d %b %Y') if c.expiry_date else '—' }}
+        </td>
+        <td>
+          {% if not c.is_active %}<span class="sp sp-red">Revoked</span>
+          {% elif expired %}<span class="sp sp-amber">Expired</span>
+          {% else %}<span class="sp sp-green">Valid</span>{% endif %}
+        </td>
+        <td>
+          {% if c.is_active %}
+          <form class="d-inline" action="{{ url_for('admin.certificate_revoke', cert_id=c.id) }}" method="post"
+                onsubmit="return confirm('Revoke certificate {{ c.certificate_number }}?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="ab ab-danger"><i class="fas fa-ban"></i>Revoke</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:2rem">No certificates found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if certificates.pages > 1 %}
+<div class="apg">
+  {% if certificates.has_prev %}<a href="{{ url_for('admin.certificates', page=certificates.prev_num, status=status) }}">&laquo;</a>{% else %}<span class="dis">&laquo;</span>{% endif %}
+  {% for p in certificates.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+    {% if p %}<a class="{{ 'cur' if p == certificates.page }}" href="{{ url_for('admin.certificates', page=p, status=status) }}">{{ p }}</a>
+    {% else %}<span class="dis">…</span>{% endif %}
+  {% endfor %}
+  {% if certificates.has_next %}<a href="{{ url_for('admin.certificates', page=certificates.next_num, status=status) }}">&raquo;</a>{% else %}<span class="dis">&raquo;</span>{% endif %}
+</div>
+{% endif %}
+<div class="mt-2" style="font-size:.75rem;color:var(--muted)">{{ certificates.total }} total certificates</div>
+{% endblock %}
