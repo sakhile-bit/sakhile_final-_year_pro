@@ -1,6 +1,29 @@
 # Changelog — Zambia Digital Hygiene Certification App
 
-**Date:** 2026-05-31  
+---
+
+## 2026-06-18 — Refactor: SQLite Local Storage (replaces JSON files)
+
+**Author:** Development Session (Claude Code)
+
+All local persistent state previously stored in JSON files (`instance/credentials.json`, `instance/agent_reports/*.json`) has been moved into the existing SQLite database (`history.db`). Two new tables were added: `credentials` and `agent_reports`. The `instance/agent_reports/` directory and `instance/credentials.json` file are no longer created or read.
+
+**Files changed:**
+
+| File | Change |
+|---|---|
+| `src/utils/local_db.py` | Added `credentials` and `agent_reports` tables + CRUD functions |
+| `src/utils/auth.py` | Rewritten — delegates all I/O to `local_db`; no file access |
+| `src/agents/windows_agent.py` | Saves reports to SQLite; returns `report_id` instead of `report_path` |
+| `src/security/assessment/remote_collector.py` | `load_agent_report` now takes an int id; added `list_agent_reports` |
+| `tests/test_windows_agent.py` | Updated assertion from `report_path` to `report_id` |
+
+See [sqlite_migration.md](sqlite_migration.md) for full details.
+
+---
+
+## 2026-05-31 — Bug fixes and extended assessment flow
+
 **Author:** Development Session (Claude Code)  
 **Branch:** main
 

@@ -144,6 +144,116 @@ def assessment_count() -> int:
     return row[0] if row else 0
 
 
+# ── Credentials ──────────────────────────────────────────────────────────────
+
+def _ensure_credentials_table() -> None:
+    with _connect() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS credentials (
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+        """)
+        conn.commit()
+
+
+def is_credentials_setup() -> bool:
+    """Return True if root credentials have been saved."""
+    try:
+        _ensure_credentials_table()
+        with _connect() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM credentials WHERE key = 'username'"
+            ).fetchone()
+        return row is not None
+    except Exception:
+        return False
+
+
+def store_credentials(username: str, password_hash: str) -> None:
+    """Persist username and pre-hashed password."""
+    _ensure_credentials_table()
+    with _connect() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO credentials (key, value) VALUES ('username', ?)",
+            (username,),
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO credentials (key, value) VALUES ('password_hash', ?)",
+            (password_hash,),
+        )
+        conn.commit()
+
+
+def get_credential(key: str) -> str:
+    """Return a stored credential value by key, or empty string."""
+    try:
+        _ensure_credentials_table()
+        with _connect() as conn:
+            row = conn.execute(
+                "SELECT value FROM credentials WHERE key = ?", (key,)
+            ).fetchone()
+        return row[0] if row else ""
+    except Exception:
+        return ""
+
+
+# ── Agent reports ─────────────────────────────────────────────────────────────
+
+def _ensure_agent_reports_table() -> None:
+    with _connect() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS agent_reports (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                hostname     TEXT    NOT NULL,
+                collected_at TEXT    NOT NULL,
+                payload      TEXT    NOT NULL
+            )
+        """)
+        conn.commit()
+
+
+def save_agent_report(report: dict) -> int:
+    """Persist an agent report and return the new row id."""
+    _ensure_agent_reports_table()
+    with _connect() as conn:
+        cur = conn.execute(
+            """INSERT INTO agent_reports (hostname, collected_at, payload)
+               VALUES (?, ?, ?)""",
+            (
+                report.get("hostname", ""),
+                report.get("collected_at", ""),
+                json.dumps(report),
+            ),
+        )
+        conn.commit()
+        return cur.lastrowid or 0
+
+
+def load_agent_report(report_id: int) -> Optional[dict]:
+    """Return the full agent report for the given id, or None."""
+    _ensure_agent_reports_table()
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT payload FROM agent_reports WHERE id = ?", (report_id,)
+        ).fetchone()
+    if row is None:
+        return None
+    return json.loads(row["payload"])
+
+
+def list_agent_reports(limit: int = 50) -> list[dict]:
+    """Return summary rows ordered newest first."""
+    _ensure_agent_reports_table()
+    with _connect() as conn:
+        rows = conn.execute(
+            """SELECT id, hostname, collected_at
+               FROM agent_reports ORDER BY id DESC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 # ── Reassessment reminder ────────────────────────────────────────────────────
 
 def _ensure_settings_table() -> None:

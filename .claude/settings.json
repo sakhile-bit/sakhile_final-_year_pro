@@ -70,7 +70,10 @@
       "PowerShell(cd \"c:\\\\Users\\\\Hello\\\\Desktop\\\\sakhile_final-_year_pro\"; Get-Process -Name \"ZambiaDigitalHygiene\" -ErrorAction SilentlyContinue | Stop-Process -Force; Remove-Item -Recurse -Force build\\\\build -ErrorAction SilentlyContinue; .\\\\.venv\\\\Scripts\\\\python.exe -m PyInstaller devops\\\\build.spec 2>&1 | Where-Object { $_ -match \"completed|EXE|error\" } | ForEach-Object { $_.ToString\\(\\) })",
       "PowerShell(Get-Process -Name \"ZambiaDigitalHygiene\" -ErrorAction SilentlyContinue | Stop-Process -Force; cd \"c:\\\\Users\\\\Hello\\\\Desktop\\\\sakhile_final-_year_pro\"; Remove-Item -Recurse -Force build\\\\build -ErrorAction SilentlyContinue; .\\\\.venv\\\\Scripts\\\\python.exe -m PyInstaller devops\\\\build.spec 2>&1 | Where-Object { $_ -match \"completed|Building EXE|ERROR\" } | ForEach-Object { $_.ToString\\(\\) })",
       "PowerShell(cd \"c:\\\\Users\\\\Hello\\\\Desktop\\\\sakhile_final-_year_pro\"; Get-Process -Name \"ZambiaDigitalHygiene\" -ErrorAction SilentlyContinue | Stop-Process -Force; Remove-Item -Recurse -Force build\\\\build -ErrorAction SilentlyContinue; .\\\\.venv\\\\Scripts\\\\python.exe -m PyInstaller devops\\\\build.spec 2>&1 | Where-Object { $_ -match \"completed|Building EXE|ERROR\" } | ForEach-Object { $_.ToString\\(\\) })",
-      "Bash(python -m py_compile src/gui/screens/login_screen.py)"
+      "Bash(python -m py_compile src/gui/screens/login_screen.py)",
+      "Bash(xargs grep -l \"sqlite\")",
+      "Bash(pip list *)",
+      "Bash(python -m src.utils.agent_cli agent --name verify-test)"
     ]
   }
 }
