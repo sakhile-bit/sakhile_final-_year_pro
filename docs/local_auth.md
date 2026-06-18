@@ -28,7 +28,7 @@ This mirrors the MySQL first-run setup model: credentials are created once and r
 ZambiaDigitalHygiene.exe launched
         │
         ▼
-  credentials.json exists?
+  credentials row in SQLite?
         │
        NO
         │
@@ -45,7 +45,7 @@ ZambiaDigitalHygiene.exe launched
   └─────────────────────────────┘
         │
         ▼
-  credentials.json created
+  Credentials saved to SQLite
   (hashed password stored)
         │
         ▼
@@ -58,7 +58,7 @@ ZambiaDigitalHygiene.exe launched
 ZambiaDigitalHygiene.exe launched
         │
         ▼
-  credentials.json exists?
+  credentials row in SQLite?
         │
        YES
         │
@@ -118,18 +118,20 @@ The strength meter scores 0–4 based on:
 
 ### Credential Storage
 
-Credentials are saved to `instance/credentials.json`:
+Credentials are saved to the local SQLite database in the `credentials` table:
 
-```json
-{
-  "username": "admin",
-  "password_hash": "pbkdf2:sha256:..."
-}
+```
+%APPDATA%\ZambiaDigitalHygiene\history.db
 ```
 
-- **Location:** `instance/credentials.json` (relative to the exe working directory)
+| key | value |
+|---|---|
+| `username` | Plain username string |
+| `password_hash` | PBKDF2-SHA256 hash |
+
+- **Location:** `history.db` — `credentials` table (same database used for assessment history)
 - **Hashing:** `werkzeug.security.generate_password_hash` — PBKDF2-SHA256
-- **Plain text:** Never stored — only the hash is written to disk
+- **Plain text:** Never stored — only the hash is persisted
 - **Scope:** Local machine only — not synced, not sent anywhere
 
 ---
@@ -140,8 +142,8 @@ Credentials are saved to `instance/credentials.json`:
 
 | Function | Description |
 |----------|-------------|
-| `is_setup() → bool` | Returns `True` if `credentials.json` exists |
-| `save_credentials(username, password)` | Hashes password and writes to `credentials.json` |
+| `is_setup() → bool` | Returns `True` if a credentials row exists in SQLite |
+| `save_credentials(username, password)` | Hashes password and upserts into SQLite |
 | `verify(username, password) → bool` | Returns `True` if credentials match stored hash |
 | `get_username() → str` | Returns stored username for display on login screen |
 
@@ -172,19 +174,21 @@ else:
 
 ## Resetting the Root Password
 
-If a user forgets their password, delete the credentials file and the app will restart in first-run setup mode:
+If a user forgets their password, delete the credentials rows from `history.db` and the app will restart in first-run setup mode:
 
-```
-Delete: instance\credentials.json
+```python
+from src.utils.local_db import _connect
+
+with _connect() as conn:
+    conn.execute("DELETE FROM credentials")
+    conn.commit()
 ```
 
-**Windows path (typical):**
+Or delete the entire database file to reset all local state (assessments, credentials, agent reports, settings):
+
+**Windows path:**
 ```
-C:\Users\<YourName>\AppData\Local\Temp\_MEI...\instance\credentials.json
-```
-Or, if run from source:
-```
-<project root>\instance\credentials.json
+%APPDATA%\ZambiaDigitalHygiene\history.db
 ```
 
 After deletion, the next launch shows the setup screen again.
