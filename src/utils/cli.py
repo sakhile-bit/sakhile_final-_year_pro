@@ -481,11 +481,13 @@ def init_db():
             # Create default admin if none exists
             admin = WebUser.query.filter_by(role='admin').first()
             if not admin:
+                import os as _os, secrets as _sec
+                _pw = _os.environ.get('ADMIN_DEFAULT_PASSWORD', '').strip() or _sec.token_urlsafe(16)
                 admin = WebUser(username='admin', email='admin@zambia-hygiene.local', role='admin')
-                admin.set_password('admin123')
+                admin.set_password(_pw)
                 db.session.add(admin)
                 db.session.commit()
-                console.print("  👤 Default admin created (admin / admin123)")
+                console.print(f"  👤 Default admin created — password: {_pw}")
             else:
                 console.print("  👤 Admin account already exists")
         console.print("[green]✅ Database initialized successfully[/green]")

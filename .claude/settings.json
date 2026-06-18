@@ -73,7 +73,8 @@
       "Bash(python -m py_compile src/gui/screens/login_screen.py)",
       "Bash(xargs grep -l \"sqlite\")",
       "Bash(pip list *)",
-      "Bash(python -m src.utils.agent_cli agent --name verify-test)"
+      "Bash(python -m src.utils.agent_cli agent --name verify-test)",
+      "PowerShell(\\(Get-Content \"database\\\\setup_mysql.py\"\\) | ForEach-Object { $_.TrimEnd\\(\\) } | Set-Content \"database\\\\setup_mysql.py\" -Encoding utf8)"
     ]
   }
 }

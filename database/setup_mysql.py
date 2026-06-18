@@ -1,4 +1,4 @@
-"""
+﻿"""
 MySQL Database Setup and Initialization Script
 Zambia Digital Hygiene Assessment Tool
 
@@ -14,70 +14,60 @@ import subprocess
 from pathlib import Path
 
 
-def run_command(cmd: str, description: str) -> bool:
-    """Run a shell command and report results."""
-    print(f"\n{'='*60}")
-    print(f"▶ {description}")
-    print(f"{'='*60}")
-    print(f"$ {cmd}")
-    print()
-
-    result = subprocess.run(cmd, shell=True)
-    if result.returncode != 0:
-        print(f"\n❌ Failed: {description}")
-        return False
-    print(f"\n✓ Completed: {description}")
-    return True
+def _mysql_args(db_host: str, db_port: str, db_user: str, db_password: str) -> list:
+    """Return the base mysql argument list (no shell, no interpolation)."""
+    return ['mysql', f'-h{db_host}', f'-P{db_port}', f'-u{db_user}', f'-p{db_password}']
 
 
 def main():
     """Main setup function."""
     print("""
-    ╔════════════════════════════════════════════════════════════╗
-    ║  MySQL Database Setup for Digital Hygiene Assessment Tool  ║
-    ║  Production Configuration                                  ║
-    ╚════════════════════════════════════════════════════════════╝
+    â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+    â•‘  MySQL Database Setup for Digital Hygiene Assessment Tool  â•‘
+    â•‘  Production Configuration                                  â•‘
+    â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     """)
-    
+
     # Check if MySQL is installed
-    print("\n1️⃣  Checking MySQL installation...")
-    result = subprocess.run("mysql --version", shell=True, capture_output=True, text=True)
+    print("\n1ï¸âƒ£  Checking MySQL installation...")
+    result = subprocess.run(['mysql', '--version'], capture_output=True, text=True)
     if result.returncode != 0:
         print("""
-        ❌ MySQL is not installed or not in PATH.
-        
+        âŒ MySQL is not installed or not in PATH.
+
         Installation options:
-        
+
         A. Windows (Chocolatey):
            choco install mysql -y
-           
+
         B. Windows (Direct):
            Download from https://dev.mysql.com/downloads/mysql/
-           
+
         C. Windows (Docker - Recommended):
            docker run -d \\
              --name mysql \\
              -p 3306:3306 \\
              -e MYSQL_ROOT_PASSWORD=admin123 \\
              mysql:8.0.35
-        
+
         Then re-run this script.
         """)
         return False
-    
-    print(f"✓ MySQL found: {result.stdout.strip()}")
-    
+
+    print(f"âœ“ MySQL found: {result.stdout.strip()}")
+
     # Get database credentials
-    print("\n2️⃣  Configuring database credentials...")
-    
+    print("\n2ï¸âƒ£  Configuring database credentials...")
+
     db_host = input("Enter MySQL host [localhost]: ").strip() or "localhost"
     db_port = input("Enter MySQL port [3306]: ").strip() or "3306"
     db_user = input("Enter MySQL root user [root]: ").strip() or "root"
-    db_password = input("Enter MySQL root password [admin123]: ").strip() or "admin123"
+    import getpass
+    db_password = getpass.getpass("Enter MySQL root password: ") or "admin123"
     db_name = input("Enter new database name [digital_hygiene]: ").strip() or "digital_hygiene"
     app_user = input("Enter app database user [dhassess]: ").strip() or "dhassess"
-    app_password = input("Enter app database password [SecurePass123!]: ").strip() or "SecurePass123!"
-    
+    app_password = getpass.getpass("Enter app database password: ") or "SecurePass123!"
+
     print(f"""
     Configuration:
     - Host: {db_host}
@@ -86,144 +76,134 @@ def main():
     - Database: {db_name}
     - App User: {app_user}
     """)
-    
+
     # Check MySQL connection
-    print("\n3️⃣  Testing MySQL connection...")
-    test_cmd = f'mysql -h {db_host} -P {db_port} -u {db_user} -p{db_password} -e "SELECT 1;"'
-    result = subprocess.run(test_cmd, shell=True, capture_output=True, text=True)
-    
+    print("\n3ï¸âƒ£  Testing MySQL connection...")
+    base_args = _mysql_args(db_host, db_port, db_user, db_password)
+    result = subprocess.run(
+        base_args + ['-e', 'SELECT 1;'],
+        capture_output=True, text=True,
+    )
+
     if result.returncode != 0:
         print(f"""
-        ❌ Cannot connect to MySQL.
+        âŒ Cannot connect to MySQL.
         Error: {result.stderr}
-        
+
         Troubleshooting:
-        1. Verify MySQL is running: mysql.server start (macOS) or net start MySQL80 (Windows)
-        2. Check credentials: {db_user} / {db_password}
-        3. Verify host/port: {db_host}:{db_port}
+        1. Verify MySQL is running: net start MySQL80 (Windows)
+        2. Check credentials and host/port.
         """)
         return False
-    
-    print("✓ MySQL connection successful")
-    
+
+    print("âœ“ MySQL connection successful")
+
     # Create database and user
-    print("\n4️⃣  Creating database and user...")
-    
+    print("\n4ï¸âƒ£  Creating database and user...")
+
     # Read SQL schema
     sql_file = Path(__file__).parent / "init.sql"
     if not sql_file.exists():
-        print(f"❌ SQL file not found: {sql_file}")
+        print(f"âŒ SQL file not found: {sql_file}")
         return False
-    
-    # Execute schema
-    sql_cmd = f'mysql -h {db_host} -P {db_port} -u {db_user} -p{db_password} < "{sql_file}"'
+
+    # Execute schema â€” pass file content via stdin (no shell interpolation)
     print(f"Executing: {sql_file}")
-    result = subprocess.run(sql_cmd, shell=True, capture_output=True, text=True)
-    
+    with open(sql_file, 'rb') as fh:
+        result = subprocess.run(
+            base_args,
+            stdin=fh,
+            capture_output=True, text=True,
+        )
+
     if result.returncode != 0:
-        print(f"❌ Schema creation failed: {result.stderr}")
+        print(f"âŒ Schema creation failed: {result.stderr}")
         return False
-    
-    print(f"✓ Database schema created: {db_name}")
-    
-    # Create application user
-    print("\n5️⃣  Creating application user...")
-    create_user_sql = f"""
-    CREATE USER IF NOT EXISTS '{app_user}'@'{db_host}' IDENTIFIED BY '{app_password}';
-    GRANT ALL PRIVILEGES ON {db_name}.* TO '{app_user}'@'{db_host}';
-    FLUSH PRIVILEGES;
-    """
-    
-    cmd = f'mysql -h {db_host} -P {db_port} -u {db_user} -p{db_password} -e "{create_user_sql}"'
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-    
+
+    print(f"âœ“ Database schema created: {db_name}")
+
+    # Create application user â€” use parameterised argument list, not shell
+    print("\n5ï¸âƒ£  Creating application user...")
+    create_user_sql = (
+        f"CREATE USER IF NOT EXISTS '{app_user}'@'{db_host}' IDENTIFIED BY '{app_password}';"
+        f"GRANT ALL PRIVILEGES ON `{db_name}`.* TO '{app_user}'@'{db_host}';"
+        "FLUSH PRIVILEGES;"
+    )
+    result = subprocess.run(
+        base_args + ['-e', create_user_sql],
+        capture_output=True, text=True,
+    )
+
     if result.returncode != 0:
-        print(f"⚠️  User creation issue (may already exist): {result.stderr}")
+        print(f"âš ï¸  User creation issue (may already exist): {result.stderr}")
     else:
-        print(f"✓ Application user created: {app_user}")
-    
+        print(f"âœ“ Application user created: {app_user}")
+
     # Verify setup
-    print("\n6️⃣  Verifying database setup...")
-    verify_sql = """
-    SELECT 
-        TABLE_NAME 
-    FROM 
-        INFORMATION_SCHEMA.TABLES 
-    WHERE 
-        TABLE_SCHEMA = '{db_name}';
-    """.format(db_name=db_name)
-    
-    cmd = f'mysql -h {db_host} -P {db_port} -u {app_user} -p{app_password} -e "{verify_sql}"'
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-    
+    print("\n6ï¸âƒ£  Verifying database setup...")
+    verify_sql = (
+        "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES "
+        f"WHERE TABLE_SCHEMA = '{db_name}';"
+    )
+    app_base = _mysql_args(db_host, db_port, app_user, app_password)
+    result = subprocess.run(
+        app_base + ['-e', verify_sql],
+        capture_output=True, text=True,
+    )
+
     if result.returncode == 0:
         tables = result.stdout.strip().split('\n')[1:]  # Skip header
-        print(f"✓ Created {len(tables)} tables:")
+        print(f"âœ“ Created {len(tables)} tables:")
         for table in tables:
             if table.strip():
                 print(f"  - {table}")
     else:
-        print(f"❌ Verification failed: {result.stderr}")
+        print(f"âŒ Verification failed: {result.stderr}")
         return False
-    
+
     # Generate connection string
-    print("\n7️⃣  Database Setup Complete! 🎉")
+    print("\n7ï¸âƒ£  Database Setup Complete! ðŸŽ‰")
     print(f"""
-    ╔════════════════════════════════════════════════════════════╗
-    ║  MySQL Connection Details                                  ║
-    ╠════════════════════════════════════════════════════════════╣
-    ║  Host:     {db_host:<50}║
-    ║  Port:     {db_port:<50}║
-    ║  Database: {db_name:<50}║
-    ║  User:     {app_user:<50}║
-    ╚════════════════════════════════════════════════════════════╝
-    
-    🔗 Connection String:
-    mysql+mysqlconnector://{app_user}:{app_password}@{db_host}:{db_port}/{db_name}
-    
-    ⚙️  Set these environment variables:
-    
-    Windows (CMD):
-        set DB_HOST={db_host}
-        set DB_PORT={db_port}
-        set DB_NAME={db_name}
-        set DB_USER={app_user}
-        set DB_PASSWORD={app_password}
-    
+    â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+    â•‘  MySQL Connection Details                                  â•‘
+    â• â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•£
+    â•‘  Host:     {db_host:<50}â•‘
+    â•‘  Port:     {db_port:<50}â•‘
+    â•‘  Database: {db_name:<50}â•‘
+    â•‘  User:     {app_user:<50}â•‘
+    â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+    âš™ï¸  Set these environment variables:
+
     Windows (PowerShell):
         $env:DB_HOST = "{db_host}"
         $env:DB_PORT = "{db_port}"
         $env:DB_NAME = "{db_name}"
         $env:DB_USER = "{app_user}"
-        $env:DB_PASSWORD = "{app_password}"
-    
-    Linux/Mac (.bash_profile):
-        export DB_HOST={db_host}
-        export DB_PORT={db_port}
-        export DB_NAME={db_name}
-        export DB_USER={app_user}
-        export DB_PASSWORD={app_password}
-    
-    ✅ Next steps:
-    1. Set the environment variables above
+        $env:DB_PASSWORD = "<your-app-password>"
+
+    âœ… Next steps:
+    1. Set the environment variables above (do not hardcode passwords)
     2. Start the Flask app: python src/web/app.py
     3. Open http://localhost:5000 in your browser
-    4. Login with: admin / admin123 (default credentials)
+    4. Login with admin and the password set in ADMIN_DEFAULT_PASSWORD env var
     """)
-    
+
     # Create .env file option
-    create_env = input("\n📝 Create .env file with these settings? [y/N]: ").strip().lower()
+    create_env = input("\nðŸ“ Create .env file with these settings? [y/N]: ").strip().lower()
     if create_env == 'y':
         env_content = f"""# MySQL Database Configuration
 DB_HOST={db_host}
 DB_PORT={db_port}
 DB_NAME={db_name}
 DB_USER={app_user}
-DB_PASSWORD={app_password}
+# Set DB_PASSWORD via a secrets manager or CI secret â€” do not commit this file
+DB_PASSWORD=
 
 # Flask Configuration
 DEBUG=false
-SECRET_KEY=your-secret-key-here
+# Generate with: python -c "import secrets; print(secrets.token_urlsafe(64))"
+SECRET_KEY=
 LOG_LEVEL=INFO
 WEB_HOST=0.0.0.0
 WEB_PORT=5000
@@ -231,8 +211,9 @@ WEB_PORT=5000
         env_file = Path(__file__).parent.parent / ".env"
         with open(env_file, 'w') as f:
             f.write(env_content)
-        print(f"✓ Created .env file: {env_file}")
-    
+        print(f"âœ“ Created .env file: {env_file}")
+        print("âš ï¸  Fill in DB_PASSWORD and SECRET_KEY â€” never commit real credentials to git.")
+
     return True
 
 
@@ -241,8 +222,8 @@ if __name__ == "__main__":
         success = main()
         sys.exit(0 if success else 1)
     except KeyboardInterrupt:
-        print("\n\n❌ Setup cancelled by user.")
+        print("\n\nâŒ Setup cancelled by user.")
         sys.exit(1)
     except Exception as e:
-        print(f"\n❌ Error: {e}")
+        print(f"\nâŒ Error: {e}")
         sys.exit(1)

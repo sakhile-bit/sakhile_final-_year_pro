@@ -453,10 +453,17 @@ def create_app(db_uri: str | None = None) -> Flask:
             logger.warning(f'Column migration: {e}')
             db.session.rollback()
 
-        # Default admin credentials — password meets the 10-char complexity
-        # rule enforced by the change-password form (uppercase, lowercase,
-        # digit, special character all present).
-        _DEFAULT_ADMIN_PW = 'Admin@12345!'
+        # Read admin password from env; generate a one-time random password if
+        # the variable is absent so a known default is never baked in.
+        _DEFAULT_ADMIN_PW = os.environ.get('ADMIN_DEFAULT_PASSWORD', '').strip()
+        if not _DEFAULT_ADMIN_PW:
+            import secrets as _secrets
+            _DEFAULT_ADMIN_PW = _secrets.token_urlsafe(16)
+            logger.warning(
+                'ADMIN_DEFAULT_PASSWORD not set — generated temporary admin password: %s  '
+                '(set the env var to a strong password and restart)',
+                _DEFAULT_ADMIN_PW,
+            )
         admin = User.query.filter_by(username='admin').first()
         if not admin:
             admin = User(
@@ -470,8 +477,7 @@ def create_app(db_uri: str | None = None) -> Flask:
             db.session.commit()
             logger.info('Default admin user created')
         else:
-            # Normalize hash if legacy bcrypt hash present or password was the
-            # old weak default that doesn't meet current complexity rules.
+            # Normalize hash if legacy bcrypt hash present.
             if not admin.password_hash.startswith('pbkdf2:'):
                 admin.set_password(_DEFAULT_ADMIN_PW)
                 db.session.commit()
@@ -1055,7 +1061,7 @@ def assess():
 
         except Exception as e:
             logger.error(f"Assessment error: {e}")
-            flash(f'Assessment failed: {str(e)}', 'error')
+            flash('Assessment failed. Please try again or contact support.', 'error')
 
     return render_template('assess.html')
 
@@ -1380,6 +1386,7 @@ def mfa_setup():
 
 
 @app.route('/mfa-verify', methods=['GET', 'POST'])
+@rate_limit(max_attempts=5, window=300)
 def mfa_verify():
     """Verify MFA code during login."""
     user_id = session.get('mfa_user_id')
@@ -1800,8 +1807,11 @@ def system_scan():
         scan_results['open_ports'] = open_ports
         # Check for firewall (Windows only)
         if platform.system() == 'Windows':
-            firewall_status = os.system('netsh advfirewall show allprofiles')
-            scan_results['firewall'] = 'Enabled' if firewall_status == 0 else 'Disabled/Unknown'
+            _fw = subprocess.run(
+                ['netsh', 'advfirewall', 'show', 'allprofiles'],
+                capture_output=True,
+            )
+            scan_results['firewall'] = 'Enabled' if _fw.returncode == 0 else 'Disabled/Unknown'
         else:
             scan_results['firewall'] = 'Check manually'
         # Recommend actions
