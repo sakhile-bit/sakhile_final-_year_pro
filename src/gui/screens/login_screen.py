@@ -15,15 +15,17 @@ from src.gui.theme import (
 from src.utils.auth import get_username, verify
 
 _MAX_ATTEMPTS = 5
-_W, _H = 380, 310
+_W, _H = 380, 400
 
 
 class LoginScreen(ctk.CTkToplevel):
     """Small modal login popup — blocks the main window until authenticated."""
 
-    def __init__(self, master, on_success: Callable):
+    def __init__(self, master, on_success: Callable,
+                 on_cancel: Callable | None = None):
         super().__init__(master)
         self._on_success = on_success
+        self._on_cancel = on_cancel
         self._attempts = 0
 
         # ── Window setup ─────────────────────────────────────────────
@@ -32,8 +34,9 @@ class LoginScreen(ctk.CTkToplevel):
         self.resizable(False, False)
         self.configure(fg_color=CLR_SURFACE)
 
-        # Closing the dialog exits the whole app
-        self.protocol("WM_DELETE_WINDOW", master.destroy)
+        # Closing the dialog: return to the caller (e.g. the lock screen) if
+        # a cancel handler is given, otherwise exit the whole app (launch).
+        self.protocol("WM_DELETE_WINDOW", self._cancel)
 
         # Centre on screen
         self.update_idletasks()
@@ -72,6 +75,23 @@ class LoginScreen(ctk.CTkToplevel):
         # Divider
         ctk.CTkFrame(self, fg_color=CLR_BORDER, height=1
                      ).pack(fill="x", padx=20, pady=(10, 0))
+
+        # ── Footer + Sign In button ───────────────────────────────────
+        # Packed to the bottom edge FIRST so they always stay visible —
+        # if space runs short, the form is squeezed, never the button.
+        ctk.CTkLabel(self,
+                     text="🔒  Local credentials only — not sent anywhere.",
+                     font=FONT_CAPTION, text_color=CLR_MUTED,
+                     ).pack(side="bottom", pady=(0, 10))
+
+        self._btn = ctk.CTkButton(
+            self, text="Sign In  →",
+            font=("Segoe UI", 12, "bold"),
+            fg_color=CLR_ACCENT, hover_color=CLR_ACCENT_HOV,
+            text_color="#000000", height=40, corner_radius=BTN_R,
+            command=self._submit,
+        )
+        self._btn.pack(side="bottom", fill="x", padx=24, pady=(4, 14))
 
         # ── Form ──────────────────────────────────────────────────────
         form = ctk.CTkFrame(self, fg_color="transparent")
@@ -113,22 +133,6 @@ class LoginScreen(ctk.CTkToplevel):
         )
         self._error_lbl.pack(anchor="w", pady=(5, 0))
 
-        # ── Sign In button ────────────────────────────────────────────
-        self._btn = ctk.CTkButton(
-            self, text="Sign In  →",
-            font=("Segoe UI", 12, "bold"),
-            fg_color=CLR_ACCENT, hover_color=CLR_ACCENT_HOV,
-            text_color="#000000", height=40, corner_radius=BTN_R,
-            command=self._submit,
-        )
-        self._btn.pack(fill="x", padx=24, pady=(4, 14))
-
-        # Footer
-        ctk.CTkLabel(self,
-                     text="🔒  Local credentials only — not sent anywhere.",
-                     font=FONT_CAPTION, text_color=CLR_MUTED,
-                     ).pack(pady=(0, 10))
-
         # Focus is handled by _force_focus() called after event loop starts
 
     def _force_focus(self):
@@ -156,6 +160,18 @@ class LoginScreen(ctk.CTkToplevel):
             self._password.focus()
         except Exception:
             pass
+
+    def _cancel(self):
+        """Dismiss the dialog — return to caller or exit the app."""
+        try:
+            self.grab_release()
+        except Exception:
+            pass
+        self.destroy()
+        if self._on_cancel is not None:
+            self._on_cancel()
+        else:
+            self.master.destroy()
 
     def _error(self, msg: str):
         self._error_lbl.configure(text=f"! {msg}")

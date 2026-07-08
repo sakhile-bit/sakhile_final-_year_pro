@@ -94,7 +94,29 @@ python cli.py fleet-scan --nodes nodes.yaml --json-out # machine-readable
 python cli.py fleet-scan --nodes nodes.yaml -o fleet.json
 ```
 
-Or use the desktop app: **🖧 Fleet Scan** tile → select the inventory → **Scan Fleet**. Results show a fleet grade hero, a summary strip, and per-node cards (the weakest link is highlighted). Fleet reports are saved to local history and can be exported as HTML.
+Or use the desktop app: **🖧 Fleet Scan** tile. No inventory file needed —
+enter the shared token, then click **🔍 Discover** to auto-detect every node
+agent on your local /24 network (each host is probed on the agent port's
+`/health` endpoint). Detected nodes appear as a checklist; **select multiple**
+(or "Select all"), optionally **add a host manually** by IP, then click
+**▶ Scan Selected**. Results show a fleet grade hero, a summary strip, and
+per-node cards (the weakest link is highlighted). Fleet reports are saved to
+local history and can be exported as HTML.
+
+### Auto-discovery API
+
+```python
+from src.agents.master_coordinator import discover_nodes, probe_node
+
+discover_nodes(port=8765, timeout=0.7)   # scan local /24 → list of node dicts
+probe_node("192.168.1.10", 8765)         # probe one host's /health
+```
+
+`discover_nodes` derives the master's own /24 from its IP (or takes an explicit
+`cidr24=`), probes all 254 hosts concurrently, and returns those whose
+`/health` identifies a node agent (`{host, port, url, hostname, agent_version}`).
+Discovery uses only the unauthenticated `/health` endpoint; the token is still
+required for the actual scan.
 
 ---
 

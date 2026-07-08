@@ -47,21 +47,46 @@ class AppState:
         logger.debug("Assessment state reset")
 
     # ------------------------------------------------------------------
+    def _clean_manual_scores(self) -> Dict[str, int]:
+        """Coerce manual answers to safe ints so scoring can't crash.
+
+        UI widgets can hand back strings or ``None``; a stray value would
+        otherwise blow up deep inside the assessor while certifying.
+        """
+        clean: Dict[str, int] = {}
+        for key, raw in (self.manual_scores or {}).items():
+            try:
+                clean[key] = int(raw)
+            except (TypeError, ValueError):
+                logger.warning("Dropping non-numeric manual score for %s: %r",
+                               key, raw)
+        return clean
+
+    @staticmethod
+    def _looks_like_control(obj) -> bool:
+        return all(hasattr(obj, attr) for attr in ("score", "status", "weight"))
+
     def build_results(self):
         """Assemble a finished ``AssessmentResults`` from wizard inputs.
 
         Runs the assessor with the collected business info, selected tools
-        and manual answers, then patches in the automated control results
-        captured live on the scanning screen and recomputes the headline
+        and manual answers, patches in the automated control results
+        captured live on the scanning screen, then recomputes the headline
         score / critical count / certification tier.
 
-        This logic used to live inside the navigation controller; keeping
-        it here means the controller only decides *where to go*, not *how
-        an assessment is scored*.
+        The method is defensive on every input the UI feeds it — bad manual
+        scores, malformed automated results, controls missing a score — so
+        the certification step can never crash the app, and it records the
+        integrity of the underlying data so an unverifiable result is
+        surfaced as *provisional* rather than silently certified.
+
+        Keeping this here means the navigation controller only decides
+        *where to go*, not *how an assessment is scored*.
         """
         from src.security.assessment.assessor import (
             CONTROL_CATALOGUE,
             DigitalHygieneAssessor,
+            assessment_integrity,
             certification_for,
         )
 
@@ -70,27 +95,51 @@ class AppState:
 
         assessor = DigitalHygieneAssessor(
             self.business_info,
-            manual_answers=self.manual_scores,
+            manual_answers=self._clean_manual_scores(),
             assessment_tier="full",
             selected_tools=self.selected_tools,
         )
         results = assessor.run_assessment()
 
-        # Patch in the automated results captured live on the scanning screen
-        for cid_key, ctrl_result in self.auto_results.items():
+        # Patch in the automated results captured live on the scanning screen,
+        # ignoring anything that doesn't look like a real ControlResult.
+        for cid_key, ctrl_result in (self.auto_results or {}).items():
             suffix = _AUTO_CONTROL_SUFFIX.get(cid_key)
             full_key = f"{cid_key}_{suffix}" if suffix else cid_key
-            if full_key in results.controls:
-                results.controls[full_key] = ctrl_result
+            if full_key not in results.controls:
+                continue
+            if not self._looks_like_control(ctrl_result):
+                logger.warning("Ignoring malformed automated result for %s",
+                               full_key)
+                continue
+            results.controls[full_key] = ctrl_result
 
-        # Recompute headline figures from the merged control set
-        results.score = sum(c.score for c in results.controls.values())
+        # Recompute headline figures from the merged control set. Use getattr
+        # defaults so a single odd control can't abort certification.
+        results.score = sum(int(getattr(c, "score", 0) or 0)
+                            for c in results.controls.values())
         pct = ((results.score / results.total_possible) * 100
                if results.total_possible else 0)
-        results.critical_failures = sum(
+
+        # A critical control that FAILED or could not be VERIFIED both block
+        # the top tiers — you cannot certify what you could not confirm.
+        integrity = assessment_integrity(results.controls, CONTROL_CATALOGUE)
+        critical_fail = sum(
             1 for k, v in results.controls.items()
-            if CONTROL_CATALOGUE.get(k, {}).get("critical") and v.status == "FAIL"
+            if CONTROL_CATALOGUE.get(k, {}).get("critical")
+            and getattr(v, "status", None) == "FAIL"
         )
-        results.certification_level = certification_for(
-            pct, results.critical_failures)
+        critical_gaps = critical_fail + len(integrity["unverified_critical"])
+
+        results.critical_failures = critical_fail
+        results.integrity = integrity
+        results.provisional = integrity["provisional"]
+        results.certification_level = certification_for(pct, critical_gaps)
+
+        if results.provisional:
+            logger.warning(
+                "Assessment for %s is provisional — unverified critical "
+                "controls: %s",
+                getattr(self.business_info, "name", "?"),
+                ", ".join(integrity["unverified_critical"]))
         return results

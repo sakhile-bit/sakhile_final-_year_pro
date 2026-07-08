@@ -34,7 +34,10 @@
       "Bash(.venv/Scripts/python.exe -m pytest tests/test_fleet.py -q --no-header --no-cov -p no:cacheprovider)",
       "Bash(.venv/Scripts/python.exe -m pytest tests -q --no-header --no-cov -p no:cacheprovider)",
       "Bash(.venv/Scripts/python.exe -m pytest tests/test_navigation.py -q --no-header --no-cov -p no:cacheprovider)",
-      "Bash(.venv/Scripts/python.exe -m pytest tests/test_navigation.py -v --no-header --no-cov -p no:cacheprovider -rs)"
+      "Bash(.venv/Scripts/python.exe -m pytest tests/test_navigation.py -v --no-header --no-cov -p no:cacheprovider -rs)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/test_fleet.py tests/test_navigation.py -q --no-header --no-cov -p no:cacheprovider)",
+      "Bash(taskkill //F //IM ZambiaDigitalHygiene.exe //T)",
+      "Bash(PYTHONIOENCODING=utf-8 .venv/Scripts/python.exe database/setup_sqlite.py)"
     ]
   }
 }

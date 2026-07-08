@@ -51,22 +51,42 @@ class DigitalHygieneApp(ctk.CTk):
         # Route through auth before showing the app
         from src.utils.auth import is_setup
         if is_setup():
-            self._show_login()
+            # Show the lock screen, then bring up the sign-in dialog over it.
+            self._show_lock(ended=False)
+            self._start_session()
         else:
             self._show_setup()
 
-    # ─────────────────────────────────────── auth screens
+    # ─────────────────────────────────────── auth / session screens
     def _show_setup(self):
         from src.gui.screens.setup_screen import SetupScreen
         self.router.reset_to(
             "setup",
             lambda: SetupScreen(self, on_done=self._show_welcome))
 
-    def _show_login(self):
-        from src.gui.screens.login_screen import LoginScreen
+    def _show_lock(self, ended: bool = False):
+        """Show the locked state (no active session)."""
+        from src.gui.screens.session_lock import SessionLockScreen
+        self.router.reset_to(
+            "session_lock",
+            lambda: SessionLockScreen(
+                self,
+                on_start_session=self._start_session,
+                on_exit=self.destroy,
+                ended=ended,
+            ))
 
-        # Popup dialog — sits on top of the empty main window, not routed
-        LoginScreen(self, on_success=self._show_welcome)
+    def _start_session(self):
+        """Authenticate the user via the sign-in dialog."""
+        from src.gui.screens.login_screen import LoginScreen
+        # Modal popup over the lock screen. Cancelling returns to the lock
+        # screen (already shown) rather than exiting the app.
+        LoginScreen(self, on_success=self._show_welcome, on_cancel=lambda: None)
+
+    def _terminate_session(self):
+        """Log the user out and return to the locked state."""
+        self.app_state.reset_assessment()
+        self._show_lock(ended=True)
 
     # ─────────────────────────────────────── home
     def _show_welcome(self):
@@ -93,6 +113,7 @@ class DigitalHygieneApp(ctk.CTk):
             on_dashboard=self._show_assessment_dashboard,
             on_hardening=self._show_server_hardening,
             on_fleet=self._show_fleet_scan,
+            on_logout=self._terminate_session,
         )
 
     # ─────────────────────────────────────── standalone tools
@@ -263,7 +284,16 @@ class DigitalHygieneApp(ctk.CTk):
         self._show_results()
 
     def _show_results(self):
-        results = self.app_state.build_results()
+        # Certification must never crash the app. If assembling the results
+        # fails, tell the user plainly and keep them on the wizard so their
+        # answers aren't lost, rather than leaving a blank window.
+        try:
+            results = self.app_state.build_results()
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).exception("Failed to build results")
+            self._show_certify_error(exc)
+            return
         from src.gui.screens.results import ResultsScreen
         self.router.push(
             "results",
@@ -272,3 +302,34 @@ class DigitalHygieneApp(ctk.CTk):
                 results=results,
                 on_restart=self._show_welcome,
             ))
+
+    def _show_certify_error(self, exc):
+        """Show a recoverable dialog when results can't be assembled."""
+        import customtkinter as ctk
+        from src.gui.theme import (
+            CLR_SURFACE, CLR_WARNING, CLR_TEXT_SEC, CLR_ACCENT, BTN_H, BTN_R,
+            FONT_SUBHEAD, FONT_SMALL,
+        )
+        try:
+            dlg = ctk.CTkToplevel(self)
+            dlg.title("Could not complete assessment")
+            dlg.geometry("460x190")
+            dlg.resizable(False, False)
+            dlg.configure(fg_color=CLR_SURFACE)
+            dlg.grab_set()
+            ctk.CTkLabel(dlg, text="⚠  Could not complete the assessment",
+                         font=FONT_SUBHEAD, text_color=CLR_WARNING,
+                         ).pack(pady=(22, 6))
+            ctk.CTkLabel(
+                dlg,
+                text="Something went wrong while scoring your answers. "
+                     "Your inputs are still here — you can go back and try "
+                     "again.\n\n" + str(exc)[:200],
+                font=FONT_SMALL, text_color=CLR_TEXT_SEC, wraplength=410,
+                justify="left").pack(pady=(0, 14), padx=16)
+            ctk.CTkButton(dlg, text="OK", fg_color=CLR_ACCENT,
+                          text_color="#000000", height=BTN_H,
+                          corner_radius=BTN_R, command=dlg.destroy).pack()
+        except Exception:
+            # Even the dialog failed — fall back to going home.
+            self._show_welcome()

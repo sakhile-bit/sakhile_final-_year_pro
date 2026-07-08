@@ -28,6 +28,8 @@ from __future__ import annotations
 import hmac
 import os
 import socket
+import threading
+import time
 from functools import wraps
 from typing import Optional
 
@@ -66,6 +68,10 @@ def create_node_app(token: str, business_name: str = "") -> Flask:
     app.config["NODE_TOKEN"] = token
     app.config["NODE_BUSINESS_NAME"] = business_name or socket.gethostname()
 
+    # A scan is CPU/time heavy. Serialise it so two masters (or a retry)
+    # can't pile multiple full scans onto one host at once.
+    scan_lock = threading.Lock()
+
     def require_token(view):
         @wraps(view)
         def wrapper(*args, **kwargs):
@@ -90,19 +96,33 @@ def create_node_app(token: str, business_name: str = "") -> Flask:
     @app.post("/scan")
     @require_token
     def scan():
+        if not scan_lock.acquire(blocking=False):
+            logger.info("Rejected concurrent scan from %s — already scanning",
+                        request.remote_addr)
+            return jsonify({
+                "status": "busy",
+                "error": "a scan is already in progress on this node",
+            }), 409
         logger.info("Master node %s requested a scan", request.remote_addr)
         try:
             # save=False — the master node is the system of record
+            started = time.monotonic()
             result = collect_local_report(
                 business_name=app.config["NODE_BUSINESS_NAME"], save=False)
+            duration = round(time.monotonic() - started, 1)
+            logger.info("Scan completed in %.1fs for %s",
+                        duration, request.remote_addr)
             return jsonify({
                 "status": "ok",
                 "agent_version": AGENT_VERSION,
+                "duration_seconds": duration,
                 "report": result["report"],
             })
         except Exception as exc:  # pragma: no cover - defensive
             logger.exception("Scan failed")
             return jsonify({"status": "error", "error": str(exc)}), 500
+        finally:
+            scan_lock.release()
 
     return app
 

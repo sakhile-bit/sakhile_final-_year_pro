@@ -680,7 +680,7 @@ def fleet_scan(nodes_file: str, timeout: float, workers: int,
 
         status_style = {
             'online': 'green', 'offline': 'red',
-            'unauthorized': 'yellow', 'error': 'red',
+            'unauthorized': 'yellow', 'error': 'red', 'busy': 'yellow',
         }
         grade_style = {
             'HARDENED': 'green', 'NEEDS ATTENTION': 'yellow', 'AT RISK': 'red',

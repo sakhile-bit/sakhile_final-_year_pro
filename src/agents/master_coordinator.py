@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import json
+import socket
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -42,6 +43,7 @@ NODE_STATUS_ONLINE = "online"
 NODE_STATUS_OFFLINE = "offline"
 NODE_STATUS_UNAUTHORIZED = "unauthorized"
 NODE_STATUS_ERROR = "error"
+NODE_STATUS_BUSY = "busy"
 
 
 @dataclass
@@ -207,6 +209,25 @@ def load_nodes(path: str) -> List[Node]:
     return parse_nodes(data)
 
 
+def normalize_node_url(raw: str) -> str:
+    """Return a fully-qualified http URL with a port for a host/url string.
+
+    Accepts ``host``, ``host:port``, ``http://host`` or ``http://host:port``
+    and always yields ``scheme://host:port``. This is what makes the bare
+    ``host:port`` shorthand in an inventory actually usable.
+    """
+    url = str(raw).strip()
+    if not url:
+        return ""
+    if "://" not in url:
+        url = "http://" + url
+    scheme, _, rest = url.partition("://")
+    host_part = rest.split("/", 1)[0]        # strip any path
+    if ":" not in host_part:                  # no explicit port
+        url = f"{scheme}://{host_part}:{DEFAULT_PORT}" + url[len(scheme) + 3 + len(host_part):]
+    return url
+
+
 def parse_nodes(data: Any) -> List[Node]:
     """Turn a parsed inventory structure into a list of Node objects."""
     if isinstance(data, dict):
@@ -221,15 +242,11 @@ def parse_nodes(data: Any) -> List[Node]:
     nodes: List[Node] = []
     for i, entry in enumerate(raw_nodes):
         if isinstance(entry, str):
-            url = entry
             name = entry
+            url = normalize_node_url(entry)
             token = default_token
         elif isinstance(entry, dict):
-            url = entry.get("url") or entry.get("host") or ""
-            if url and "://" not in url:
-                url = f"http://{url}"
-                if url.count(":") < 2:  # no explicit port
-                    url = f"{url}:{DEFAULT_PORT}"
+            url = normalize_node_url(entry.get("url") or entry.get("host") or "")
             name = entry.get("name") or url or f"node-{i + 1}"
             token = entry.get("token", default_token)
         else:
@@ -292,6 +309,10 @@ def scan_node(node: Node, timeout: float = 60.0) -> NodeResult:
         return NodeResult(name=node.name, url=node.url,
                           status=NODE_STATUS_UNAUTHORIZED,
                           error="Authentication failed — check the node token")
+    if status_code == 409:
+        return NodeResult(
+            name=node.name, url=node.url, status=NODE_STATUS_BUSY,
+            error=body.get("error", "node is busy — a scan is already running"))
     if status_code != 200 or body.get("status") != "ok":
         return NodeResult(
             name=node.name, url=node.url, status=NODE_STATUS_ERROR,
@@ -323,6 +344,105 @@ def check_node_health(node: Node, timeout: float = 5.0) -> bool:
             return data.get("status") == "ok"
     except Exception:
         return False
+
+
+# ---------------------------------------------------------------------------
+# Network discovery — find node agents automatically
+# ---------------------------------------------------------------------------
+
+
+def local_ipv4() -> Optional[str]:
+    """Best-effort local IPv4 address of this master node."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
+    except Exception:
+        try:
+            return socket.gethostbyname(socket.gethostname())
+        except Exception:
+            return None
+
+
+def subnet_hosts(cidr24: Optional[str] = None) -> List[str]:
+    """Return the 254 host addresses of a /24.
+
+    ``cidr24`` may be a base like ``192.168.1`` or any address inside the
+    subnet (``192.168.1.23``). When omitted the master's own subnet is used.
+    """
+    if cidr24:
+        base = ".".join(cidr24.split(".")[:3])
+    else:
+        ip = local_ipv4()
+        if not ip:
+            return []
+        base = ".".join(ip.split(".")[:3])
+    if base.count(".") != 2:
+        return []
+    return [f"{base}.{i}" for i in range(1, 255)]
+
+
+def probe_node(host: str, port: int = DEFAULT_PORT,
+               timeout: float = 0.7) -> Optional[Dict[str, Any]]:
+    """Probe a host's /health endpoint; return node info if an agent answers."""
+    url = f"http://{host}:{port}/health"
+    try:
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            data = json.loads(r.read().decode("utf-8") or "{}")
+            if data.get("status") == "ok":
+                return {
+                    "host": host,
+                    "port": port,
+                    "url": f"http://{host}:{port}",
+                    "hostname": data.get("hostname", host),
+                    "agent_version": data.get("agent_version", "?"),
+                }
+    except Exception:
+        return None
+    return None
+
+
+def discover_nodes(port: int = DEFAULT_PORT, timeout: float = 0.7,
+                   max_workers: int = 128, cidr24: Optional[str] = None,
+                   progress=None) -> List[Dict[str, Any]]:
+    """Scan the local /24 for reachable node agents.
+
+    Concurrently probes every host in the subnet on ``port`` and returns the
+    ones whose /health endpoint identifies a node agent. ``progress`` is an
+    optional callback ``progress(done, total, found_or_None)``.
+    """
+    hosts = subnet_hosts(cidr24)
+    total = len(hosts)
+    found: List[Dict[str, Any]] = []
+    if not hosts:
+        logger.warning("Could not determine local subnet for discovery")
+        return found
+
+    logger.info("Discovering node agents on %s.0/24 port %d …",
+                ".".join(hosts[0].split(".")[:3]), port)
+    workers = max(1, min(max_workers, total))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        future_map = {pool.submit(probe_node, h, port, timeout): h
+                      for h in hosts}
+        done = 0
+        for future in concurrent.futures.as_completed(future_map):
+            done += 1
+            try:
+                result = future.result()
+            except Exception:
+                result = None
+            if result:
+                found.append(result)
+            if progress is not None:
+                try:
+                    progress(done, total, result)
+                except Exception:
+                    pass
+
+    found.sort(key=lambda d: tuple(int(x) for x in d["host"].split(".")))
+    logger.info("Discovery complete: %d node agent(s) found", len(found))
+    return found
 
 
 def scan_fleet(nodes: List[Node], timeout: float = 60.0,

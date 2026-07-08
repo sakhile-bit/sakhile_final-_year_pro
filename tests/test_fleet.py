@@ -20,6 +20,17 @@ from src.agents.node_agent import create_node_app
 
 
 class TestNodeAgent:
+    @pytest.fixture(autouse=True)
+    def _fast_scan(self, monkeypatch):
+        # Keep HTTP/auth tests fast — the real scan path is covered by
+        # test_windows_agent. Individual tests may re-patch as needed.
+        import src.agents.node_agent as na
+        monkeypatch.setattr(
+            na, "collect_local_report",
+            lambda business_name="", save=True: {
+                "report": {"hostname": "unit-test", "assessment": {},
+                           "hardening": {}, "readiness": {}}})
+
     @pytest.fixture
     def client(self):
         app = create_node_app(token="secret", business_name="unit-test")
@@ -52,6 +63,43 @@ class TestNodeAgent:
         with pytest.raises(ValueError):
             create_node_app(token="")
 
+    def test_scan_reports_duration(self, client):
+        resp = client.post("/scan", headers={"Authorization": "Bearer secret"})
+        assert resp.status_code == 200
+        assert "duration_seconds" in resp.get_json()
+
+    def test_concurrent_scan_returns_busy(self, monkeypatch):
+        # Hold the scan lock by making collect_local_report block until released
+        import src.agents.node_agent as na
+        import threading
+        release = threading.Event()
+
+        def slow_collect(business_name="", save=True):
+            release.wait(timeout=5)
+            return {"report": {"hostname": "h", "assessment": {},
+                               "hardening": {}, "readiness": {}}}
+        monkeypatch.setattr(na, "collect_local_report", slow_collect)
+
+        app = na.create_node_app(token="secret")
+        client = app.test_client()
+        first_status = {}
+
+        def first_call():
+            r = client.post("/scan", headers={"Authorization": "Bearer secret"})
+            first_status["code"] = r.status_code
+
+        t = threading.Thread(target=first_call)
+        t.start()
+        # Give the first request time to grab the lock
+        import time
+        time.sleep(0.3)
+        second = client.post("/scan", headers={"Authorization": "Bearer secret"})
+        assert second.status_code == 409
+        assert second.get_json()["status"] == "busy"
+        release.set()
+        t.join(timeout=5)
+        assert first_status.get("code") == 200
+
 
 # ---------------------------------------------------------------------------
 # Node inventory parsing
@@ -72,7 +120,7 @@ class TestParseNodes:
 
     def test_bare_host_string_gets_scheme_and_port(self):
         nodes = parse_nodes({"nodes": ["10.0.0.5:8765"]})
-        assert nodes[0].url == "10.0.0.5:8765" or nodes[0].url.startswith("10.0.0.5")
+        assert nodes[0].url == "http://10.0.0.5:8765"
 
     def test_host_without_port_gets_default(self):
         nodes = parse_nodes({"nodes": [{"name": "x", "url": "10.0.0.9"}]})
@@ -94,6 +142,34 @@ class TestParseNodes:
         n = Node(name="a", url="http://h:8765/")
         assert n.scan_url == "http://h:8765/scan"
         assert n.health_url == "http://h:8765/health"
+
+    def test_bare_string_shorthand_is_usable(self):
+        # Regression: "host:port" shorthand must yield a real http URL.
+        nodes = parse_nodes({"nodes": ["192.168.1.20:8765"]})
+        assert nodes[0].url == "http://192.168.1.20:8765"
+        assert nodes[0].scan_url == "http://192.168.1.20:8765/scan"
+
+    def test_bare_string_without_port(self):
+        nodes = parse_nodes({"nodes": ["10.0.0.5"]})
+        assert nodes[0].url == f"http://10.0.0.5:{mc.DEFAULT_PORT}"
+
+
+class TestNormalizeUrl:
+    def test_host_only(self):
+        assert mc.normalize_node_url("host") == f"http://host:{mc.DEFAULT_PORT}"
+
+    def test_host_port(self):
+        assert mc.normalize_node_url("host:9000") == "http://host:9000"
+
+    def test_full_url_unchanged(self):
+        assert mc.normalize_node_url("http://host:9000") == "http://host:9000"
+
+    def test_preserves_path(self):
+        assert mc.normalize_node_url("http://host/x") == \
+            f"http://host:{mc.DEFAULT_PORT}/x"
+
+    def test_empty(self):
+        assert mc.normalize_node_url("") == ""
 
 
 # ---------------------------------------------------------------------------
@@ -149,6 +225,15 @@ class TestScanNode:
         r = scan_node(Node("n", "http://h:8765", "t"))
         assert r.status == "error"
 
+    def test_busy_node(self, monkeypatch):
+        monkeypatch.setattr(
+            mc, "_http_post_json",
+            lambda url, token, timeout: (409, {"status": "busy",
+                                               "error": "already scanning"}))
+        r = scan_node(Node("n", "http://h:8765", "t"))
+        assert r.status == "busy"
+        assert not r.reachable
+
 
 # ---------------------------------------------------------------------------
 # FleetReport aggregation + weakest-link logic
@@ -173,6 +258,7 @@ class TestFleetReport:
             _nr("b", grade="AT RISK", score=40),
         ])
         assert rep.fleet_grade == "AT RISK"
+        assert rep.weakest_node is not None
         assert rep.weakest_node.name == "b"
         assert len(rep.nodes_at_risk) == 1
 
@@ -233,6 +319,61 @@ class TestScanFleet:
 # ---------------------------------------------------------------------------
 # Local DB persistence
 # ---------------------------------------------------------------------------
+
+
+class TestDiscovery:
+    def test_subnet_hosts_from_address(self):
+        hosts = mc.subnet_hosts("192.168.1.23")
+        assert len(hosts) == 254
+        assert hosts[0] == "192.168.1.1"
+        assert hosts[-1] == "192.168.1.254"
+
+    def test_subnet_hosts_from_base(self):
+        hosts = mc.subnet_hosts("10.0.5")
+        assert hosts[0] == "10.0.5.1"
+
+    def test_subnet_hosts_invalid(self):
+        assert mc.subnet_hosts("not-an-ip-really") == []
+
+    def test_probe_node_success(self, monkeypatch):
+        class FakeResp:
+            def read(self):
+                return b'{"status":"ok","hostname":"HOST1","agent_version":"1.0"}'
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                return False
+        monkeypatch.setattr(mc.urllib.request, "urlopen",
+                            lambda *a, **k: FakeResp())
+        info = mc.probe_node("10.0.0.5", 8765)
+        assert info["hostname"] == "HOST1"
+        assert info["port"] == 8765
+        assert info["url"] == "http://10.0.0.5:8765"
+
+    def test_probe_node_no_agent(self, monkeypatch):
+        def boom(*a, **k):
+            raise ConnectionError("refused")
+        monkeypatch.setattr(mc.urllib.request, "urlopen", boom)
+        assert mc.probe_node("10.0.0.9", 8765) is None
+
+    def test_discover_nodes_filters_and_sorts(self, monkeypatch):
+        monkeypatch.setattr(mc, "subnet_hosts",
+                            lambda cidr24=None: ["10.0.0.3", "10.0.0.1", "10.0.0.2"])
+
+        def fake_probe(host, port, timeout):
+            if host in ("10.0.0.1", "10.0.0.3"):
+                return {"host": host, "port": port,
+                        "url": f"http://{host}:{port}",
+                        "hostname": host, "agent_version": "1.0"}
+            return None
+        monkeypatch.setattr(mc, "probe_node", fake_probe)
+
+        found = mc.discover_nodes(port=8765)
+        assert [f["host"] for f in found] == ["10.0.0.1", "10.0.0.3"]
+
+    def test_discover_nodes_no_subnet(self, monkeypatch):
+        monkeypatch.setattr(mc, "subnet_hosts", lambda cidr24=None: [])
+        assert mc.discover_nodes() == []
 
 
 class TestFleetPersistence:

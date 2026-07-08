@@ -40,7 +40,14 @@ from src.gui.theme import (
     NAV_H,
     PAD,
 )
-from src.agents.master_coordinator import FleetReport, load_nodes, scan_fleet
+from src.agents.master_coordinator import (
+    DEFAULT_PORT,
+    FleetReport,
+    Node,
+    discover_nodes,
+    local_ipv4,
+    scan_fleet,
+)
 
 GRADE_STYLE = {
     "HARDENED": {
@@ -77,6 +84,7 @@ STATUS_STYLE = {
     "offline":      ("○", CLR_DANGER),
     "unauthorized": ("⚠", CLR_WARNING),
     "error":        ("!", CLR_DANGER),
+    "busy":         ("◐", CLR_WARNING),
 }
 
 NODE_GRADE_CLR = {
@@ -93,9 +101,15 @@ class FleetScanScreen(CancellableScreenMixin, ctk.CTkFrame):
         super().__init__(master, fg_color=CLR_BG, corner_radius=0)
         self._on_back = on_back
         self._scanning = False
+        self._discovering = False
         self._report: FleetReport | None = None
         self._nodes = []
-        self._inventory_path = ctk.StringVar(value="")
+        # Discovered / manually-added candidate nodes, each a dict with a
+        # BooleanVar for its checkbox. Keyed by url to dedupe.
+        self._entries: dict[str, dict] = {}
+        self._token_var = ctk.StringVar(value="")
+        self._port_var = ctk.StringVar(value=str(DEFAULT_PORT))
+        self._manual_var = ctk.StringVar(value="")
         self._build()
 
     # ------------------------------------------------------------------ build
@@ -105,58 +119,57 @@ class FleetScanScreen(CancellableScreenMixin, ctk.CTkFrame):
 
         _header(self, "Fleet Scan — Multi-Node", "Tools", 0.0)
 
-        # ── Controls bar ──────────────────────────────────────────────
+        # ── Controls bar: token + port + discover + scan ──────────────
         ctrl = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=0,
                             height=58)
         ctrl.grid(row=1, column=0, sticky="ew")
         ctrl.grid_columnconfigure(1, weight=1)
         ctrl.grid_propagate(False)
 
-        ctk.CTkLabel(ctrl, text="Inventory:", font=FONT_SMALL,
+        ctk.CTkLabel(ctrl, text="Token:", font=FONT_SMALL,
                      text_color=CLR_MUTED,
                      ).grid(row=0, column=0, padx=(PAD, 6), pady=14)
-
         ctk.CTkEntry(
-            ctrl, textvariable=self._inventory_path,
-            placeholder_text="Select a nodes.yaml / nodes.json inventory…",
+            ctrl, textvariable=self._token_var, show="•",
+            placeholder_text="shared node-agent secret",
             font=FONT_SMALL, fg_color=CLR_SURFACE_ALT,
             border_color=CLR_BORDER, border_width=1,
             text_color=CLR_TEXT, height=32, corner_radius=8,
         ).grid(row=0, column=1, padx=(0, 8), pady=14, sticky="ew")
 
-        ctk.CTkButton(
-            ctrl, text="Browse…", font=FONT_SMALL,
-            fg_color=CLR_SURFACE_ALT, hover_color=CLR_SURFACE_HVR,
+        ctk.CTkLabel(ctrl, text="Port:", font=FONT_SMALL,
+                     text_color=CLR_MUTED,
+                     ).grid(row=0, column=2, padx=(0, 6), pady=14)
+        ctk.CTkEntry(
+            ctrl, textvariable=self._port_var, width=64,
+            font=FONT_SMALL, fg_color=CLR_SURFACE_ALT,
             border_color=CLR_BORDER, border_width=1,
-            text_color=CLR_TEXT_SEC, height=32, corner_radius=8, width=80,
-            command=self._browse,
-        ).grid(row=0, column=2, padx=(0, 8), pady=14)
+            text_color=CLR_TEXT, height=32, corner_radius=8,
+        ).grid(row=0, column=3, padx=(0, 8), pady=14)
+
+        self._discover_btn = ctk.CTkButton(
+            ctrl, text="🔍  Discover", font=("Segoe UI", 12, "bold"),
+            fg_color=CLR_SURFACE_ALT, hover_color=CLR_SURFACE_HVR,
+            border_color=CLR_BORDER, border_width=1, text_color=CLR_TEXT,
+            height=34, corner_radius=BTN_R, width=110,
+            command=self._start_discovery,
+        )
+        self._discover_btn.grid(row=0, column=4, padx=(0, 8), pady=14)
 
         self._scan_btn = ctk.CTkButton(
-            ctrl, text="▶  Scan Fleet",
+            ctrl, text="▶  Scan Selected",
             font=("Segoe UI", 12, "bold"),
             fg_color=CLR_ACCENT, hover_color=CLR_ACCENT_HOV,
             text_color="#000000", height=34, corner_radius=BTN_R,
-            command=self._start_scan,
+            state="disabled", command=self._start_scan,
         )
-        self._scan_btn.grid(row=0, column=3, padx=(0, PAD), pady=14)
+        self._scan_btn.grid(row=0, column=5, padx=(0, PAD), pady=14)
 
         # ── Body ──────────────────────────────────────────────────────
         body = ctk.CTkScrollableFrame(self, fg_color=CLR_BG, corner_radius=0)
         body.grid(row=2, column=0, sticky="nsew")
         body.grid_columnconfigure(0, weight=1)
         self._body = body
-
-        self._placeholder = ctk.CTkLabel(
-            body,
-            text="Scan every node in your infrastructure from one place\n\n"
-                 "1.  On each node run:  cli.py node-agent --port 8765 --token <secret>\n"
-                 "2.  List the nodes in a YAML/JSON inventory (see nodes.example.yaml)\n"
-                 "3.  Select the inventory above and click  ▶ Scan Fleet\n\n"
-                 "The fleet grade is governed by your weakest reachable machine.",
-            font=FONT_BODY, text_color=CLR_MUTED, justify="center",
-        )
-        self._placeholder.grid(row=0, column=0, pady=48)
 
         self._progress = ctk.CTkProgressBar(
             self, fg_color=CLR_DIVIDER, progress_color=CLR_ACCENT,
@@ -189,31 +202,255 @@ class FleetScanScreen(CancellableScreenMixin, ctk.CTkFrame):
         )
         self._export_btn.grid(row=0, column=2, padx=(0, PAD), pady=14)
 
-    # ------------------------------------------------------------------- scan
-    def _browse(self):
-        path = filedialog.askopenfilename(
-            title="Select Node Inventory",
-            filetypes=[("Inventory", "*.yaml *.yml *.json"), ("All files", "*.*")],
-        )
-        if path:
-            self._inventory_path.set(path)
+        self._render_selection()
 
-    def _start_scan(self):
-        if self._scanning:
-            return
-        path = self._inventory_path.get().strip()
-        if not path or not Path(path).exists():
-            self._show_message("Select a node inventory file first.", CLR_WARNING)
-            return
+    # -------------------------------------------------------- node selection
+    def _port(self) -> int:
         try:
-            self._nodes = load_nodes(path)
-        except Exception as exc:
-            self._show_message(f"Could not load inventory: {exc}", CLR_DANGER)
+            return int(self._port_var.get().strip())
+        except (TypeError, ValueError):
+            return DEFAULT_PORT
+
+    def _render_selection(self):
+        """Draw the discover/select view (candidate nodes with checkboxes)."""
+        for w in self._body.winfo_children():
+            w.destroy()
+
+        row = 0
+        subnet = local_ipv4()
+        subnet_txt = (f"Your network: {'.'.join(subnet.split('.')[:3])}.0/24"
+                      if subnet else "Network subnet could not be determined")
+        ctk.CTkLabel(
+            self._body,
+            text=f"🔍  Auto-detect node agents on your network and pick which "
+                 f"to scan.   ({subnet_txt})",
+            font=FONT_SMALL, text_color=CLR_MUTED, anchor="w", justify="left",
+            wraplength=820,
+        ).grid(row=row, column=0, padx=PAD, pady=(PAD, 6), sticky="w")
+        row += 1
+
+        # Select-all + count header (only when we have candidates)
+        if self._entries:
+            hdr = ctk.CTkFrame(self._body, fg_color="transparent")
+            hdr.grid(row=row, column=0, padx=PAD, pady=(2, 4), sticky="ew")
+            hdr.grid_columnconfigure(1, weight=1)
+            self._select_all_var = ctk.BooleanVar(value=True)
+            ctk.CTkCheckBox(
+                hdr, text="Select all", variable=self._select_all_var,
+                font=FONT_SMALL, text_color=CLR_TEXT_SEC,
+                fg_color=CLR_ACCENT, hover_color=CLR_ACCENT_HOV,
+                checkbox_width=18, checkbox_height=18,
+                command=self._toggle_all,
+            ).grid(row=0, column=0, sticky="w")
+            self._count_lbl = ctk.CTkLabel(
+                hdr, text="", font=FONT_CAPTION, text_color=CLR_MUTED)
+            self._count_lbl.grid(row=0, column=2, sticky="e")
+            row += 1
+
+            for url, entry in self._entries.items():
+                self._render_node_row(row, entry)
+                row += 1
+        else:
+            ctk.CTkLabel(
+                self._body,
+                text="No nodes yet.\n\nClick  🔍 Discover  to find node agents "
+                     "running on your network,\nor add one manually below.\n\n"
+                     "On each node run:  cli.py node-agent --port 8765 --token <secret>",
+                font=FONT_BODY, text_color=CLR_MUTED, justify="center",
+            ).grid(row=row, column=0, pady=36)
+            row += 1
+
+        # Manual add row
+        add = ctk.CTkFrame(self._body, fg_color=CLR_SURFACE, corner_radius=12,
+                           border_width=1, border_color=CLR_BORDER)
+        add.grid(row=row, column=0, padx=PAD, pady=(10, PAD), sticky="ew")
+        add.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(add, text="Add host:", font=FONT_SMALL,
+                     text_color=CLR_TEXT_SEC,
+                     ).grid(row=0, column=0, padx=(12, 6), pady=10)
+        ctk.CTkEntry(
+            add, textvariable=self._manual_var,
+            placeholder_text="e.g.  192.168.1.50   or   192.168.1.50:8765",
+            font=FONT_SMALL, fg_color=CLR_SURFACE_ALT,
+            border_color=CLR_BORDER, border_width=1,
+            text_color=CLR_TEXT, height=32, corner_radius=8,
+        ).grid(row=0, column=1, padx=(0, 8), pady=10, sticky="ew")
+        ctk.CTkButton(
+            add, text="＋ Add", font=FONT_SMALL, width=80,
+            fg_color=CLR_SURFACE_ALT, hover_color=CLR_SURFACE_HVR,
+            border_color=CLR_BORDER, border_width=1, text_color=CLR_TEXT,
+            height=32, corner_radius=8, command=self._add_manual_host,
+        ).grid(row=0, column=2, padx=(0, 12), pady=10)
+
+        self._update_selection_count()
+
+    def _render_node_row(self, grid_row, entry):
+        online = entry.get("reachable", True)
+        dot_clr = CLR_SUCCESS if online else CLR_WARNING
+        card = ctk.CTkFrame(self._body, fg_color=CLR_SURFACE, corner_radius=10,
+                            border_width=1, border_color=CLR_BORDER)
+        card.grid(row=grid_row, column=0, padx=PAD, pady=3, sticky="ew")
+        card.grid_columnconfigure(1, weight=1)
+        ctk.CTkCheckBox(
+            card, text="", variable=entry["var"], width=24,
+            fg_color=CLR_ACCENT, hover_color=CLR_ACCENT_HOV,
+            checkbox_width=18, checkbox_height=18,
+            command=self._update_selection_count,
+        ).grid(row=0, column=0, padx=(12, 4), pady=10)
+
+        info = ctk.CTkFrame(card, fg_color="transparent")
+        info.grid(row=0, column=1, sticky="w", pady=8)
+        title = entry.get("hostname") or entry["host"]
+        ctk.CTkLabel(info, text=f"● {title}",
+                     font=FONT_SUBHEAD, text_color=dot_clr, anchor="w",
+                     ).pack(anchor="w")
+        sub = f"{entry['host']}:{entry['port']}"
+        if entry.get("agent_version"):
+            sub += f"   ·   agent v{entry['agent_version']}"
+        if entry.get("manual"):
+            sub += "   ·   added manually"
+        ctk.CTkLabel(info, text=sub, font=FONT_CAPTION, text_color=CLR_MUTED,
+                     anchor="w").pack(anchor="w")
+
+        ctk.CTkButton(
+            card, text="✕", width=28, font=FONT_SMALL,
+            fg_color="transparent", hover_color=CLR_SURFACE_HVR,
+            text_color=CLR_MUTED, command=lambda u=entry["url"]: self._remove(u),
+        ).grid(row=0, column=2, padx=(0, 10), pady=10)
+
+    def _add_entry(self, host, port, hostname=None, agent_version=None,
+                   reachable=True, manual=False, selected=True):
+        url = f"http://{host}:{port}"
+        if url in self._entries:
+            return False
+        self._entries[url] = {
+            "host": host, "port": port, "url": url,
+            "hostname": hostname, "agent_version": agent_version,
+            "reachable": reachable, "manual": manual,
+            "var": ctk.BooleanVar(value=selected),
+        }
+        return True
+
+    def _add_manual_host(self):
+        raw = self._manual_var.get().strip()
+        if not raw:
             return
+        host = raw
+        port = self._port()
+        if ":" in raw:
+            host, _, p = raw.partition(":")
+            try:
+                port = int(p)
+            except ValueError:
+                pass
+        host = host.strip()
+        if not host:
+            return
+        if self._add_entry(host, port, hostname=host, manual=True):
+            self._manual_var.set("")
+            self._render_selection()
+
+    def _remove(self, url):
+        self._entries.pop(url, None)
+        self._render_selection()
+
+    def _toggle_all(self):
+        val = self._select_all_var.get()
+        for entry in self._entries.values():
+            entry["var"].set(val)
+        self._update_selection_count()
+
+    def _selected_entries(self):
+        return [e for e in self._entries.values() if e["var"].get()]
+
+    def _update_selection_count(self):
+        n = len(self._selected_entries())
+        total = len(self._entries)
+        if hasattr(self, "_count_lbl") and self._count_lbl.winfo_exists():
+            self._count_lbl.configure(text=f"{n} of {total} selected")
+        if not self._scanning and not self._discovering:
+            self._scan_btn.configure(
+                state="normal" if n else "disabled")
+
+    # ---------------------------------------------------------- discovery
+    def _start_discovery(self):
+        if self._discovering or self._scanning:
+            return
+        self._discovering = True
+        self._discover_btn.configure(state="disabled", text="Discovering…")
+        self._scan_btn.configure(state="disabled")
+
+        for w in self._body.winfo_children():
+            w.destroy()
+        self._progress.grid()
+        self._progress.set(0)
+        self._disc_lbl = ctk.CTkLabel(
+            self._body, text="Scanning your network for node agents…",
+            font=FONT_SMALL, text_color=CLR_MUTED)
+        self._disc_lbl.grid(row=0, column=0, pady=(20, 4))
+
+        threading.Thread(target=self._run_discovery, daemon=True).start()
+
+    def _run_discovery(self):
+        port = self._port()
+
+        def _progress(done, total, found):
+            self._safe_after(0, self._progress.set, done / total if total else 1)
+            if found:
+                self._safe_after(
+                    0, lambda f=found: self._disc_lbl.configure(
+                        text=f"Found {f.get('hostname', f['host'])} "
+                             f"({f['host']})…"))
+
+        try:
+            results = discover_nodes(port=port, timeout=0.7, progress=_progress)
+        except Exception as exc:
+            results = []
+            self._safe_after(0, lambda: self._show_message(
+                f"Discovery failed: {exc}", CLR_DANGER))
+        self._safe_after(0, lambda: self._finish_discovery(results))
+
+    def _finish_discovery(self, results):
+        self._discovering = False
+        self._progress.grid_remove()
+        self._discover_btn.configure(state="normal", text="🔍  Discover")
+        added = 0
+        for r in results:
+            if self._add_entry(r["host"], r["port"],
+                               hostname=r.get("hostname"),
+                               agent_version=r.get("agent_version"),
+                               reachable=True, manual=False, selected=True):
+                added += 1
+        self._render_selection()
+        if not results:
+            # Keep the selection view but flag the empty result.
+            hint = ctk.CTkLabel(
+                self._body,
+                text="No node agents answered on this network/port. "
+                     "Check the agents are running and the port is correct, "
+                     "or add a host manually.",
+                font=FONT_SMALL, text_color=CLR_WARNING, wraplength=780,
+                justify="center")
+            hint.grid(row=99, column=0, pady=(4, 0))
+
+    # ------------------------------------------------------------------- scan
+    def _start_scan(self):
+        if self._scanning or self._discovering:
+            return
+        selected = self._selected_entries()
+        if not selected:
+            self._show_message("Select at least one node to scan.", CLR_WARNING)
+            return
+        token = self._token_var.get().strip()
+        self._nodes = [
+            Node(name=e.get("hostname") or e["host"], url=e["url"], token=token)
+            for e in selected
+        ]
 
         self._scanning = True
         self._report = None
         self._scan_btn.configure(state="disabled", text="Scanning…")
+        self._discover_btn.configure(state="disabled")
         self._export_btn.configure(state="disabled")
 
         for w in self._body.winfo_children():
@@ -248,7 +485,8 @@ class FleetScanScreen(CancellableScreenMixin, ctk.CTkFrame):
     # ---------------------------------------------------------------- results
     def _show_results(self):
         self._scanning = False
-        self._scan_btn.configure(state="normal", text="▶  Re-scan Fleet")
+        self._scan_btn.configure(state="normal", text="▶  Re-scan Selected")
+        self._discover_btn.configure(state="normal", text="🔍  Discover")
         self._export_btn.configure(state="normal")
         self._progress.grid_remove()
 
@@ -334,7 +572,8 @@ class FleetScanScreen(CancellableScreenMixin, ctk.CTkFrame):
                             sticky="w")
 
         grade_rank = {"AT RISK": 0, "NEEDS ATTENTION": 1, "HARDENED": 2}
-        status_rank = {"online": 0, "unauthorized": 1, "error": 2, "offline": 3}
+        status_rank = {"online": 0, "busy": 1, "unauthorized": 2,
+                       "error": 3, "offline": 4}
         ordered = sorted(
             report.results,
             key=lambda r: (status_rank.get(r.status, 4),

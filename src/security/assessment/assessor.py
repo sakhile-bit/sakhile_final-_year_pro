@@ -82,6 +82,11 @@ class AssessmentResults:
         "NIST CSF v1.1", "CIS Controls v8 IG1",
         "ISO 27001:2022", "Cyber Essentials (UK)"
     ])
+    # Integrity of the underlying data. ``provisional`` is True when the
+    # certification rests on checks that could not be completed (e.g. a
+    # critical control errored), so a formal certificate must be withheld.
+    provisional: bool = False
+    integrity: Dict[str, Any] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -222,6 +227,10 @@ def certification_for(percentage: float, critical_failures: int) -> str:
 
     Single source of truth for the GOLD/SILVER/BRONZE gate so the assessor,
     the desktop wizard, and the web app all agree on the rule.
+
+    ``critical_failures`` should count critical controls that are not passing
+    *including* ones that could not be verified — you cannot certify a
+    critical control you were unable to check.
     """
     if percentage >= 80 and critical_failures == 0:
         return "GOLD"
@@ -230,6 +239,35 @@ def certification_for(percentage: float, critical_failures: int) -> str:
     if percentage >= 40 and critical_failures <= 2:
         return "BRONZE"
     return "NOT CERTIFIED"
+
+
+def assessment_integrity(controls: Dict[str, Any],
+                         catalogue: Optional[Dict[str, Any]] = None
+                         ) -> Dict[str, Any]:
+    """Summarise how trustworthy a set of control results is.
+
+    Returns counts of controls that errored (could not be checked) or were
+    never assessed, and — crucially — which *critical* controls could not be
+    verified. ``provisional`` is True when at least one critical control
+    could not be verified, meaning any certification derived from these
+    results is unreliable and a formal certificate should be withheld.
+    """
+    catalogue = catalogue if catalogue is not None else CONTROL_CATALOGUE
+    errored, not_assessed, unverified_critical = [], [], []
+    for key, ctrl in controls.items():
+        status = getattr(ctrl, "status", None)
+        if status == "ERROR":
+            errored.append(key)
+            if catalogue.get(key, {}).get("critical"):
+                unverified_critical.append(key)
+        elif status == "NOT_ASSESSED":
+            not_assessed.append(key)
+    return {
+        "errored": errored,
+        "not_assessed": not_assessed,
+        "unverified_critical": unverified_critical,
+        "provisional": bool(unverified_critical),
+    }
 
 # ── Optional tool controls (C16-C20) — added only when the business selects them ──
 TOOL_CONTROLS: Dict[str, Dict[str, Any]] = {

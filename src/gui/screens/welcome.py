@@ -46,7 +46,7 @@ class WelcomeScreen(ctk.CTkFrame):
                  on_network=None, on_deploy=None, on_remediation=None,
                  on_active_dir=None, on_export=None,
                  on_audit=None, on_settings=None, on_dashboard=None,
-                 on_hardening=None, on_fleet=None):
+                 on_hardening=None, on_fleet=None, on_logout=None):
         super().__init__(master, fg_color=CLR_BG, corner_radius=0)
         self._on_start = on_start
         self._on_history = on_history or (lambda: None)
@@ -63,6 +63,7 @@ class WelcomeScreen(ctk.CTkFrame):
         self._on_dashboard = on_dashboard or (lambda: None)
         self._on_hardening = on_hardening or (lambda: None)
         self._on_fleet = on_fleet or (lambda: None)
+        self._on_logout = on_logout
         self._build()
 
     # ------------------------------------------------------------------ build
@@ -161,12 +162,32 @@ class WelcomeScreen(ctk.CTkFrame):
         right = ctk.CTkFrame(self, fg_color=CLR_BG, corner_radius=0)
         right.grid(row=0, column=1, sticky="nsew")
         right.grid_columnconfigure(0, weight=1)
-        right.grid_rowconfigure(0, weight=1)
-        right.grid_rowconfigure(1, weight=0)
+        right.grid_rowconfigure(0, weight=0)   # session bar
+        right.grid_rowconfigure(1, weight=1)   # main content
+        right.grid_rowconfigure(2, weight=0)   # footer
+
+        # Session bar (top-right) — signed-in user + terminate button.
+        if self._on_logout is not None:
+            from src.utils.auth import get_username
+            bar = ctk.CTkFrame(right, fg_color="transparent")
+            bar.grid(row=0, column=0, sticky="e", padx=16, pady=(12, 0))
+            username = get_username()
+            if username:
+                ctk.CTkLabel(bar, text=f"👤  {username}",
+                             font=FONT_CAPTION, text_color=CLR_MUTED,
+                             ).pack(side="left", padx=(0, 10))
+            ctk.CTkButton(
+                bar, text="⏻  Terminate Session", font=FONT_SMALL,
+                fg_color="transparent", border_color=CLR_DANGER, border_width=1,
+                text_color=CLR_DANGER, hover_color=CLR_SURFACE_ALT,
+                height=30, corner_radius=BTN_R, width=170,
+                command=self._on_logout,
+            ).pack(side="left")
 
         # Centre content vertically
         inner = ctk.CTkFrame(right, fg_color="transparent")
-        inner.grid(row=0, column=0, padx=PAD_LG, pady=PAD_LG, sticky="nsew")
+        inner.grid(row=1, column=0, padx=PAD_LG, pady=(8, PAD_LG),
+                   sticky="nsew")
         inner.grid_columnconfigure(0, weight=1)
         inner.grid_rowconfigure(0, weight=1)
         inner.grid_rowconfigure(99, weight=1)
@@ -215,7 +236,7 @@ class WelcomeScreen(ctk.CTkFrame):
         ctk.CTkLabel(right,
                      text=f"{APP_NAME}  ·  Dept. of Computing & Informatics, UNZA",
                      font=FONT_CAPTION, text_color=CLR_MUTED,
-                     ).grid(row=1, column=0, pady=(0, 10))
+                     ).grid(row=2, column=0, pady=(0, 10))
 
     def _build_last_assessment(self, parent, row):
         from src.utils.local_db import list_assessments

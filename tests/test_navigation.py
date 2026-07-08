@@ -43,7 +43,7 @@ class TestAppState:
     def test_build_results_merges_auto_and_scores(self, monkeypatch):
         # Fake control objects with the attributes build_results touches
         def ctrl(score, status):
-            return types.SimpleNamespace(score=score, status=status)
+            return types.SimpleNamespace(score=score, status=status, weight=10)
 
         base_controls = {
             "C01_os_updates": ctrl(0, "FAIL"),
@@ -98,6 +98,98 @@ class TestCertificationFor:
         assert assessor_mod.certification_for(40, 2) == "BRONZE"
         assert assessor_mod.certification_for(39, 0) == "NOT CERTIFIED"
         assert assessor_mod.certification_for(90, 3) == "NOT CERTIFIED"
+
+
+class TestAssessmentIntegrity:
+    @staticmethod
+    def _ctrl(status):
+        return types.SimpleNamespace(status=status)
+
+    def test_provisional_when_critical_unverified(self):
+        controls = {
+            "C01_os_updates": self._ctrl("ERROR"),   # critical
+            "C02_antivirus": self._ctrl("PASS"),
+        }
+        cat = {"C01_os_updates": {"critical": True},
+               "C02_antivirus": {"critical": True}}
+        integ = assessor_mod.assessment_integrity(controls, cat)
+        assert integ["provisional"] is True
+        assert "C01_os_updates" in integ["unverified_critical"]
+
+    def test_not_provisional_when_noncritical_errors(self):
+        controls = {"C11_physical_security": self._ctrl("ERROR")}
+        cat = {"C11_physical_security": {"critical": False}}
+        integ = assessor_mod.assessment_integrity(controls, cat)
+        assert integ["provisional"] is False
+        assert integ["errored"] == ["C11_physical_security"]
+
+    def test_counts_not_assessed(self):
+        controls = {"C06_security_training": self._ctrl("NOT_ASSESSED")}
+        integ = assessor_mod.assessment_integrity(controls, {})
+        assert integ["not_assessed"] == ["C06_security_training"]
+
+
+class TestBuildResultsRobustness:
+    """build_results must never crash on bad UI input and must flag provisional."""
+
+    def _fake(self, monkeypatch, controls, total=100):
+        fake_results = types.SimpleNamespace(
+            controls=controls, total_possible=total, score=0,
+            critical_failures=0, certification_level="",
+            provisional=False, integrity={})
+
+        class FakeAssessor:
+            def __init__(self, *a, **k):
+                pass
+
+            def run_assessment(self):
+                return fake_results
+
+        monkeypatch.setattr(assessor_mod, "DigitalHygieneAssessor", FakeAssessor)
+        return fake_results
+
+    def test_unverified_critical_blocks_certification(self, monkeypatch):
+        def ctrl(score, status):
+            return types.SimpleNamespace(score=score, status=status, weight=10)
+        controls = {
+            "C01_os_updates": ctrl(0, "ERROR"),    # critical, unverifiable
+            "C02_antivirus": ctrl(15, "PASS"),
+        }
+        self._fake(monkeypatch, controls, total=25)
+        monkeypatch.setattr(assessor_mod, "CONTROL_CATALOGUE",
+                            {"C01_os_updates": {"critical": True},
+                             "C02_antivirus": {"critical": True}})
+        s = AppState()
+        s.business_info = types.SimpleNamespace(name="Acme")
+        out = s.build_results()
+        assert out.provisional is True
+        assert out.integrity["unverified_critical"] == ["C01_os_updates"]
+
+    def test_bad_manual_score_does_not_crash(self, monkeypatch):
+        def ctrl(score, status):
+            return types.SimpleNamespace(score=score, status=status, weight=10)
+        self._fake(monkeypatch, {"C02_antivirus": ctrl(10, "PASS")}, total=10)
+        monkeypatch.setattr(assessor_mod, "CONTROL_CATALOGUE", {})
+        s = AppState()
+        s.business_info = types.SimpleNamespace(name="Acme")
+        s.manual_scores = {"C07_access_control": "not-a-number", "C08": None}
+        # Must not raise despite the junk manual scores
+        out = s.build_results()
+        assert out.score == 10
+
+    def test_malformed_auto_result_is_ignored(self, monkeypatch):
+        def ctrl(score, status):
+            return types.SimpleNamespace(score=score, status=status, weight=10)
+        controls = {"C01_os_updates": ctrl(5, "WARNING")}
+        self._fake(monkeypatch, controls, total=10)
+        monkeypatch.setattr(assessor_mod, "CONTROL_CATALOGUE", {})
+        s = AppState()
+        s.business_info = types.SimpleNamespace(name="Acme")
+        # A junk object (no score/status/weight) must be skipped, keeping base
+        s.auto_results = {"C01": object()}
+        out = s.build_results()
+        assert out.controls["C01_os_updates"].status == "WARNING"
+        assert out.score == 5
 
 
 # ---------------------------------------------------------------------------

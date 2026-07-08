@@ -103,14 +103,25 @@ class ResultsScreen(ctk.CTkFrame):
         self._build()
 
     def _auto_save(self):
+        # Persisting the certified result matters — don't swallow failures
+        # silently. Save and the reassessment reminder are independent so one
+        # failing doesn't lose the other.
+        from src.utils.logging_config import get_logger
+        log = get_logger(__name__)
+        self._saved = False
         try:
-            from src.utils.local_db import save_assessment, set_reassessment_date
+            from src.utils.local_db import save_assessment
             save_assessment(self._results)
+            self._saved = True
+        except Exception:
+            log.exception("Failed to save assessment to local history")
+        try:
+            from src.utils.local_db import set_reassessment_date
             due = (datetime.date.today() +
                    datetime.timedelta(days=182)).isoformat()
             set_reassessment_date(due)
         except Exception:
-            pass
+            log.exception("Failed to set reassessment reminder date")
 
     # ------------------------------------------------------------------ build
     def _build(self):
@@ -121,7 +132,9 @@ class ResultsScreen(ctk.CTkFrame):
         tier = r.certification_level
         pct = round((r.score / r.total_possible) * 100) if r.total_possible else 0
         tier_clr = TIER_COLOURS.get(tier, CLR_DANGER)
-        certified = tier != "NOT CERTIFIED"
+        provisional = bool(getattr(r, "provisional", False))
+        # A certificate is only issued for a real, fully-verified tier.
+        certified = tier != "NOT CERTIFIED" and not provisional
 
         _header(self, "Assessment Results", "5 of 5", 1.0)
 
@@ -129,10 +142,44 @@ class ResultsScreen(ctk.CTkFrame):
         scroll.grid(row=1, column=0, sticky="nsew")
         scroll.grid_columnconfigure(0, weight=1)
 
+        # ── Provisional / integrity banner ─────────────────────────
+        # Shown when certification rests on checks that couldn't be verified.
+        if provisional:
+            integrity = getattr(r, "integrity", {}) or {}
+            unverified = integrity.get("unverified_critical", [])
+            names = ", ".join(
+                r.controls[k].control_id for k in unverified
+                if k in r.controls) or "one or more critical checks"
+            banner = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE,
+                                  corner_radius=12, border_width=1,
+                                  border_color=CLR_WARNING)
+            banner.grid(row=0, column=0, padx=PAD, pady=(PAD, 0), sticky="ew")
+            banner.grid_columnconfigure(1, weight=1)
+            ctk.CTkFrame(banner, fg_color=CLR_WARNING, width=4,
+                         corner_radius=0).grid(row=0, column=0, rowspan=2,
+                                               sticky="ns")
+            ctk.CTkLabel(banner, text="⚠  Provisional result",
+                         font=FONT_SUBHEAD, text_color=CLR_WARNING,
+                         ).grid(row=0, column=1, sticky="w",
+                                padx=(12, 12), pady=(12, 0))
+            ctk.CTkLabel(
+                banner,
+                text=(f"Some critical checks could not be completed "
+                      f"({names}). This result cannot be formally certified "
+                      f"until they are re-run — the certificate is disabled. "
+                      f"Try running the assessment again as Administrator."),
+                font=FONT_SMALL, text_color=CLR_TEXT_SEC,
+                wraplength=760, justify="left",
+                ).grid(row=1, column=1, sticky="w",
+                       padx=(12, 12), pady=(2, 12))
+
+        # Content below starts one row lower when the banner is shown.
+        off = 1 if provisional else 0
+
         # ── Hero badge card ────────────────────────────────────────
         hero = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE, corner_radius=16,
                             border_width=1, border_color=tier_clr)
-        hero.grid(row=0, column=0, padx=PAD, pady=(PAD, 10), sticky="ew")
+        hero.grid(row=off, column=0, padx=PAD, pady=(PAD, 10), sticky="ew")
         hero.grid_columnconfigure(0, weight=1)
         hero.grid_columnconfigure(1, weight=0)
 
@@ -187,7 +234,7 @@ class ResultsScreen(ctk.CTkFrame):
         # ── Summary metrics ────────────────────────────────────────
         met = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE, corner_radius=14,
                            border_width=1, border_color=CLR_BORDER)
-        met.grid(row=1, column=0, padx=PAD, pady=(0, 12), sticky="ew")
+        met.grid(row=1 + off, column=0, padx=PAD, pady=(0, 12), sticky="ew")
         met.grid_columnconfigure((0, 1, 2), weight=1)
 
         counts = {
@@ -217,7 +264,7 @@ class ResultsScreen(ctk.CTkFrame):
         # ── Category breakdown ─────────────────────────────────────
         ctk.CTkLabel(scroll, text="Score by Category",
                      font=FONT_HEADING, text_color=CLR_TEXT,
-                     ).grid(row=2, column=0, padx=PAD,
+                     ).grid(row=2 + off, column=0, padx=PAD,
                             pady=(6, 4), sticky="w")
 
         cat_d = {"Technical": [0, 0], "Administrative": [0, 0],
@@ -233,7 +280,7 @@ class ResultsScreen(ctk.CTkFrame):
                     "Physical": "#F0A500"}
         cat_f = ctk.CTkFrame(scroll, fg_color=CLR_SURFACE, corner_radius=14,
                              border_width=1, border_color=CLR_BORDER)
-        cat_f.grid(row=3, column=0, padx=PAD, pady=(0, 12), sticky="ew")
+        cat_f.grid(row=3 + off, column=0, padx=PAD, pady=(0, 12), sticky="ew")
         cat_f.grid_columnconfigure((0, 1, 2), weight=1)
 
         for col, (cat, (sc, mx)) in enumerate(cat_d.items()):
@@ -296,12 +343,12 @@ class ResultsScreen(ctk.CTkFrame):
         # Core controls header
         ctk.CTkLabel(scroll, text="Core Controls  (C01–C15)",
                      font=FONT_HEADING, text_color=CLR_TEXT,
-                     ).grid(row=4, column=0, padx=PAD,
+                     ).grid(row=4 + off, column=0, padx=PAD,
                             pady=(6, 4), sticky="w")
         for i, (_, ctrl) in enumerate(core_items):
-            _render_ctrl_row(scroll, 5 + i, ctrl)
+            _render_ctrl_row(scroll, 5 + off + i, ctrl)
 
-        grid_row = 5 + len(core_items)
+        grid_row = 5 + off + len(core_items)
 
         # Tool controls section (only when tools were selected)
         if tool_items:
