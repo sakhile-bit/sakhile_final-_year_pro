@@ -956,10 +956,14 @@ def users_reset_password(username: str, password: str):
 def manual():
     """Generate the manual (on-site) assessment guide."""
     try:
-        # The file lives at the project root
-        guide_path = Path(_project_root) / 'manual_assessment_guide.py'
+        # The guide script lives under scripts/ (falls back to the project
+        # root for backward compatibility).
+        guide_path = Path(_project_root) / 'scripts' / 'manual_assessment_guide.py'
         if not guide_path.exists():
-            console.print("[red]✗ manual_assessment_guide.py not found in project root[/red]")
+            guide_path = Path(_project_root) / 'manual_assessment_guide.py'
+        if not guide_path.exists():
+            console.print("[red]✗ manual_assessment_guide.py not found "
+                          "(expected in scripts/)[/red]")
             sys.exit(1)
 
         # Import dynamically from the project root

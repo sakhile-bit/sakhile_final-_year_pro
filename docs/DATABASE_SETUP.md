@@ -6,10 +6,10 @@
 > **SQLite (default, self-contained):**
 > - Desktop app: stores everything in `%APPDATA%\ZambiaDigitalHygiene\history.db`,
 >   created automatically at runtime (reference schema:
->   [`database/schema_sqlite_local.sql`](database/schema_sqlite_local.sql)).
+>   [`database/schema_sqlite_local.sql`](../database/schema_sqlite_local.sql)).
 > - Web portal: falls back to `instance/digital_hygiene.db`. Create it with
 >   `python cli.py init-db` (or `python database/setup_sqlite.py`); reference schema:
->   [`database/schema_sqlite.sql`](database/schema_sqlite.sql).
+>   [`database/schema_sqlite.sql`](../database/schema_sqlite.sql).
 >
 > The MySQL instructions below are **optional** — use them only for a
 > server-backed multi-user deployment.

@@ -177,7 +177,7 @@ docs-serve:
 	@echo "  - README.md - Main project documentation"
 	@echo "  - CONTRIBUTING.md - Contribution guidelines"
 	@echo "  - SECURITY.md - Security best practices"
-	@echo "  - ARCHITECTURE.md - System architecture"
+	@echo "  - docs/ARCHITECTURE.md - System architecture"
 	@echo "  - BUILD.md - Build instructions"
 	@echo "  - DEPLOYMENT.md - Deployment guide"
 	@echo "  - CHANGELOG.md - Version history"

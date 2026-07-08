@@ -81,7 +81,7 @@ These scripts will automatically:
 - Setup the database
 - Start the web interface
 
-See [INSTALL_SCRIPTS.md](INSTALL_SCRIPTS.md) for details.
+See [INSTALL_SCRIPTS.md](docs/INSTALL_SCRIPTS.md) for details.
 
 ### Prerequisites
 
@@ -93,7 +93,7 @@ See [INSTALL_SCRIPTS.md](INSTALL_SCRIPTS.md) for details.
 
 ### For Ubuntu/Linux Users (Recommended)
 
-If you're using **Ubuntu 20.04+**, follow the comprehensive [ENVIRONMENT_SETUP.md](ENVIRONMENT_SETUP.md) guide, which covers:
+If you're using **Ubuntu 20.04+**, follow the comprehensive [ENVIRONMENT_SETUP.md](docs/ENVIRONMENT_SETUP.md) guide, which covers:
 
 - System prerequisites and package installation
 - Handling PEP 668 "externally-managed-environment" errors
@@ -123,7 +123,7 @@ python3 cli.py web --debug
 
 Then open **http://127.0.0.1:5000** in your browser.
 
-👉 **For detailed troubleshooting and full setup instructions, see [ENVIRONMENT_SETUP.md](ENVIRONMENT_SETUP.md)**
+👉 **For detailed troubleshooting and full setup instructions, see [ENVIRONMENT_SETUP.md](docs/ENVIRONMENT_SETUP.md)**
 
 ### Manual Installation (Windows/Other)
 
@@ -215,7 +215,7 @@ WEB_PORT=                # Web server port
 
 **For developers – build the .exe:**
 
-See [BUILD.md](BUILD.md) for full instructions. Quick version:
+See [BUILD.md](docs/BUILD.md) for full instructions. Quick version:
 
 ```bash
 # On Windows:
@@ -239,7 +239,7 @@ Then open **http://localhost:5000**
 
 **Docker Deployment (Recommended for production):**
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for complete guide. Quick start:
+See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for complete guide. Quick start:
 
 ```bash
 cp .env.example .env
@@ -511,11 +511,11 @@ Key documentation files for your project:
 
 | Document | Purpose |
 |----------|---------|
-| [ENVIRONMENT_SETUP.md](ENVIRONMENT_SETUP.md) | **👉 Start here for Ubuntu/Linux setup** – Comprehensive guide with troubleshooting || [DATABASE_SETUP_FOR_TEAM.md](DATABASE_SETUP_FOR_TEAM.md) | **👉 Team database setup** – Step-by-step MySQL database creation, credentials, and initialization || [DATABASE_SETUP.md](DATABASE_SETUP.md) | Database configuration for MySQL and SQLite |
-| [SETUP.md](SETUP.md) | Manual setup instructions for other platforms |
-| [INSTALL_SCRIPTS.md](INSTALL_SCRIPTS.md) | One-command installation scripts |
-| [TESTING_CHECKLIST.md](TESTING_CHECKLIST.md) | Test procedures and acceptance criteria |
-| [PROJECT_PROPOSAL.md](PROJECT_PROPOSAL.md) | Project overview and requirements |
+| [ENVIRONMENT_SETUP.md](docs/ENVIRONMENT_SETUP.md) | **👉 Start here for Ubuntu/Linux setup** – Comprehensive guide with troubleshooting || [DATABASE_SETUP_FOR_TEAM.md](docs/DATABASE_SETUP_FOR_TEAM.md) | **👉 Team database setup** – Step-by-step MySQL database creation, credentials, and initialization || [DATABASE_SETUP.md](docs/DATABASE_SETUP.md) | Database configuration for MySQL and SQLite |
+| [SETUP.md](docs/SETUP.md) | Manual setup instructions for other platforms |
+| [INSTALL_SCRIPTS.md](docs/INSTALL_SCRIPTS.md) | One-command installation scripts |
+| [TESTING_CHECKLIST.md](docs/TESTING_CHECKLIST.md) | Test procedures and acceptance criteria |
+| [PROJECT_PROPOSAL.md](docs/PROJECT_PROPOSAL.md) | Project overview and requirements |
 
 ## �📞 Support
 

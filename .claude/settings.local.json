@@ -47,7 +47,18 @@
       "Bash(.venv/Scripts/python.exe -m pytest tests -p no:cacheprovider -o addopts=\"\" -q)",
       "Bash(PYTHONIOENCODING=utf-8 DATABASE_URL=\"sqlite:///:memory:\" .venv/Scripts/python.exe cli.py --help)",
       "Bash(.venv/Scripts/python.exe -m pytest tests/test_cli.py -p no:cacheprovider -o addopts=\"\" -q)",
-      "Bash(unset ZDH_DB_PATH)"
+      "Bash(unset ZDH_DB_PATH)",
+      "Bash(awk '{print $NF}')",
+      "Bash(grep -v \"^\\\\.$\")",
+      "Bash(ls -d */)",
+      "Bash(file redirect *)",
+      "Bash(head -3 redirect)",
+      "Bash(grep -E \"^\\(619|redirect\\)$\")",
+      "Bash(sed -i 's#ARCHITECTURE.md - System architecture#docs/ARCHITECTURE.md - System architecture#' Makefile)",
+      "Bash(export PYTHONIOENCODING=utf-8 DATABASE_URL=\"sqlite:///:memory:\")",
+      "Bash(.venv/Scripts/python.exe -m pytest tests -p no:cacheprovider -o addopts=\"\" --co -q)",
+      "Bash(.venv/Scripts/python.exe cli.py --help)",
+      "Bash(grep -v \"/$\")"
     ]
   }
 }
