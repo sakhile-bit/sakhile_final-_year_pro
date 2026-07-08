@@ -13,7 +13,6 @@ from src.agents.master_coordinator import (
 )
 from src.agents.node_agent import create_node_app
 
-
 # ---------------------------------------------------------------------------
 # Node agent — authentication and endpoints
 # ---------------------------------------------------------------------------
@@ -70,8 +69,9 @@ class TestNodeAgent:
 
     def test_concurrent_scan_returns_busy(self, monkeypatch):
         # Hold the scan lock by making collect_local_report block until released
-        import src.agents.node_agent as na
         import threading
+
+        import src.agents.node_agent as na
         release = threading.Event()
 
         def slow_collect(business_name="", save=True):

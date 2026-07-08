@@ -48,6 +48,16 @@ class DigitalHygieneApp(ctk.CTk):
         self.app_state = AppState()
         self.router = Router(self)
 
+        # Apply the saved logging-verbosity preference
+        try:
+            import logging
+            from src.utils.local_db import get_bool_setting
+            logging.getLogger("zambia_digital_hygiene").setLevel(
+                logging.DEBUG if get_bool_setting("detailed_logging", False)
+                else logging.INFO)
+        except Exception:
+            pass
+
         # Route through auth before showing the app
         from src.utils.auth import is_setup
         if is_setup():

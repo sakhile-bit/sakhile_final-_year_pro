@@ -239,6 +239,20 @@ class BusinessInfoScreen(ctk.CTkFrame):
 
             self._vars[key] = var
 
+        # Prefill from saved organization defaults (Settings → General)
+        try:
+            from src.utils.local_db import get_setting
+            if not self._vars["name"].get():
+                self._vars["name"].set(get_setting("org_name", "") or "")
+            saved_industry = get_setting("org_industry", "") or ""
+            if saved_industry in INDUSTRIES:
+                self._vars["industry"].set(saved_industry)
+            saved_province = get_setting("org_province", "") or ""
+            if saved_province in PROVINCES:
+                self._vars["province"].set(saved_province)
+        except Exception:
+            pass
+
         # Validation error label
         ctk.CTkLabel(
             scroll, textvariable=self._error_var,

@@ -37,7 +37,17 @@
       "Bash(.venv/Scripts/python.exe -m pytest tests/test_navigation.py -v --no-header --no-cov -p no:cacheprovider -rs)",
       "Bash(.venv/Scripts/python.exe -m pytest tests/test_fleet.py tests/test_navigation.py -q --no-header --no-cov -p no:cacheprovider)",
       "Bash(taskkill //F //IM ZambiaDigitalHygiene.exe //T)",
-      "Bash(PYTHONIOENCODING=utf-8 .venv/Scripts/python.exe database/setup_sqlite.py)"
+      "Bash(PYTHONIOENCODING=utf-8 .venv/Scripts/python.exe database/setup_sqlite.py)",
+      "Bash(cat pytest.ini)",
+      "Bash(cat conftest.py)",
+      "Bash(cat tests/conftest.py)",
+      "Bash(grep -n \"testpaths\\\\|filterwarnings\\\\|addopts\" pyproject.toml setup.cfg)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests -p no:cacheprovider -o addopts=\"\" -q -W default --durations=10)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests -p no:cacheprovider -o addopts=\"\" -q -W default)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests -p no:cacheprovider -o addopts=\"\" -q)",
+      "Bash(PYTHONIOENCODING=utf-8 DATABASE_URL=\"sqlite:///:memory:\" .venv/Scripts/python.exe cli.py --help)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/test_cli.py -p no:cacheprovider -o addopts=\"\" -q)",
+      "Bash(unset ZDH_DB_PATH)"
     ]
   }
 }

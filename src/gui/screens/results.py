@@ -116,9 +116,11 @@ class ResultsScreen(ctk.CTkFrame):
         except Exception:
             log.exception("Failed to save assessment to local history")
         try:
-            from src.utils.local_db import set_reassessment_date
+            from src.utils.local_db import (
+                set_reassessment_date, get_int_setting)
+            interval = get_int_setting("reassess_interval_days", 182)
             due = (datetime.date.today() +
-                   datetime.timedelta(days=182)).isoformat()
+                   datetime.timedelta(days=interval)).isoformat()
             set_reassessment_date(due)
         except Exception:
             log.exception("Failed to set reassessment reminder date")
@@ -468,10 +470,20 @@ class ResultsScreen(ctk.CTkFrame):
             "recommendations": r.recommendations,
         }
 
+    def _init_dir(self):
+        """Default folder for save dialogs (Settings → Export), if set."""
+        try:
+            from src.utils.local_db import get_setting
+            p = get_setting("export_path", "") or ""
+            return p if p and os.path.isdir(p) else None
+        except Exception:
+            return None
+
     def _save_json(self):
         path = filedialog.asksaveasfilename(
             defaultextension=".json",
             filetypes=[("JSON", "*.json"), ("All", "*.*")],
+            initialdir=self._init_dir(),
             initialfile=f"assessment_{self._results.business_info.id}.json")
         if path:
             with open(path, "w", encoding="utf-8") as f:
@@ -482,6 +494,7 @@ class ResultsScreen(ctk.CTkFrame):
         path = filedialog.asksaveasfilename(
             defaultextension=".html",
             filetypes=[("HTML", "*.html"), ("All", "*.*")],
+            initialdir=self._init_dir(),
             initialfile=f"assessment_{self._results.business_info.id}.html")
         if not path:
             return
@@ -498,6 +511,7 @@ class ResultsScreen(ctk.CTkFrame):
         path = filedialog.asksaveasfilename(
             defaultextension=".pdf",
             filetypes=[("PDF", "*.pdf"), ("All", "*.*")],
+            initialdir=self._init_dir(),
             initialfile=f"assessment_{self._results.business_info.id}.pdf")
         if not path:
             return
@@ -584,6 +598,7 @@ class ResultsScreen(ctk.CTkFrame):
         path = filedialog.asksaveasfilename(
             defaultextension=".html",
             filetypes=[("HTML Certificate", "*.html"), ("All", "*.*")],
+            initialdir=self._init_dir(),
             initialfile=(f"certificate_{r.business_info.id}"
                          f"_{tier.replace(' ', '_')}.html"))
         if not path:

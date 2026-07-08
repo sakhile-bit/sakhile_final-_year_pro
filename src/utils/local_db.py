@@ -7,13 +7,27 @@ directory so results survive between sessions without requiring a server.
 import json
 import os
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Iterator, Optional
+
+# Env override for the database location. Tests set this to a temp file so
+# they never touch the real user database; leave it unset in normal use.
+DB_PATH_ENV = "ZDH_DB_PATH"
 
 
 def _db_path() -> Path:
-    """Return platform-appropriate path for the local database."""
+    """Return the path for the local database.
+
+    Honours the ``ZDH_DB_PATH`` environment variable (used by tests) and
+    otherwise falls back to a per-user location under the OS data directory.
+    """
+    override = os.environ.get(DB_PATH_ENV)
+    if override:
+        p = Path(override)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        return p
     if os.name == "nt":
         base = Path(os.environ.get("APPDATA", Path.home()))
     else:
@@ -23,10 +37,21 @@ def _db_path() -> Path:
     return folder / "history.db"
 
 
-def _connect() -> sqlite3.Connection:
+@contextmanager
+def _connect() -> Iterator[sqlite3.Connection]:
+    """Open a connection, commit on success, and ALWAYS close it.
+
+    ``with sqlite3.connect(...) as conn`` only manages the transaction — it
+    does not close the connection, which leaks handles. This wrapper closes
+    the connection in every case.
+    """
     conn = sqlite3.connect(str(_db_path()))
     conn.row_factory = sqlite3.Row
-    return conn
+    try:
+        yield conn
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def init_db() -> None:
@@ -354,3 +379,87 @@ def get_reassessment_date():
     except Exception:
         pass
     return None
+
+
+# ── Generic application settings (key/value) ─────────────────────────────────
+
+def set_setting(key: str, value: Any) -> None:
+    """Persist an application setting. Booleans/ints are stored as text."""
+    _ensure_settings_table()
+    with _connect() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+            (key, "" if value is None else str(value)),
+        )
+
+
+def get_setting(key: str, default: Optional[str] = None) -> Optional[str]:
+    """Return a stored setting as a string, or ``default`` if unset."""
+    try:
+        _ensure_settings_table()
+        with _connect() as conn:
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = ?", (key,)
+            ).fetchone()
+        return row[0] if row is not None else default
+    except Exception:
+        return default
+
+
+def get_bool_setting(key: str, default: bool = False) -> bool:
+    raw = get_setting(key)
+    if raw is None:
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
+def get_int_setting(key: str, default: int = 0) -> int:
+    raw = get_setting(key)
+    try:
+        return int(raw) if raw is not None and raw != "" else default
+    except (TypeError, ValueError):
+        return default
+
+
+def get_all_settings() -> dict[str, str]:
+    """Return every stored setting as a dict."""
+    try:
+        _ensure_settings_table()
+        with _connect() as conn:
+            rows = conn.execute("SELECT key, value FROM settings").fetchall()
+        return {r["key"]: r["value"] for r in rows}
+    except Exception:
+        return {}
+
+
+def agent_report_count() -> int:
+    _ensure_agent_reports_table()
+    with _connect() as conn:
+        row = conn.execute("SELECT COUNT(*) FROM agent_reports").fetchone()
+    return row[0] if row else 0
+
+
+def fleet_report_count() -> int:
+    _ensure_fleet_reports_table()
+    with _connect() as conn:
+        row = conn.execute("SELECT COUNT(*) FROM fleet_reports").fetchone()
+    return row[0] if row else 0
+
+
+def clear_history() -> None:
+    """Delete all saved assessments, agent reports and fleet reports.
+
+    Credentials and settings are preserved. Used by Settings → Storage.
+    """
+    init_db()
+    _ensure_agent_reports_table()
+    _ensure_fleet_reports_table()
+    with _connect() as conn:
+        conn.execute("DELETE FROM assessments")
+        conn.execute("DELETE FROM agent_reports")
+        conn.execute("DELETE FROM fleet_reports")
+
+
+def db_location() -> str:
+    """Return the filesystem path of the local database."""
+    return str(_db_path())

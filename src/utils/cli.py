@@ -557,6 +557,112 @@ def web(host: str, port: int, debug: bool):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# agent – run the local host agent (assessment + hardening) once
+# ──────────────────────────────────────────────────────────────────────────────
+
+@cli.command()
+@click.option('--name', default='local-host',
+              help='Business/host label recorded in the report')
+@click.option('--json-out', '-j', is_flag=True,
+              help='Print the full report as JSON')
+@click.option('--output', '-o', type=click.Path(),
+              help='Write the full report JSON to this file')
+@click.option('--save/--no-save', default=True,
+              help='Save the report to local history (default: save)')
+def agent(name: str, json_out: bool, output: Optional[str], save: bool):
+    """Run the local host agent — assessment + hardening + readiness.
+
+    Collects a full digital-hygiene and infrastructure-hardening report for
+    THIS machine (the same data a node returns to a master node) and, by
+    default, saves it to the local history database.
+    """
+    from src.agents.windows_agent import collect_local_report
+
+    console.print(Panel.fit(
+        "[bold blue]Local Host Agent[/bold blue]\n"
+        "[dim]Digital-hygiene assessment + infrastructure hardening[/dim]",
+        title="🖥️ Agent"
+    ))
+
+    with Progress(
+        SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Scanning this host…", total=None)
+        result = collect_local_report(business_name=name, save=save)
+        progress.update(task, completed=True)
+
+    report = result['report']
+
+    if output:
+        Path(output).write_text(_json.dumps(report, indent=2), encoding='utf-8')
+        console.print(f"[dim]Report written to {output}[/dim]")
+
+    if json_out:
+        console.print_json(_json.dumps(report, indent=2))
+    else:
+        assessment = report.get('assessment', {})
+        hardening = report.get('hardening', {})
+        readiness = report.get('readiness', {})
+        table = Table(title=f"Host Report — {report.get('hostname', '?')}")
+        table.add_column("Area", style="cyan", no_wrap=True)
+        table.add_column("Result", style="white")
+        pct = 0
+        if assessment.get('total_possible'):
+            pct = round(assessment['score'] / assessment['total_possible'] * 100)
+        table.add_row("Digital hygiene",
+                      f"{assessment.get('certification_level', 'n/a')} "
+                      f"({assessment.get('score', 0)}/{assessment.get('total_possible', 0)}"
+                      f" · {pct}%)")
+        table.add_row("Infrastructure hardening",
+                      f"{hardening.get('grade', 'n/a')} "
+                      f"({hardening.get('score_percent', 0)}%)")
+        table.add_row("Deployment readiness",
+                      str(readiness.get('verdict', 'n/a')))
+        console.print(table)
+
+    if save and result.get('report_id'):
+        console.print(
+            f"[green]✓ Saved to local history (id {result['report_id']})[/green]")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# agent-reports – list agent reports saved in local history
+# ──────────────────────────────────────────────────────────────────────────────
+
+@cli.command('agent-reports')
+@click.option('--limit', default=20, type=int, help='Max reports to list')
+@click.option('--show', 'show_id', type=int,
+              help='Print the full JSON of one report by id')
+def agent_reports(limit: int, show_id: Optional[int]):
+    """List agent reports saved in local history (or show one by id)."""
+    from src.utils.local_db import list_agent_reports, load_agent_report
+
+    if show_id is not None:
+        report = load_agent_report(show_id)
+        if report is None:
+            console.print(f"[red]✗ No agent report with id {show_id}[/red]")
+            sys.exit(1)
+        console.print_json(_json.dumps(report, indent=2))
+        return
+
+    rows = list_agent_reports(limit=limit)
+    if not rows:
+        console.print("[dim]No agent reports saved yet. "
+                      "Run 'python cli.py agent' first.[/dim]")
+        return
+    table = Table(title="Saved Agent Reports")
+    table.add_column("ID", style="cyan", no_wrap=True)
+    table.add_column("Hostname", style="white")
+    table.add_column("Collected At", style="dim")
+    for r in rows:
+        table.add_row(str(r['id']), r.get('hostname', ''),
+                      r.get('collected_at', ''))
+    console.print(table)
+    console.print("[dim]Use --show <id> to print a full report.[/dim]")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # node-agent – run this machine as a scannable node for a master node
 # ──────────────────────────────────────────────────────────────────────────────
 
