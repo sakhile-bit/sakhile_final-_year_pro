@@ -18,6 +18,7 @@ import io
 import re
 import secrets
 from functools import wraps
+from pathlib import Path
 from typing import Any, Optional
 import ssl
 import socket
@@ -75,7 +76,16 @@ logger = get_logger(__name__)
 
 # Initialize Flask app and extensions (application factory pattern)
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', config.web.get('secret_key', 'dev-secret-key'))
+_secret_key = os.environ.get('SECRET_KEY') or config.web.get('secret_key')
+if not _secret_key:
+    # No configured key: generate an ephemeral one instead of a guessable
+    # constant. Sessions won't survive restarts — set SECRET_KEY in production.
+    _secret_key = secrets.token_hex(32)
+    logger.warning(
+        "SECRET_KEY not configured — using a random ephemeral key. "
+        "Set the SECRET_KEY environment variable for production."
+    )
+app.config['SECRET_KEY'] = _secret_key
 # Session cookies — read directly from env so dev (.env) and prod can differ
 app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
@@ -1151,12 +1161,24 @@ def download_report(assessment_id, format):
 
     # Generate report
     generator = ReportGenerator()
+
+    def _safe_report_path(path_str):
+        # Serve only files that resolve inside the reports output directory
+        resolved = Path(path_str).resolve()
+        reports_root = generator.output_dir.resolve()
+        if reports_root not in resolved.parents and resolved != reports_root:
+            logger.error("Report path escaped reports directory: %s", resolved)
+            abort(404)
+        return resolved
+
     if format == 'pdf':
         report_path = generator.generate_pdf_report(results, business_info, f"assessment_{assessment_id}")
-        return send_file(report_path, as_attachment=True, download_name=f"assessment_{assessment_id}.pdf")
+        return send_file(_safe_report_path(report_path), as_attachment=True,
+                         download_name=f"assessment_{assessment_id}.pdf")
     elif format == 'html':
         report_path = generator.generate_html_report(results, business_info, f"assessment_{assessment_id}")
-        return send_file(report_path, as_attachment=True, download_name=f"assessment_{assessment_id}.html")
+        return send_file(_safe_report_path(report_path), as_attachment=True,
+                         download_name=f"assessment_{assessment_id}.html")
     elif format == 'json':
         report_data = generator.generate_json_report(results, business_info)
         buffer = io.BytesIO()

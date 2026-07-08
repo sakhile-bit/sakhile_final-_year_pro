@@ -440,6 +440,98 @@ def predeploy(project_root: str, json_out: bool):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# harden – Windows infrastructure hardening audit
+# ──────────────────────────────────────────────────────────────────────────────
+
+@cli.command()
+@click.option('--json-out', '-j', is_flag=True,
+              help='Output raw JSON instead of formatted table')
+@click.option('--output', '-o', type=click.Path(),
+              help='Also write the JSON report to this file')
+def harden(json_out: bool, output: Optional[str]):
+    """Audit this Windows host against server hardening baselines.
+
+    Fourteen infrastructure-grade checks: SMBv1, SMB signing, RDP/NLA,
+    UAC, LLMNR/NetBIOS, PowerShell logging, legacy TLS, unquoted service
+    paths, Print Spooler, Remote Registry, audit policy, local accounts,
+    LSA protections and anonymous enumeration.
+
+    Exit code 0 = HARDENED · 1 = NEEDS ATTENTION / AT RISK (use in CI/CD).
+    """
+    from src.security.hardening import WindowsHardeningAuditor
+
+    console.print(Panel.fit(
+        "[bold blue]Windows Infrastructure Hardening Audit[/bold blue]\n"
+        "[dim]Auditing the host that provides services to end users[/dim]",
+        title="🛡️ Hardening Audit"
+    ))
+
+    auditor = WindowsHardeningAuditor()
+    with Progress(
+        SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Running hardening checks…", total=None)
+        report = auditor.run_all()
+        progress.update(task, completed=True)
+
+    if output:
+        Path(output).write_text(
+            _json.dumps(report.to_dict(), indent=2), encoding='utf-8')
+        console.print(f"[dim]Report written to {output}[/dim]")
+
+    if json_out:
+        console.print_json(_json.dumps(report.to_dict(), indent=2))
+    else:
+        table = Table(title="Hardening Checks")
+        table.add_column("ID", style="cyan", no_wrap=True)
+        table.add_column("Check", style="white")
+        table.add_column("Severity", style="magenta")
+        table.add_column("Result", min_width=8)
+        table.add_column("Details", style="dim")
+
+        status_text = {
+            "PASS": ("✅ PASS", "green"),
+            "WARNING": ("⚠️ WARN", "yellow"),
+            "FAIL": ("❌ FAIL", "red"),
+            "ERROR": ("❕ ERROR", "dim"),
+            "NOT_APPLICABLE": ("– N/A", "dim"),
+        }
+        for c in report.checks:
+            result_text, result_style = status_text.get(
+                c.status, (c.status, ""))
+            sev_style = {"CRITICAL": "bold red", "HIGH": "yellow",
+                         "MEDIUM": "cyan", "LOW": "dim"}.get(c.severity, "")
+            table.add_row(
+                c.check_id, c.name,
+                Text(c.severity, style=sev_style),
+                Text(result_text, style=result_style),
+                c.details,
+            )
+        console.print(table)
+
+        issues = [c for c in report.checks
+                  if c.status in ('FAIL', 'WARNING') and c.remediation]
+        if issues:
+            rem_lines = "\n".join(
+                f"• [bold]{c.check_id}[/bold]: {c.remediation}" for c in issues)
+            console.print(Panel.fit(rem_lines, title="🔧 Remediation Steps"))
+
+        colour = {"HARDENED": "green", "NEEDS ATTENTION": "yellow"}.get(
+            report.grade, "red")
+        console.print(Panel.fit(
+            f"[bold {colour}]GRADE: {report.grade}[/bold {colour}]\n"
+            f"Score {report.score_percent}% — "
+            f"{report.passed} passed, {report.warnings} warnings, "
+            f"{report.failed} failed ({report.critical_failures} critical).",
+            title="🛡️ Hardening Verdict"
+        ))
+
+    if report.grade != 'HARDENED':
+        sys.exit(1)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # web – start the Flask web dashboard
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -461,6 +553,170 @@ def web(host: str, port: int, debug: bool):
         app.run(host=host, port=port, debug=debug)
     except Exception as e:
         console.print(f"[red]✗ Failed to start web server: {e}[/red]")
+        sys.exit(1)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# node-agent – run this machine as a scannable node for a master node
+# ──────────────────────────────────────────────────────────────────────────────
+
+@cli.command('node-agent')
+@click.option('--host', default='0.0.0.0', help='Interface to bind (0.0.0.0 = all)')
+@click.option('--port', default=8765, type=int, help='Port to listen on')
+@click.option('--token', default=None,
+              help='Shared secret required by the master (or set NODE_AGENT_TOKEN)')
+@click.option('--name', default='', help='Optional node/business label')
+def node_agent(host: str, port: int, token: Optional[str], name: str):
+    """Run this machine as a scannable node.
+
+    Starts a small authenticated HTTP server so a central master node can
+    trigger a digital-hygiene + hardening scan of this host over the
+    network. Install this on every infrastructure node you want to cover.
+    """
+    import os as _os
+    from src.agents.node_agent import run_node_agent, TOKEN_ENV
+
+    token = token or _os.environ.get(TOKEN_ENV, '').strip()
+    if not token:
+        console.print(
+            f"[red]✗ A token is required.[/red] Pass --token or set {TOKEN_ENV}.")
+        sys.exit(1)
+
+    console.print(Panel.fit(
+        f"[bold green]Node agent starting…[/bold green]\n"
+        f"[dim]Listening on {host}:{port}[/dim]\n"
+        f"[dim]The master node must present this token to scan.[/dim]",
+        title="🖧 Node Agent"
+    ))
+    try:
+        run_node_agent(host=host, port=port, token=token, business_name=name)
+    except Exception as e:
+        console.print(f"[red]✗ Node agent failed: {e}[/red]")
+        sys.exit(1)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# fleet-scan – scan many nodes from this master node
+# ──────────────────────────────────────────────────────────────────────────────
+
+@cli.command('fleet-scan')
+@click.option('--nodes', '-n', 'nodes_file', required=True,
+              type=click.Path(exists=True),
+              help='YAML/JSON node inventory file')
+@click.option('--timeout', default=60.0, type=float,
+              help='Per-node scan timeout (seconds)')
+@click.option('--workers', default=10, type=int,
+              help='Max concurrent node scans')
+@click.option('--json-out', '-j', is_flag=True,
+              help='Output raw JSON instead of a formatted table')
+@click.option('--output', '-o', type=click.Path(),
+              help='Write the full fleet JSON report to this file')
+@click.option('--save/--no-save', default=True,
+              help='Save the fleet report to local history (default: save)')
+def fleet_scan(nodes_file: str, timeout: float, workers: int,
+               json_out: bool, output: Optional[str], save: bool):
+    """Scan every connected node from this master node and roll up the results.
+
+    Reads a node inventory, triggers a scan on each node concurrently, and
+    reports a fleet-wide grade governed by the weakest reachable node.
+
+    Exit code 0 = fleet HARDENED · 1 = anything worse (use in CI/CD).
+    """
+    from src.agents.master_coordinator import load_nodes, scan_fleet
+
+    try:
+        nodes = load_nodes(nodes_file)
+    except Exception as e:
+        console.print(f"[red]✗ Could not load node inventory: {e}[/red]")
+        sys.exit(1)
+
+    console.print(Panel.fit(
+        f"[bold blue]Distributed Fleet Scan[/bold blue]\n"
+        f"[dim]{len(nodes)} node(s) — the fleet is only as safe as its "
+        f"weakest machine[/dim]",
+        title="🖧 Fleet Scan"
+    ))
+
+    with Progress(
+        SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        task = progress.add_task(f"Scanning {len(nodes)} node(s)…", total=None)
+
+        def _on_progress(done, total, result):
+            progress.update(
+                task, description=f"Scanned {done}/{total} — {result.name}")
+
+        report = scan_fleet(nodes, timeout=timeout, max_workers=workers,
+                            progress=_on_progress)
+        progress.update(task, completed=True)
+
+    report_dict = report.to_dict(include_reports=bool(output))
+
+    if save:
+        try:
+            from src.utils.local_db import save_fleet_report
+            fid = save_fleet_report(report.to_dict())
+            console.print(f"[dim]Saved to fleet history (id {fid})[/dim]")
+        except Exception as e:  # pragma: no cover
+            console.print(f"[yellow]⚠ Could not save fleet report: {e}[/yellow]")
+
+    if output:
+        Path(output).write_text(
+            _json.dumps(report_dict, indent=2), encoding='utf-8')
+        console.print(f"[dim]Full report written to {output}[/dim]")
+
+    if json_out:
+        console.print_json(_json.dumps(report.to_dict(), indent=2))
+    else:
+        table = Table(title="Fleet Nodes")
+        table.add_column("Node", style="cyan", no_wrap=True)
+        table.add_column("Host", style="white")
+        table.add_column("Status")
+        table.add_column("Hardening")
+        table.add_column("Score", justify="right")
+        table.add_column("Cert", style="dim")
+        table.add_column("Critical", justify="right")
+
+        status_style = {
+            'online': 'green', 'offline': 'red',
+            'unauthorized': 'yellow', 'error': 'red',
+        }
+        grade_style = {
+            'HARDENED': 'green', 'NEEDS ATTENTION': 'yellow', 'AT RISK': 'red',
+        }
+        for r in report.results:
+            table.add_row(
+                r.name,
+                r.hostname or '—',
+                Text(r.status, style=status_style.get(r.status, '')),
+                Text(r.hardening_grade or '—',
+                     style=grade_style.get(r.hardening_grade or '', '')),
+                f"{r.hardening_score}%" if r.hardening_score is not None else '—',
+                r.cert_level or '—',
+                str(r.critical_failures) if r.reachable else '—',
+            )
+        console.print(table)
+
+        s = report.to_dict()['summary']
+        weakest = report.weakest_node
+        colour = grade_style.get(report.fleet_grade, 'red')
+        lines = (
+            f"[bold {colour}]FLEET GRADE: {report.fleet_grade}[/bold {colour}]\n"
+            f"{s['online']}/{s['total_nodes']} nodes online · "
+            f"{s['nodes_at_risk']} at risk · "
+            f"{s['total_critical_failures']} critical failures · "
+            f"avg hardening {s['average_hardening_score']}%"
+        )
+        if weakest:
+            lines += f"\nWeakest link: [bold]{weakest.name}[/bold] " \
+                     f"({weakest.hardening_grade})"
+        if report.unreachable:
+            names = ', '.join(r.name for r in report.unreachable)
+            lines += f"\n[yellow]Unreachable (unmanaged risk): {names}[/yellow]"
+        console.print(Panel.fit(lines, title="🖧 Fleet Verdict"))
+
+    if report.fleet_grade != 'HARDENED':
         sys.exit(1)
 
 

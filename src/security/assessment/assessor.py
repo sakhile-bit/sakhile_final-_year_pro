@@ -216,6 +216,21 @@ CONTROL_CATALOGUE: Dict[str, Dict[str, Any]] = {
 # Total possible score across all 15 controls
 TOTAL_POSSIBLE_SCORE = sum(c["weight"] for c in CONTROL_CATALOGUE.values())  # 120
 
+
+def certification_for(percentage: float, critical_failures: int) -> str:
+    """Return the certification tier for a score percentage + critical count.
+
+    Single source of truth for the GOLD/SILVER/BRONZE gate so the assessor,
+    the desktop wizard, and the web app all agree on the rule.
+    """
+    if percentage >= 80 and critical_failures == 0:
+        return "GOLD"
+    if percentage >= 60 and critical_failures <= 1:
+        return "SILVER"
+    if percentage >= 40 and critical_failures <= 2:
+        return "BRONZE"
+    return "NOT CERTIFIED"
+
 # ── Optional tool controls (C16-C20) — added only when the business selects them ──
 TOOL_CONTROLS: Dict[str, Dict[str, Any]] = {
     "C16_active_directory": {
@@ -351,14 +366,7 @@ class DigitalHygieneAssessor:
 
         # Determine certification level with critical-failure gate
         percentage = (total_score / total_possible) * 100 if total_possible > 0 else 0
-        if percentage >= 80 and critical_failures == 0:
-            level = "GOLD"
-        elif percentage >= 60 and critical_failures <= 1:
-            level = "SILVER"
-        elif percentage >= 40 and critical_failures <= 2:
-            level = "BRONZE"
-        else:
-            level = "NOT CERTIFIED"
+        level = certification_for(percentage, critical_failures)
 
         # Generate recommendations
         recommendations = self._generate_recommendations(results)

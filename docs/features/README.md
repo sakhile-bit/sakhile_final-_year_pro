@@ -1,6 +1,6 @@
 # Feature Documentation — Zambia Digital Hygiene Certification Programme
 
-All 18 features of the project are documented below. Each file covers the feature's purpose, implementation details, data structures, and API.
+All 20 features of the project are documented below. Each file covers the feature's purpose, implementation details, data structures, and API.
 
 ---
 
@@ -22,6 +22,7 @@ All 18 features of the project are documented below. Each file covers the featur
 | 07 | [07-deployment-checker.md](07-deployment-checker.md) | **Pre-Deployment Checker** — 15 checks PDC-01 to PDC-15 |
 | 08 | [08-zambia-risk-assessment.md](08-zambia-risk-assessment.md) | **Zambia Risk Assessment** — SIM swap, mobile money, DPA 2021 compliance |
 | 09 | [09-policy-templates.md](09-policy-templates.md) | **Policy Templates** — 6 downloadable policy documents |
+| 19 | [19-server-hardening.md](19-server-hardening.md) | **Server Hardening Audit** — 14 Windows infrastructure checks HRD-01 to HRD-14, HARDENED/AT RISK grade |
 
 ## Agent & Automation
 
@@ -29,6 +30,7 @@ All 18 features of the project are documented below. Each file covers the featur
 |---|---|---|
 | 10 | [10-windows-agent.md](10-windows-agent.md) | **Windows Agent** — standalone collector, JSON report, CLI |
 | 11 | [11-siem-forwarder.md](11-siem-forwarder.md) | **SIEM Forwarder** — webhook forwarding to Splunk/Elastic/Wazuh |
+| 20 | [20-fleet-scanning.md](20-fleet-scanning.md) | **Distributed Fleet Scanning** — master node scans many connected nodes, weakest-link fleet grade |
 | 12 | [12-monitoring-checks.md](12-monitoring-checks.md) | **Monitoring Checks** — Windows Event Log + log-forwarding hygiene (PDC-15) |
 | 13 | [13-remediation-guidance.md](13-remediation-guidance.md) | **Remediation Guidance** — PowerShell fix scripts per check ID |
 | 15 | [15-scheduler.md](15-scheduler.md) | **Scheduler** — interval-based job runner for recurring agent runs |

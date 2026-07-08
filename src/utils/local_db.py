@@ -254,6 +254,68 @@ def list_agent_reports(limit: int = 50) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+# ── Fleet reports (distributed multi-node scans) ─────────────────────────────
+
+def _ensure_fleet_reports_table() -> None:
+    with _connect() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS fleet_reports (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                scanned_at  TEXT    NOT NULL,
+                fleet_grade TEXT    NOT NULL,
+                total_nodes INTEGER NOT NULL,
+                online      INTEGER NOT NULL,
+                payload     TEXT    NOT NULL
+            )
+        """)
+        conn.commit()
+
+
+def save_fleet_report(report: dict) -> int:
+    """Persist a fleet report (already a to_dict() mapping) and return row id."""
+    _ensure_fleet_reports_table()
+    summary = report.get("summary", {})
+    with _connect() as conn:
+        cur = conn.execute(
+            """INSERT INTO fleet_reports
+               (scanned_at, fleet_grade, total_nodes, online, payload)
+               VALUES (?, ?, ?, ?, ?)""",
+            (
+                report.get("scanned_at", ""),
+                report.get("fleet_grade", ""),
+                summary.get("total_nodes", 0),
+                summary.get("online", 0),
+                json.dumps(report),
+            ),
+        )
+        conn.commit()
+        return cur.lastrowid or 0
+
+
+def load_fleet_report(report_id: int) -> Optional[dict]:
+    """Return the full fleet report for the given id, or None."""
+    _ensure_fleet_reports_table()
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT payload FROM fleet_reports WHERE id = ?", (report_id,)
+        ).fetchone()
+    if row is None:
+        return None
+    return json.loads(row["payload"])
+
+
+def list_fleet_reports(limit: int = 50) -> list[dict]:
+    """Return fleet report summary rows ordered newest first."""
+    _ensure_fleet_reports_table()
+    with _connect() as conn:
+        rows = conn.execute(
+            """SELECT id, scanned_at, fleet_grade, total_nodes, online
+               FROM fleet_reports ORDER BY id DESC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 # ── Reassessment reminder ────────────────────────────────────────────────────
 
 def _ensure_settings_table() -> None:

@@ -13,10 +13,19 @@ from pathlib import Path
 
 from src.security.assessment.assessor import BusinessInfo, DigitalHygieneAssessor
 from src.security.deployment.checker import PreDeploymentChecker
+from src.security.hardening import WindowsHardeningAuditor
 from src.utils.local_db import save_agent_report
 
 
-def collect_local_report(business_name: str = "local-host") -> dict:
+def collect_local_report(business_name: str = "local-host",
+                         save: bool = True) -> dict:
+    """Run all local checks and return an agent report.
+
+    When ``save`` is True the report is persisted to the local SQLite
+    database and the returned dict includes a ``report_id``. Node agents
+    serving a master node typically pass ``save=False`` since the master
+    is the system of record.
+    """
     # Run pre-deployment checks
     checker = PreDeploymentChecker(project_root=str(Path.cwd()))
     readiness = checker.run_all()
@@ -25,6 +34,9 @@ def collect_local_report(business_name: str = "local-host") -> dict:
     bi = BusinessInfo(name=business_name, id=socket.gethostname())
     assessor = DigitalHygieneAssessor(bi, assessment_tier="automated")
     assessment = assessor.run_assessment()
+
+    # Infrastructure hardening audit (server-grade checks)
+    hardening = WindowsHardeningAuditor().run_all()
 
     out = {
         "collected_at": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
@@ -36,9 +48,10 @@ def collect_local_report(business_name: str = "local-host") -> dict:
             "certification_level": assessment.certification_level,
             "controls": {k: v.__dict__ for k, v in assessment.controls.items()},
         },
+        "hardening": hardening.to_dict(),
     }
 
-    report_id = save_agent_report(out)
+    report_id = save_agent_report(out) if save else None
     return {"report_id": report_id, "report": out}
 
 

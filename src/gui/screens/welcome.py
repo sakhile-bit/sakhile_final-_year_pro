@@ -45,7 +45,8 @@ class WelcomeScreen(ctk.CTkFrame):
                  on_zambia_risk=None, on_policies=None,
                  on_network=None, on_deploy=None, on_remediation=None,
                  on_active_dir=None, on_export=None,
-                 on_audit=None, on_settings=None, on_dashboard=None):
+                 on_audit=None, on_settings=None, on_dashboard=None,
+                 on_hardening=None, on_fleet=None):
         super().__init__(master, fg_color=CLR_BG, corner_radius=0)
         self._on_start = on_start
         self._on_history = on_history or (lambda: None)
@@ -60,6 +61,8 @@ class WelcomeScreen(ctk.CTkFrame):
         self._on_audit = on_audit or (lambda: None)
         self._on_settings = on_settings or (lambda: None)
         self._on_dashboard = on_dashboard or (lambda: None)
+        self._on_hardening = on_hardening or (lambda: None)
+        self._on_fleet = on_fleet or (lambda: None)
         self._build()
 
     # ------------------------------------------------------------------ build
@@ -350,6 +353,10 @@ class WelcomeScreen(ctk.CTkFrame):
              "#607D8B",   "#0F0F0F",      self._on_audit,         2, 2),
             ("⚙️  Settings",
              "#757575",   "#1A1A1A",      self._on_settings,      2, 3),
+            ("🛡️  Server Hardening",
+             "#4CAF50",   "#00220A",      self._on_hardening,     3, 0),
+            ("🖧  Fleet Scan",
+             "#00BCD4",   "#00181C",      self._on_fleet,         3, 1),
         ]
         for label, clr, hov, cmd, r, c in tools:
             btn = ctk.CTkFrame(grid, fg_color=CLR_SURFACE, corner_radius=12,

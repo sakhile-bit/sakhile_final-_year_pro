@@ -12,6 +12,7 @@ from src.gui.theme import (
     PAD, NAV_H, BTN_H, BTN_R,
 )
 from src.gui.screens.business_info import _header
+from src.gui.screens._cancellable import CancellableScreenMixin
 
 CHECKS = [
     ("C01", "OS Updates",           "Windows Update service and last patch date"),
@@ -73,7 +74,7 @@ FIX_ACTIONS = {
 }
 
 
-class ScanningScreen(ctk.CTkFrame):
+class ScanningScreen(CancellableScreenMixin, ctk.CTkFrame):
 
     def __init__(self, master, business_info, on_next, on_back, on_skip=None):
         super().__init__(master, fg_color=CLR_BG, corner_radius=0)
@@ -89,6 +90,8 @@ class ScanningScreen(ctk.CTkFrame):
         self._icon_labels: dict = {}
         self._fix_btns: dict = {}
         self._build()
+        # Background scans use self._safe_after (from CancellableScreenMixin)
+        # so navigating away mid-scan can't touch a destroyed widget.
         threading.Thread(target=self._run_scan, daemon=True).start()
 
     # ------------------------------------------------------------------ build
@@ -262,7 +265,10 @@ class ScanningScreen(ctk.CTkFrame):
         total = len(CHECKS) + len(EXTENDED_CHECKS)
 
         for idx, (cid, method) in enumerate(core_methods):
-            self.after(0, self._status_var.set, f"Scanning {cid}…")
+            if self._cancelled:
+                return
+            if not self._safe_after(0, self._status_var.set, f"Scanning {cid}…"):
+                return
             try:
                 result = method()
             except Exception as exc:
@@ -277,8 +283,9 @@ class ScanningScreen(ctk.CTkFrame):
                     status="ERROR", details=str(exc),
                 )
             self._results[cid] = result
-            self.after(0, self._update_row, cid, result,
-                       (idx + 1) / total)
+            if not self._safe_after(0, self._update_row, cid, result,
+                                    (idx + 1) / total):
+                return
 
         # Extended EX-01…EX-05 checks (run after core, in background thread)
         ext_methods = [
@@ -289,18 +296,22 @@ class ScanningScreen(ctk.CTkFrame):
             ("EX-05", assessor._check_pending_security_updates),
         ]
         for idx, (eid, method) in enumerate(ext_methods):
-            self.after(0, self._status_var.set,
-                       f"Extended check {eid}…")
+            if self._cancelled:
+                return
+            if not self._safe_after(0, self._status_var.set,
+                                    f"Extended check {eid}…"):
+                return
             try:
                 status_str, detail_str = method()
             except Exception as exc:
                 status_str, detail_str = "ERROR", str(exc)
             self._ext_results[eid] = (status_str, detail_str)
             progress = (len(CHECKS) + idx + 1) / total
-            self.after(0, self._update_ext_row, eid,
-                       status_str, detail_str, progress)
+            if not self._safe_after(0, self._update_ext_row, eid,
+                                    status_str, detail_str, progress):
+                return
 
-        self.after(0, self._scan_complete)
+        self._safe_after(0, self._scan_complete)
 
     def _update_row(self, cid, result, progress):
         icon_txt, icon_clr = STATUS_STYLE.get(result.status, ("?", CLR_MUTED))
@@ -394,7 +405,7 @@ class ScanningScreen(ctk.CTkFrame):
                                    timeout=30, shell=False)
             except Exception:
                 pass
-            self.after(0, self._recheck, cid)
+            self._safe_after(0, self._recheck, cid)
 
         threading.Thread(target=run, daemon=True).start()
 
@@ -424,7 +435,7 @@ class ScanningScreen(ctk.CTkFrame):
                     status="ERROR", details=str(exc),
                 )
             self._results[cid] = result
-            self.after(0, self._post_recheck, cid, result)
+            self._safe_after(0, self._post_recheck, cid, result)
 
         threading.Thread(target=run, daemon=True).start()
 

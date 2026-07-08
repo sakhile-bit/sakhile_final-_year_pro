@@ -10,7 +10,31 @@
       "PowerShell(if \\(Test-Path \"c:\\\\Users\\\\Hello\\\\Desktop\\\\sakhile_final-_year_pro\\\\dist\\\\ZambiaDigitalHygiene.exe\"\\) { $f = Get-Item \"c:\\\\Users\\\\Hello\\\\Desktop\\\\sakhile_final-_year_pro\\\\dist\\\\ZambiaDigitalHygiene.exe\"; Write-Host \"Found: $\\($f.Name\\), $\\([math]::Round\\($f.Length/1MB,1\\)\\) MB, $\\($f.LastWriteTime\\)\" } else { Write-Host \"NOT FOUND\" })",
       "PowerShell(Start-Process \"c:\\\\Users\\\\Hello\\\\Desktop\\\\sakhile_final-_year_pro\\\\dist\\\\ZambiaDigitalHygiene.exe\")",
       "PowerShell(Stop-Process -Name \"ZambiaDigitalHygiene\" -Force -ErrorAction SilentlyContinue)",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(python -m pytest tests -q --no-header)",
+      "Bash(ls -d venv .venv env)",
+      "Bash(py -0)",
+      "Bash(where python *)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests -q --no-header)",
+      "Bash(.venv/Scripts/python.exe -c ' *)",
+      "Bash(.venv/Scripts/python.exe cli.py harden --help)",
+      "Bash(.venv/Scripts/python.exe cli.py harden)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(.venv/Scripts/python.exe -m pytest tests -q --no-header -p no:cacheprovider)",
+      "Bash(PYTHONIOENCODING=utf-8 .venv/Scripts/python.exe \"C:\\\\Users\\\\Hello\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-Hello-Desktop-sakhile-final--year-pro\\\\e912c471-0383-4801-b71c-780f08072e6f\\\\scratchpad\\\\smoke.py\")",
+      "Bash(PYTHONIOENCODING=utf-8 .venv/Scripts/python.exe \"C:\\\\Users\\\\Hello\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-Hello-Desktop-sakhile-final--year-pro\\\\e912c471-0383-4801-b71c-780f08072e6f\\\\scratchpad\\\\gui_smoke.py\")",
+      "Bash(.venv/Scripts/python.exe -c \"import PyInstaller; print\\('PyInstaller', PyInstaller.__version__\\)\")",
+      "Bash(ls -la dist/ZambiaDigitalHygiene.exe)",
+      "Bash(rm -rf build)",
+      "Bash(PYTHONIOENCODING=utf-8 .venv/Scripts/python.exe -m PyInstaller devops/build.spec --distpath dist --workpath build --noconfirm)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests -q --no-header -p no:cacheprovider --no-cov)",
+      "Bash(PYTHONIOENCODING=utf-8 .venv/Scripts/python.exe cli.py fleet-scan --help)",
+      "Bash(PYTHONIOENCODING=utf-8 .venv/Scripts/python.exe cli.py node-agent --help)",
+      "Bash(PYTHONIOENCODING=utf-8 .venv/Scripts/python.exe -c ' *)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/test_fleet.py -q --no-header --no-cov -p no:cacheprovider)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests -q --no-header --no-cov -p no:cacheprovider)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/test_navigation.py -q --no-header --no-cov -p no:cacheprovider)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/test_navigation.py -v --no-header --no-cov -p no:cacheprovider -rs)"
     ]
   }
 }

@@ -1,7 +1,16 @@
-"""Main application window — manages screen transitions."""
+"""Main application window.
+
+The window is a thin navigation controller: it owns a :class:`Router`
+(the navigation stack) and an :class:`AppState` (the wizard's data), and
+each ``_show_*`` method just registers a screen factory with the router.
+Screens are unaware of the router — they still receive plain ``on_next`` /
+``on_back`` callbacks, so no screen needed to change.
+"""
 
 import customtkinter as ctk
 
+from src.gui.router import Router
+from src.gui.state import AppState
 from src.gui.theme import APP_NAME, APP_VERSION, CLR_BG, WIN_H, WIN_W
 
 ctk.set_appearance_mode("dark")
@@ -35,11 +44,9 @@ class DigitalHygieneApp(ctk.CTk):
             y = (self.winfo_screenheight() - WIN_H) // 2
         self.geometry(f"{WIN_W}x{WIN_H}+{x}+{y}")
 
-        self._business_info = None
-        self._selected_tools: set = set()
-        self._auto_results = {}
-
-        self._current_screen = None
+        # Single source of truth for wizard data + the navigation stack
+        self.state = AppState()
+        self.router = Router(self)
 
         # Route through auth before showing the app
         from src.utils.auth import is_setup
@@ -51,26 +58,26 @@ class DigitalHygieneApp(ctk.CTk):
     # ─────────────────────────────────────── auth screens
     def _show_setup(self):
         from src.gui.screens.setup_screen import SetupScreen
-        self._swap(SetupScreen(self, on_done=self._show_welcome))
+        self.router.reset_to(
+            "setup",
+            lambda: SetupScreen(self, on_done=self._show_welcome))
 
     def _show_login(self):
         from src.gui.screens.login_screen import LoginScreen
-        # Popup dialog — sits on top of the empty main window, no _swap needed
+        # Popup dialog — sits on top of the empty main window, not routed
         LoginScreen(self, on_success=self._show_welcome)
 
-    # ─────────────────────────────────────── screen management
-    def _swap(self, screen):
-        if self._current_screen is not None:
-            self._current_screen.destroy()
-        self._current_screen = screen
-        screen.pack(fill="both", expand=True)
-
-    # ─────────────────────────────────────── screens
+    # ─────────────────────────────────────── home
     def _show_welcome(self):
+        """Return to the home screen — clears the nav stack and wizard state."""
+        self.state.reset_assessment()
+        self.router.reset_to("welcome", self._make_welcome)
+
+    def _make_welcome(self):
         from src.gui.screens.welcome import WelcomeScreen
-        self._swap(WelcomeScreen(
+        return WelcomeScreen(
             self,
-            on_start=self._show_business_info,
+            on_start=self._start_assessment,
             on_history=self._show_history,
             on_infra=self._show_infra_scanner,
             on_zambia_risk=self._show_zambia_risk,
@@ -83,148 +90,184 @@ class DigitalHygieneApp(ctk.CTk):
             on_audit=self._show_audit_logs,
             on_settings=self._show_settings,
             on_dashboard=self._show_assessment_dashboard,
-        ))
+            on_hardening=self._show_server_hardening,
+            on_fleet=self._show_fleet_scan,
+        )
+
+    # ─────────────────────────────────────── standalone tools
+    # Each tool is pushed onto the stack; "back" pops it via the router,
+    # so the screens no longer need to know they came from welcome.
+    def _push_tool(self, name, factory):
+        self.router.push(name, factory)
 
     def _show_history(self):
         from src.gui.screens.history import HistoryScreen
-        self._swap(HistoryScreen(self, on_back=self._show_welcome))
+        self._push_tool(
+            "history",
+            lambda: HistoryScreen(self, on_back=self.router.back))
 
     def _show_infra_scanner(self):
         from src.gui.screens.infra_scanner import InfraScannerScreen
-        self._swap(InfraScannerScreen(self, on_back=self._show_welcome))
+        self._push_tool(
+            "infra_scanner",
+            lambda: InfraScannerScreen(self, on_back=self.router.back))
 
     def _show_zambia_risk(self):
         from src.gui.screens.zambia_risk import ZambiaRiskScreen
-        self._swap(ZambiaRiskScreen(self, on_back=self._show_welcome))
+        self._push_tool(
+            "zambia_risk",
+            lambda: ZambiaRiskScreen(self, on_back=self.router.back))
 
     def _show_policy_templates(self):
         from src.gui.screens.policy_templates import PolicyTemplatesScreen
-        self._swap(PolicyTemplatesScreen(self, on_back=self._show_welcome))
+        self._push_tool(
+            "policy_templates",
+            lambda: PolicyTemplatesScreen(self, on_back=self.router.back))
 
     def _show_network_scanner(self):
         from src.gui.screens.network_scanner import NetworkScannerScreen
-        self._swap(NetworkScannerScreen(self, on_back=self._show_welcome))
+        self._push_tool(
+            "network_scanner",
+            lambda: NetworkScannerScreen(self, on_back=self.router.back))
 
     def _show_deployment_checker(self):
         from src.gui.screens.deployment_screen import DeploymentCheckerScreen
-        self._swap(DeploymentCheckerScreen(self, on_back=self._show_welcome))
+        self._push_tool(
+            "deployment_checker",
+            lambda: DeploymentCheckerScreen(self, on_back=self.router.back))
 
     def _show_remediation_guidance(self):
         from src.gui.screens.remediation_guidance import RemediationGuidanceScreen
-        self._swap(RemediationGuidanceScreen(self, on_back=self._show_welcome))
+        self._push_tool(
+            "remediation_guidance",
+            lambda: RemediationGuidanceScreen(self, on_back=self.router.back))
 
     def _show_active_directory(self):
         from src.gui.screens.active_directory import ActiveDirectoryScreen
-        self._swap(ActiveDirectoryScreen(self, on_back=self._show_welcome))
+        self._push_tool(
+            "active_directory",
+            lambda: ActiveDirectoryScreen(self, on_back=self.router.back))
 
     def _show_export_reports(self):
         from src.gui.screens.export_reports import ExportReportsScreen
-        self._swap(ExportReportsScreen(self, on_back=self._show_welcome))
+        self._push_tool(
+            "export_reports",
+            lambda: ExportReportsScreen(self, on_back=self.router.back))
 
     def _show_audit_logs(self):
         from src.gui.screens.audit_log_viewer import AuditLogViewerScreen
-        self._swap(AuditLogViewerScreen(self, on_back=self._show_welcome))
+        self._push_tool(
+            "audit_logs",
+            lambda: AuditLogViewerScreen(self, on_back=self.router.back))
 
     def _show_settings(self):
         from src.gui.screens.settings import SettingsScreen
-        self._swap(SettingsScreen(self, on_back=self._show_welcome))
+        self._push_tool(
+            "settings",
+            lambda: SettingsScreen(self, on_back=self.router.back))
+
+    def _show_server_hardening(self):
+        from src.gui.screens.server_hardening import ServerHardeningScreen
+        self._push_tool(
+            "server_hardening",
+            lambda: ServerHardeningScreen(self, on_back=self.router.back))
+
+    def _show_fleet_scan(self):
+        from src.gui.screens.fleet_scan import FleetScanScreen
+        self._push_tool(
+            "fleet_scan",
+            lambda: FleetScanScreen(self, on_back=self.router.back))
 
     def _show_assessment_dashboard(self):
         from src.gui.screens.assessment_dashboard import AssessmentDashboardScreen
-        self._swap(AssessmentDashboardScreen(self, on_back=self._show_welcome))
+        self._push_tool(
+            "assessment_dashboard",
+            lambda: AssessmentDashboardScreen(self, on_back=self.router.back))
+
+    # ─────────────────────────────────────── assessment wizard
+    # business_info → tools → scanning → manual → results
+    # Each step stores its output in ``self.state`` and pushes the next
+    # step; "back" pops through the stack automatically.
+
+    def _start_assessment(self):
+        """Begin a fresh assessment from the home screen."""
+        self.state.reset_assessment()
+        self._show_business_info()
 
     def _show_business_info(self):
         from src.gui.screens.business_info import BusinessInfoScreen
-        self._swap(BusinessInfoScreen(
-            self,
-            on_next=self._show_tools_profile,
-            on_back=self._show_welcome,
-        ))
+        self.router.push(
+            "business_info",
+            lambda: BusinessInfoScreen(
+                self,
+                on_next=self._on_business_info_done,
+                on_back=self.router.back,
+            ))
 
-    def _show_tools_profile(self, business_info):
-        self._business_info = business_info
+    def _on_business_info_done(self, business_info):
+        self.state.business_info = business_info
+        self._show_tools_profile()
+
+    def _show_tools_profile(self):
         from src.gui.screens.tools_profile import ToolsProfileScreen
-        self._swap(ToolsProfileScreen(
-            self,
-            on_next=self._show_scanning,
-            on_back=self._show_business_info,
-        ))
+        self.router.push(
+            "tools_profile",
+            lambda: ToolsProfileScreen(
+                self,
+                on_next=self._on_tools_done,
+                on_back=self.router.back,
+            ))
 
-    def _show_scanning(self, selected_tools=None):
-        if selected_tools is not None:
-            self._selected_tools = selected_tools
+    def _on_tools_done(self, selected_tools=None):
+        self.state.selected_tools = selected_tools or set()
+        self._show_scanning()
+
+    def _show_scanning(self):
         from src.gui.screens.scanning import ScanningScreen
-        self._swap(ScanningScreen(
-            self,
-            business_info=self._business_info,
-            on_next=self._show_manual,
-            on_back=lambda: self._show_tools_profile(self._business_info),
-            on_skip=self._show_quick_results,
-        ))
+        self.router.push(
+            "scanning",
+            lambda: ScanningScreen(
+                self,
+                business_info=self.state.business_info,
+                on_next=self._on_scanning_done,
+                on_back=self.router.back,
+                on_skip=self._on_scanning_skip,
+            ))
 
-    def _show_manual(self, auto_results):
-        self._auto_results = auto_results
+    def _on_scanning_done(self, auto_results):
+        self.state.auto_results = auto_results or {}
+        self._show_manual()
+
+    def _on_scanning_skip(self, auto_results):
+        """Skip the manual questions — C06-C15 stay NOT_ASSESSED."""
+        self.state.auto_results = auto_results or {}
+        self.state.manual_scores = {}
+        self.state.evidence = {}
+        self._show_results()
+
+    def _show_manual(self):
         from src.gui.screens.manual_checks import ManualChecksScreen
-        self._swap(ManualChecksScreen(
-            self,
-            selected_tools=self._selected_tools,
-            on_next=self._show_results,
-            on_back=lambda: self._show_scanning(),
-        ))
+        self.router.push(
+            "manual_checks",
+            lambda: ManualChecksScreen(
+                self,
+                selected_tools=self.state.selected_tools,
+                on_next=self._on_manual_done,
+                on_back=self.router.back,
+            ))
 
-    def _show_quick_results(self, auto_results):
-        """Skip manual questions — score C06-C15 as NOT_ASSESSED."""
-        self._auto_results = auto_results
-        self._show_results({}, {})
+    def _on_manual_done(self, manual_scores, evidence=None):
+        self.state.manual_scores = manual_scores or {}
+        self.state.evidence = evidence or {}
+        self._show_results()
 
-    def _show_results(self, manual_scores, evidence=None):
-        from src.security.assessment.assessor import (
-            CONTROL_CATALOGUE,
-            DigitalHygieneAssessor,
-        )
-
-        # Merge automated results + manual scores into a full assessment
-        assert self._business_info is not None, "business_info must be set before showing results"
-        assessor = DigitalHygieneAssessor(
-            self._business_info,
-            manual_answers=manual_scores,
-            assessment_tier="full",
-            selected_tools=self._selected_tools,
-        )
-        # Patch in the already-computed automated results
-        results = assessor.run_assessment()
-        for cid_key, ctrl_result in self._auto_results.items():
-            _suffix: str = {
-                "C01": "os_updates",
-                "C02": "antivirus",
-                "C03": "firewall",
-                "C04": "password_policy",
-                "C05": "backups",
-            }.get(cid_key) or cid_key
-            full_key = f"C0{cid_key[-1]}_" + _suffix
-            if full_key in results.controls:
-                results.controls[full_key] = ctrl_result
-
-        # Re-calculate totals
-        results.score = sum(c.score for c in results.controls.values())
-        pct = (results.score / results.total_possible) * 100 if results.total_possible else 0
-        critical_failures = sum(
-            1 for k, v in results.controls.items()
-            if CONTROL_CATALOGUE.get(k, {}).get("critical") and v.status == "FAIL"
-        )
-        results.critical_failures = critical_failures
-        if pct >= 80 and critical_failures == 0:
-            results.certification_level = "GOLD"
-        elif pct >= 60 and critical_failures <= 1:
-            results.certification_level = "SILVER"
-        elif pct >= 40 and critical_failures <= 2:
-            results.certification_level = "BRONZE"
-        else:
-            results.certification_level = "NOT CERTIFIED"
-
+    def _show_results(self):
+        results = self.state.build_results()
         from src.gui.screens.results import ResultsScreen
-        self._swap(ResultsScreen(
-            self,
-            results=results,
-            on_restart=self._show_welcome,
-        ))
+        self.router.push(
+            "results",
+            lambda: ResultsScreen(
+                self,
+                results=results,
+                on_restart=self._show_welcome,
+            ))

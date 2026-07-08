@@ -1,0 +1,25 @@
+# Fleet node inventory — used by `python cli.py fleet-scan --nodes nodes.yaml`
+#
+# Each node must be running the node agent:
+#   python cli.py node-agent --port 8765 --token "your-shared-secret"
+#   (or set NODE_AGENT_TOKEN and omit --token)
+#
+# `token` at the top level is the default for any node that doesn't set its own.
+# Use a strong, unique secret and keep this file out of version control if it
+# contains real tokens.
+
+token: change-me-to-a-strong-shared-secret
+
+nodes:
+  - name: file-server
+    url: http://192.168.1.10:8765
+
+  - name: pos-backoffice
+    url: http://192.168.1.11:8765
+
+  - name: domain-controller
+    url: http://192.168.1.12:8765
+    token: a-different-secret-for-this-node   # optional per-node override
+
+  # Shorthand: a bare "host:port" string uses the default token above
+  - 192.168.1.20:8765
