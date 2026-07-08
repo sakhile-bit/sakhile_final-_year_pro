@@ -27,8 +27,21 @@ echo.
 
 REM ── 3. Clean previous build ──────────────────────────────────
 echo [2/3] Cleaning previous build...
-if exist dist\ZambiaDigitalHygiene.exe del /f /q dist\ZambiaDigitalHygiene.exe
+if exist dist\ZambiaDigitalHygiene.exe (
+    echo [INFO] Existing executable found. Checking for running process...
+    tasklist /fi "imagename eq ZambiaDigitalHygiene.exe" | findstr /i "ZambiaDigitalHygiene.exe" >nul 2>&1
+    if %errorlevel% equ 0 (
+        echo [INFO] Stopping running ZambiaDigitalHygiene.exe...
+        taskkill /f /im ZambiaDigitalHygiene.exe >nul 2>&1
+    )
+    del /f /q dist\ZambiaDigitalHygiene.exe >nul 2>&1
+    if exist dist\ZambiaDigitalHygiene.exe (
+        echo [ERROR] Cannot remove dist\ZambiaDigitalHygiene.exe. Close the app or any locking process and rerun.
+        pause & exit /b 1
+    )
+)
 if exist build rmdir /s /q build
+if exist dist rmdir /s /q dist
 echo        Done.
 echo.
 

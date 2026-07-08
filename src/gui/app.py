@@ -45,7 +45,7 @@ class DigitalHygieneApp(ctk.CTk):
         self.geometry(f"{WIN_W}x{WIN_H}+{x}+{y}")
 
         # Single source of truth for wizard data + the navigation stack
-        self.state = AppState()
+        self.app_state = AppState()
         self.router = Router(self)
 
         # Route through auth before showing the app
@@ -64,13 +64,14 @@ class DigitalHygieneApp(ctk.CTk):
 
     def _show_login(self):
         from src.gui.screens.login_screen import LoginScreen
+
         # Popup dialog — sits on top of the empty main window, not routed
         LoginScreen(self, on_success=self._show_welcome)
 
     # ─────────────────────────────────────── home
     def _show_welcome(self):
         """Return to the home screen — clears the nav stack and wizard state."""
-        self.state.reset_assessment()
+        self.app_state.reset_assessment()
         self.router.reset_to("welcome", self._make_welcome)
 
     def _make_welcome(self):
@@ -186,12 +187,12 @@ class DigitalHygieneApp(ctk.CTk):
 
     # ─────────────────────────────────────── assessment wizard
     # business_info → tools → scanning → manual → results
-    # Each step stores its output in ``self.state`` and pushes the next
+    # Each step stores its output in ``self.app_state`` and pushes the next
     # step; "back" pops through the stack automatically.
 
     def _start_assessment(self):
         """Begin a fresh assessment from the home screen."""
-        self.state.reset_assessment()
+        self.app_state.reset_assessment()
         self._show_business_info()
 
     def _show_business_info(self):
@@ -205,7 +206,7 @@ class DigitalHygieneApp(ctk.CTk):
             ))
 
     def _on_business_info_done(self, business_info):
-        self.state.business_info = business_info
+        self.app_state.business_info = business_info
         self._show_tools_profile()
 
     def _show_tools_profile(self):
@@ -219,7 +220,7 @@ class DigitalHygieneApp(ctk.CTk):
             ))
 
     def _on_tools_done(self, selected_tools=None):
-        self.state.selected_tools = selected_tools or set()
+        self.app_state.selected_tools = selected_tools or set()
         self._show_scanning()
 
     def _show_scanning(self):
@@ -228,21 +229,21 @@ class DigitalHygieneApp(ctk.CTk):
             "scanning",
             lambda: ScanningScreen(
                 self,
-                business_info=self.state.business_info,
+                business_info=self.app_state.business_info,
                 on_next=self._on_scanning_done,
                 on_back=self.router.back,
                 on_skip=self._on_scanning_skip,
             ))
 
     def _on_scanning_done(self, auto_results):
-        self.state.auto_results = auto_results or {}
+        self.app_state.auto_results = auto_results or {}
         self._show_manual()
 
     def _on_scanning_skip(self, auto_results):
         """Skip the manual questions — C06-C15 stay NOT_ASSESSED."""
-        self.state.auto_results = auto_results or {}
-        self.state.manual_scores = {}
-        self.state.evidence = {}
+        self.app_state.auto_results = auto_results or {}
+        self.app_state.manual_scores = {}
+        self.app_state.evidence = {}
         self._show_results()
 
     def _show_manual(self):
@@ -251,18 +252,18 @@ class DigitalHygieneApp(ctk.CTk):
             "manual_checks",
             lambda: ManualChecksScreen(
                 self,
-                selected_tools=self.state.selected_tools,
+                selected_tools=self.app_state.selected_tools,
                 on_next=self._on_manual_done,
                 on_back=self.router.back,
             ))
 
     def _on_manual_done(self, manual_scores, evidence=None):
-        self.state.manual_scores = manual_scores or {}
-        self.state.evidence = evidence or {}
+        self.app_state.manual_scores = manual_scores or {}
+        self.app_state.evidence = evidence or {}
         self._show_results()
 
     def _show_results(self):
-        results = self.state.build_results()
+        results = self.app_state.build_results()
         from src.gui.screens.results import ResultsScreen
         self.router.push(
             "results",

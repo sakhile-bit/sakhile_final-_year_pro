@@ -26,9 +26,15 @@ class CancellableScreenMixin:
     #: Set True once the screen has been navigated away from / destroyed.
     _cancelled: bool = False
 
-    def destroy(self):  # type: ignore[override]
+    def __init__(self, *args, **kwargs):
+        self._cancelled = False
+        super().__init__(*args, **kwargs)
+
+    def destroy(self, *args, **kwargs):  # type: ignore[override]
         self._cancelled = True
-        super().destroy()
+        destroy_method = getattr(super(), "destroy", None)
+        if callable(destroy_method):
+            destroy_method(*args, **kwargs)
 
     def _safe_after(self, *args) -> bool:
         """Schedule a UI callback unless the screen is gone.
