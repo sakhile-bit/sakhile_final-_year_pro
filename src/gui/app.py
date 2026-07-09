@@ -27,7 +27,10 @@ class DigitalHygieneApp(ctk.CTk):
         self.minsize(800, 560)
         self.configure(fg_color=CLR_BG)
 
-        # Centre the window within the usable work area (excludes taskbar)
+        # Fit and centre the window within the usable work area (excludes the
+        # taskbar). On small screens or high-DPI scaling (125%/150% laptops)
+        # a fixed 1060x700 window overflows the screen and hides the bottom
+        # navigation bar, so clamp the size to what actually fits.
         self.update_idletasks()
         import sys
         if sys.platform == "win32":
@@ -35,14 +38,28 @@ class DigitalHygieneApp(ctk.CTk):
             import ctypes.wintypes
             wa = ctypes.wintypes.RECT()
             ctypes.windll.user32.SystemParametersInfoW(48, 0, ctypes.byref(wa), 0)
+            work_x, work_y = wa.left, wa.top
             work_w = wa.right  - wa.left
             work_h = wa.bottom - wa.top
-            x = wa.left + max(0, (work_w - WIN_W) // 2)
-            y = wa.top  + max(0, (work_h - WIN_H) // 2)
         else:
-            x = (self.winfo_screenwidth()  - WIN_W) // 2
-            y = (self.winfo_screenheight() - WIN_H) // 2
-        self.geometry(f"{WIN_W}x{WIN_H}+{x}+{y}")
+            work_x = work_y = 0
+            work_w = self.winfo_screenwidth()
+            work_h = self.winfo_screenheight()
+
+        # customtkinter multiplies geometry sizes by the DPI scaling factor,
+        # so convert the physical work area into logical units before
+        # clamping (leave room for the OS title bar).
+        try:
+            scale = float(self._get_window_scaling())
+        except Exception:
+            scale = 1.0
+        titlebar = int(36 * scale)
+        win_w = min(WIN_W, int(work_w / scale))
+        win_h = min(WIN_H, int((work_h - titlebar) / scale))
+        x = work_x + max(0, (work_w - int(win_w * scale)) // 2)
+        y = work_y + max(0, (work_h - titlebar - int(win_h * scale)) // 2)
+        self.minsize(min(800, win_w), min(560, win_h))
+        self.geometry(f"{win_w}x{win_h}+{x}+{y}")
 
         # Single source of truth for wizard data + the navigation stack
         self.app_state = AppState()
