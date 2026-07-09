@@ -7,7 +7,6 @@ and shows a fleet-wide grade governed by the weakest reachable machine.
 
 import datetime
 import threading
-from pathlib import Path
 from tkinter import filedialog
 
 import customtkinter as ctk
@@ -42,6 +41,7 @@ from src.gui.theme import (
 )
 from src.agents.master_coordinator import (
     DEFAULT_PORT,
+    DEFAULT_SCHEME,
     FleetReport,
     Node,
     discover_nodes,
@@ -320,7 +320,7 @@ class FleetScanScreen(CancellableScreenMixin, ctk.CTkFrame):
 
     def _add_entry(self, host, port, hostname=None, agent_version=None,
                    reachable=True, manual=False, selected=True):
-        url = f"http://{host}:{port}"
+        url = f"{DEFAULT_SCHEME}://{host}:{port}"
         if url in self._entries:
             return False
         self._entries[url] = {
@@ -406,8 +406,10 @@ class FleetScanScreen(CancellableScreenMixin, ctk.CTkFrame):
             results = discover_nodes(port=port, timeout=0.7, progress=_progress)
         except Exception as exc:
             results = []
-            self._safe_after(0, lambda: self._show_message(
-                f"Discovery failed: {exc}", CLR_DANGER))
+            # Bind the message now — the except alias is gone by the time
+            # the deferred lambda runs on the Tk main loop.
+            msg = f"Discovery failed: {exc}"
+            self._safe_after(0, lambda: self._show_message(msg, CLR_DANGER))
         self._safe_after(0, lambda: self._finish_discovery(results))
 
     def _finish_discovery(self, results):
@@ -499,7 +501,9 @@ class FleetScanScreen(CancellableScreenMixin, ctk.CTkFrame):
             from src.utils.local_db import save_fleet_report
             save_fleet_report(report.to_dict())
         except Exception:
-            pass
+            import logging
+            logging.getLogger(__name__).warning(
+                "could not save fleet report to history", exc_info=True)
 
         gs = GRADE_STYLE.get(report.fleet_grade, GRADE_STYLE["NO DATA"])
 

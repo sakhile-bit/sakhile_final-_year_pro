@@ -377,7 +377,9 @@ def get_reassessment_date():
         if row:
             return datetime.date.fromisoformat(row[0])
     except Exception:
-        pass
+        import logging
+        logging.getLogger(__name__).debug(
+            "could not read reassessment date", exc_info=True)
     return None
 
 

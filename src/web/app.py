@@ -1603,7 +1603,7 @@ def check_outdated_software():
     try:
         result = subprocess.run(
             [platform.system() == 'Windows' and 'pip' or 'pip3', 'list', '--outdated', '--format=json'],
-            capture_output=True, text=True, timeout=30, shell=(platform.system() == 'Windows')
+            capture_output=True, text=True, timeout=30,
         )
         if result.returncode == 0 and result.stdout.strip():
             packages = json.loads(result.stdout)
@@ -1625,7 +1625,9 @@ def check_weak_passwords():
                     weak.append(u.username)
                     break
     except Exception:
-        pass
+        import logging
+        logging.getLogger(__name__).debug(
+            "weak-password sweep failed", exc_info=True)
     return weak if weak else []
 
 
@@ -1634,8 +1636,9 @@ def check_antivirus_status():
     try:
         if platform.system() == 'Windows':
             result = subprocess.run(
-                'powershell -Command "Get-MpComputerStatus | Select-Object -ExpandProperty AntivirusEnabled"',
-                shell=True, capture_output=True, text=True, timeout=10
+                ['powershell', '-Command',
+                 'Get-MpComputerStatus | Select-Object -ExpandProperty AntivirusEnabled'],
+                capture_output=True, text=True, timeout=10
             )
             if result.returncode == 0 and 'True' in result.stdout:
                 return 'Windows Defender enabled'
@@ -1656,8 +1659,8 @@ def check_disk_encryption():
     try:
         if platform.system() == 'Windows':
             result = subprocess.run(
-                'manage-bde -status C:',
-                shell=True, capture_output=True, text=True, timeout=10
+                ['manage-bde', '-status', 'C:'],
+                capture_output=True, text=True, timeout=10
             )
             if result.returncode == 0 and 'Fully Encrypted' in result.stdout:
                 return 'BitLocker enabled on C:'
@@ -1665,7 +1668,8 @@ def check_disk_encryption():
                 return 'BitLocker not fully enabled'
             return 'Unable to determine BitLocker status'
         elif platform.system() == 'Linux':
-            result = subprocess.run('lsblk -o NAME,TYPE,MOUNTPOINT', shell=True, capture_output=True, text=True)
+            result = subprocess.run(['lsblk', '-o', 'NAME,TYPE,MOUNTPOINT'],
+                                    capture_output=True, text=True)
             if 'crypt' in result.stdout:
                 return 'LUKS encryption detected'
             return 'No disk encryption detected'
@@ -1734,7 +1738,7 @@ def check_http_to_https(domain='localhost'):
     if _requests is None:
         return 'requests library not available'
     try:
-        url = f'http://{domain}'
+        url = f'http://{domain}'  # nosec — probing whether HTTP redirects to HTTPS
         response = _requests.get(url, allow_redirects=True, timeout=5)
         final = response.url
         if final.startswith('https://'):
@@ -1763,10 +1767,12 @@ def check_backup_status(path='/backups'):
 def check_patch_status():
     try:
         if platform.system() == 'Windows':
-            result = subprocess.run('wmic qfe get HotFixID,InstalledOn', shell=True, capture_output=True, text=True)
+            result = subprocess.run(['wmic', 'qfe', 'get', 'HotFixID,InstalledOn'],
+                                    capture_output=True, text=True)
             return result.stdout if result.returncode == 0 else "Patch status unavailable"
         else:
-            result = subprocess.run('apt list --upgradable', shell=True, capture_output=True, text=True)
+            result = subprocess.run(['apt', 'list', '--upgradable'],
+                                    capture_output=True, text=True)
             upgradable = [line for line in result.stdout.split('\n') if 'upgradable' in line]
             return f"Upgradable: {len(upgradable)} packages" if upgradable else "All packages up to date"
     except Exception as e:
@@ -2342,7 +2348,9 @@ def verify(certificate_number):
         try:
             business_name = cert.assessment.business.name if cert.assessment and cert.assessment.business else None
         except Exception:
-            pass
+            import logging
+            logging.getLogger(__name__).debug(
+                "certificate has no business record", exc_info=True)
         issued_date = cert.issued_date
         expiry_date = cert.expiry_date
         level = cert.assessment.certification_level if cert.assessment else None
@@ -2464,7 +2472,9 @@ def _net_arp_hosts(prefix: str) -> list[str]:
             if m and m.group(1).startswith(prefix):
                 hosts.add(m.group(1))
     except Exception:
-        pass
+        import logging
+        logging.getLogger(__name__).debug("ARP table read failed",
+                                          exc_info=True)
     return sorted(hosts)
 
 
@@ -2481,7 +2491,9 @@ def network_scan():
         local_ip = s.getsockname()[0]
         s.close()
     except Exception:
-        pass
+        import logging
+        logging.getLogger(__name__).debug(
+            "local IP detection failed — using 127.0.0.1", exc_info=True)
 
     if request.method == 'POST':
         subnet = request.form.get('subnet', '.'.join(local_ip.split('.')[:3])).strip()

@@ -514,7 +514,8 @@ class DigitalHygieneAssessor:
                 winreg.CloseKey(key)  # type: ignore[attr-defined]
                 auto_update_enabled = (no_auto == 0)
             except Exception:
-                pass  # Key absent = default enabled
+                # Key absent = default enabled
+                logger.debug("no WindowsUpdate policy key", exc_info=True)
 
             # 3. Pending restart flag
             pending_restart = False
@@ -527,7 +528,8 @@ class DigitalHygieneAssessor:
                     pending_restart = True
                     break
                 except Exception:
-                    pass
+                    logger.debug("no reboot-pending key %s", reg_path,
+                                 exc_info=True)
 
             # 4. Last successful install from registry
             days_since = 999
@@ -561,7 +563,8 @@ class DigitalHygieneAssessor:
                             except ValueError:
                                 continue
                 except Exception:
-                    pass
+                    logger.debug("could not parse last-update date",
+                                 exc_info=True)
 
             # Score calculation
             if svc_running or auto_update_enabled:
@@ -675,7 +678,7 @@ class DigitalHygieneAssessor:
                     if scan_age is not None and scan_age < 30:
                         findings.append(f"Last quick scan: {scan_age}d ago")
             except Exception:
-                pass
+                logger.debug("Defender status query failed", exc_info=True)
 
             # ── Fallback: registry installed-programs scan ────────────────────
             if not ps_ok:
@@ -703,11 +706,12 @@ class DigitalHygieneAssessor:
                                             findings.append(f"AV detected via registry: {name}")
                                             break
                                 except Exception:
-                                    pass
+                                    logger.debug("unreadable uninstall entry",
+                                                 exc_info=True)
                         if av_name:
                             break
                     except Exception:
-                        pass
+                        logger.debug("AV registry scan failed", exc_info=True)
 
                 if not av_name:
                     findings.append("No antivirus detected via registry or PowerShell")
@@ -934,11 +938,13 @@ class DigitalHygieneAssessor:
                                 except StopIteration:
                                     raise
                                 except Exception:
-                                    pass
+                                    logger.debug("unreadable uninstall entry",
+                                                 exc_info=True)
                     except StopIteration:
                         break
                     except Exception:
-                        pass
+                        logger.debug("backup registry scan failed",
+                                     exc_info=True)
 
             # 2. Windows File History service
             try:
@@ -948,7 +954,8 @@ class DigitalHygieneAssessor:
                     score += 2
                     findings.append("Windows File History active")
             except Exception:
-                pass
+                logger.debug("File History service query failed",
+                             exc_info=True)
 
             # 3. Volume Shadow Copy (VSS) — snapshot-based backup
             try:
@@ -961,7 +968,7 @@ class DigitalHygieneAssessor:
                 elif r.returncode == 0:
                     findings.append("VSS: no shadow copies — configure automatic backups")
             except Exception:
-                pass
+                logger.debug("VSS query failed", exc_info=True)
 
             # 4. Cloud backup: OneDrive / Google Drive / Dropbox
             cloud_paths = {
@@ -1385,7 +1392,7 @@ class DigitalHygieneAssessor:
                     pending_reboot = True
                     break
                 except Exception:
-                    pass
+                    logger.debug("no reboot-pending key %s", rk, exc_info=True)
 
             if pending_reboot:
                 signals.append('Reboot required to apply pending updates')
@@ -1412,7 +1419,8 @@ class DigitalHygieneAssessor:
                     except ValueError:
                         pass
             except Exception:
-                pass
+                logger.debug("last-update timestamp check failed",
+                             exc_info=True)
 
             # 3. WUA service state as a final signal
             try:
@@ -1423,7 +1431,7 @@ class DigitalHygieneAssessor:
                 else:
                     signals.append('Windows Update service is NOT running')
             except Exception:
-                pass
+                logger.debug("wuauserv service query failed", exc_info=True)
 
             detail = '; '.join(signals) if signals else 'Unable to determine update status'
             if pending_reboot:
@@ -1743,7 +1751,7 @@ class InfrastructureAssessor:
                 # DNS failure or host unreachable — don't mark as reachable
                 pass
             except Exception:
-                pass
+                logger.debug("TLS version probe failed", exc_info=True)
         if not reachable:
             return 'Unable to check – host unreachable or DNS resolution failed'
         if issues:
@@ -1754,7 +1762,7 @@ class InfrastructureAssessor:
         try:
             import urllib.request
 
-            url = f'http://{self.target}'
+            url = f'http://{self.target}'  # nosec — probing whether HTTP redirects to HTTPS
             req = urllib.request.Request(url, method='GET')
             opener = urllib.request.build_opener(urllib.request.HTTPRedirectHandler())
             response = opener.open(req, timeout=5)
@@ -1779,7 +1787,8 @@ class InfrastructureAssessor:
         if self.target in ('localhost', '127.0.0.1'):
             try:
                 import urllib.request
-                response = urllib.request.urlopen(f'http://{self.target}', timeout=3)
+                response = urllib.request.urlopen(
+                    f'http://{self.target}', timeout=3)  # nosec — local-host header probe
                 resp_headers = {k.lower(): v for k, v in response.headers.items()}
             except Exception:
                 return {h: 'Unable to check (local host)' for h in required_headers}
@@ -1796,7 +1805,8 @@ class InfrastructureAssessor:
             except Exception:
                 try:
                     import urllib.request
-                    response = urllib.request.urlopen(f'http://{self.target}', timeout=5)
+                    response = urllib.request.urlopen(
+                        f'http://{self.target}', timeout=5)  # nosec — HTTP fallback header probe
                     resp_headers = {k.lower(): v for k, v in response.headers.items()}
                 except Exception as exc:
                     return {h: f'Cannot reach target: {exc}' for h in required_headers}

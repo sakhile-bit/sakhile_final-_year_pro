@@ -10,6 +10,7 @@ the collected wizard inputs.
 """
 from __future__ import annotations
 
+import datetime
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Set
 
@@ -29,14 +30,57 @@ _AUTO_CONTROL_SUFFIX = {
 
 @dataclass
 class AppState:
-    """Mutable state for one pass through the assessment wizard."""
+    """The app's in-memory state: the current session + the wizard's data.
 
+    A single instance lives for the whole run. Because it is reused across
+    sign-ins, ``end_session`` wipes *everything* so one operator's data can
+    never bleed into the next session on the same machine.
+    """
+
+    # ── Session ───────────────────────────────────────────────────────
+    authenticated: bool = False
+    username: str = ""
+    session_started: Optional[datetime.datetime] = None
+
+    # ── Assessment wizard ─────────────────────────────────────────────
     business_info: Optional[Any] = None
     selected_tools: Set[str] = field(default_factory=set)
     auto_results: Dict[str, Any] = field(default_factory=dict)
     manual_scores: Dict[str, int] = field(default_factory=dict)
     evidence: Dict[str, Any] = field(default_factory=dict)
 
+    # ── Session lifecycle ─────────────────────────────────────────────
+    def start_session(self, username: str) -> None:
+        """Begin an authenticated session with a clean slate."""
+        self.reset_assessment()
+        self.authenticated = True
+        self.username = username or ""
+        self.session_started = datetime.datetime.now()
+        logger.info("Session started (%s)", self.username or "user")
+
+    def end_session(self) -> None:
+        """Tear the session down and wipe ALL in-memory state.
+
+        After this the app holds nothing about the previous operator or their
+        assessment — the next person must sign in and starts fresh.
+        """
+        who = self.username or "user"
+        self.reset_assessment()
+        self.authenticated = False
+        self.username = ""
+        self.session_started = None
+        logger.info("Session ended (%s)", who)
+
+    def has_active_assessment(self) -> bool:
+        """True once the operator has started entering an assessment."""
+        return self.business_info is not None
+
+    def session_duration(self) -> Optional[datetime.timedelta]:
+        if self.session_started is None:
+            return None
+        return datetime.datetime.now() - self.session_started
+
+    # ── Assessment wizard ─────────────────────────────────────────────
     def reset_assessment(self) -> None:
         """Clear all wizard data so the next assessment starts clean."""
         self.business_info = None

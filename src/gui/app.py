@@ -56,7 +56,9 @@ class DigitalHygieneApp(ctk.CTk):
                 logging.DEBUG if get_bool_setting("detailed_logging", False)
                 else logging.INFO)
         except Exception:
-            pass
+            import logging
+            logging.getLogger(__name__).debug(
+                "could not apply detailed-logging setting", exc_info=True)
 
         # Route through auth before showing the app
         from src.utils.auth import is_setup
@@ -70,9 +72,10 @@ class DigitalHygieneApp(ctk.CTk):
     # ─────────────────────────────────────── auth / session screens
     def _show_setup(self):
         from src.gui.screens.setup_screen import SetupScreen
+        # First run: creating credentials also authenticates the operator.
         self.router.reset_to(
             "setup",
-            lambda: SetupScreen(self, on_done=self._show_welcome))
+            lambda: SetupScreen(self, on_done=self._on_authenticated))
 
     def _show_lock(self, ended: bool = False):
         """Show the locked state (no active session)."""
@@ -91,12 +94,61 @@ class DigitalHygieneApp(ctk.CTk):
         from src.gui.screens.login_screen import LoginScreen
         # Modal popup over the lock screen. Cancelling returns to the lock
         # screen (already shown) rather than exiting the app.
-        LoginScreen(self, on_success=self._show_welcome, on_cancel=lambda: None)
+        LoginScreen(self, on_success=self._on_authenticated,
+                    on_cancel=lambda: None)
+
+    def _on_authenticated(self):
+        """Called once the operator has signed in — open a clean session."""
+        from src.utils.auth import get_username
+        self.app_state.start_session(get_username())
+        self._show_welcome()
 
     def _terminate_session(self):
-        """Log the user out and return to the locked state."""
-        self.app_state.reset_assessment()
+        """Ask to confirm, then end the session and lock the app."""
+        self._confirm_terminate()
+
+    def _do_terminate(self):
+        """Tear down the session: wipe all state and return to the lock."""
+        self.app_state.end_session()
         self._show_lock(ended=True)
+
+    def _confirm_terminate(self):
+        """Confirmation dialog for signing out."""
+        from src.gui.theme import (
+            CLR_SURFACE, CLR_SURFACE_ALT, CLR_SURFACE_HVR, CLR_WARNING,
+            CLR_TEXT, CLR_TEXT_SEC, CLR_DANGER, BTN_H, BTN_R,
+            FONT_SUBHEAD, FONT_SMALL,
+        )
+        in_progress = self.app_state.has_active_assessment()
+        dlg = ctk.CTkToplevel(self)
+        dlg.title("End session")
+        dlg.geometry("420x190")
+        dlg.resizable(False, False)
+        dlg.configure(fg_color=CLR_SURFACE)
+        dlg.transient(self)
+        dlg.grab_set()
+        ctk.CTkLabel(dlg, text="⏻  End your session?",
+                     font=FONT_SUBHEAD, text_color=CLR_WARNING,
+                     ).pack(pady=(22, 6))
+        msg = ("You'll need to sign in again to continue. All in-memory data "
+               "is cleared when you sign out.")
+        if in_progress:
+            msg = ("You have an assessment in progress that will be discarded. "
+                   + msg)
+        ctk.CTkLabel(dlg, text=msg, font=FONT_SMALL, text_color=CLR_TEXT_SEC,
+                     wraplength=370, justify="center",
+                     ).pack(pady=(0, 16), padx=16)
+        btns = ctk.CTkFrame(dlg, fg_color="transparent")
+        btns.pack()
+        ctk.CTkButton(btns, text="Cancel", command=dlg.destroy,
+                      fg_color=CLR_SURFACE_ALT, hover_color=CLR_SURFACE_HVR,
+                      text_color=CLR_TEXT, height=BTN_H, corner_radius=BTN_R,
+                      width=130).pack(side="left", padx=6)
+        ctk.CTkButton(btns, text="⏻  End session",
+                      command=lambda: (dlg.destroy(), self._do_terminate()),
+                      fg_color=CLR_DANGER, hover_color="#B22222",
+                      text_color="#ffffff", height=BTN_H, corner_radius=BTN_R,
+                      width=150).pack(side="left", padx=6)
 
     # ─────────────────────────────────────── home
     def _show_welcome(self):

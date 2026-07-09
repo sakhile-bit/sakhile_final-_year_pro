@@ -33,6 +33,9 @@ from typing import Any, Dict, List, Optional
 
 from src.security.monitoring.checks import get_logging_hygiene
 from src.security.siem.forwarder import WebhookForwarder, build_siem_event
+from src.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -259,8 +262,8 @@ class PreDeploymentChecker:
         try:
             if platform.system() == 'Windows':
                 r = subprocess.run(
-                    'netsh advfirewall show allprofiles state',
-                    capture_output=True, text=True, timeout=10, shell=True,
+                    ['netsh', 'advfirewall', 'show', 'allprofiles', 'state'],
+                    capture_output=True, text=True, timeout=10,
                 )
                 on_count = r.stdout.lower().count('on')
                 if on_count >= 3:
@@ -287,13 +290,11 @@ class PreDeploymentChecker:
         """PDC-03: Detect running antivirus / Windows Defender."""
         try:
             if platform.system() == 'Windows':
-                ps_av = (
-                    'powershell -Command "Get-MpComputerStatus'
-                    ' | Select-Object -ExpandProperty RealTimeProtectionEnabled"'
-                )
                 r = subprocess.run(
-                    ps_av,
-                    capture_output=True, text=True, timeout=10, shell=True,
+                    ['powershell', '-Command',
+                     'Get-MpComputerStatus'
+                     ' | Select-Object -ExpandProperty RealTimeProtectionEnabled'],
+                    capture_output=True, text=True, timeout=10,
                 )
                 if 'true' in r.stdout.strip().lower():
                     return CheckResult('PDC-03', 'Antivirus / Defender', True, 'HIGH',
@@ -318,8 +319,8 @@ class PreDeploymentChecker:
         try:
             if platform.system() == 'Windows':
                 r = subprocess.run(
-                    'manage-bde -status C:',
-                    capture_output=True, text=True, timeout=10, shell=True,
+                    ['manage-bde', '-status', 'C:'],
+                    capture_output=True, text=True, timeout=10,
                 )
                 if 'fully encrypted' in r.stdout.lower() or 'percentage encrypted: 100' in r.stdout.lower():
                     return CheckResult('PDC-04', 'Disk Encryption', True, 'MEDIUM',
@@ -366,11 +367,16 @@ class PreDeploymentChecker:
                                                 sub, 'DisplayName')[0]
                                             products.append(name)
                                         except Exception:
-                                            pass
+                                            logger.debug(
+                                                "entry has no DisplayName",
+                                                exc_info=True)
                                 except Exception:
-                                    pass
+                                    logger.debug(
+                                        "unreadable uninstall subkey",
+                                        exc_info=True)
                     except Exception:
-                        pass
+                        logger.debug("uninstall key scan failed",
+                                     exc_info=True)
 
                 if not products:
                     return CheckResult('PDC-14', 'Software Inventory', True, 'LOW',
@@ -432,7 +438,7 @@ class PreDeploymentChecker:
                     if s.connect_ex(('127.0.0.1', port)) == 0:
                         open_found.append(f'{name}({port})')
             except Exception:
-                pass
+                logger.debug("port %s probe failed", port, exc_info=True)
 
         if not open_found:
             return CheckResult('PDC-05', 'Open Ports', True, 'HIGH',
@@ -594,7 +600,7 @@ class PreDeploymentChecker:
                             hits.append(f'{rel}:{lineno}')
                             break  # one hit per file is enough
             except Exception:
-                pass
+                logger.debug("could not scan %s", pyfile, exc_info=True)
 
         if not hits:
             return CheckResult('PDC-12', 'Hard-coded Secrets', True, 'CRITICAL',

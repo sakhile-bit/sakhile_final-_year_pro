@@ -19,16 +19,20 @@ project_root = str(Path(__file__).resolve().parent)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+
 def _show_error(exc_type, exc_value, exc_tb):
     msg = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
     try:
         _mb.showerror("Unhandled Error", msg)
     except Exception:
-        pass
+        # No display available (e.g. Tk already torn down) — log instead.
+        import logging
+        logging.getLogger("windows_app").error("Unhandled error:\n%s", msg)
+
 
 sys.excepthook = _show_error
 
-from src.gui.app import DigitalHygieneApp
+from src.gui.app import DigitalHygieneApp  # noqa: E402 — needs sys.path set up first
 
 if __name__ == "__main__":
     app = DigitalHygieneApp()

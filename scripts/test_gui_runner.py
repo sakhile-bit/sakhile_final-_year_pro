@@ -2,6 +2,7 @@
 GUI test driver — win32gui for exact client coords, per-screen back-button side.
 Run: .venv/Scripts/python test_gui_runner.py
 """
+import logging
 import subprocess
 import time
 import pathlib
@@ -56,14 +57,11 @@ def client_rect(win):
 
 
 def focus(win):
-    try:
-        win.restore()
-    except Exception:
-        pass
-    try:
-        win.activate()
-    except Exception:
-        pass
+    for op in (win.restore, win.activate):
+        try:
+            op()
+        except Exception as exc:
+            logging.warning("window %s failed: %s", op.__name__, exc)
     time.sleep(0.5)
     pyautogui.click(win.left + win.width // 2, win.top + 15)
     time.sleep(0.4)

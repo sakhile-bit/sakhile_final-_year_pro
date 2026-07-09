@@ -24,6 +24,9 @@ from src.gui.theme import (
     PAD, PAD_SM, NAV_H, BTN_H, BTN_R,
 )
 from src.gui.screens.business_info import _header
+from src.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # ── Port catalogue ────────────────────────────────────────────────────────────
 SCAN_PORTS = [21, 22, 23, 25, 53, 80, 135, 139, 443, 445,
@@ -144,7 +147,7 @@ def _get_arp_devices(prefix: str) -> dict:
                 if ip.startswith(prefix):
                     devices[ip] = mac
     except Exception:
-        pass
+        logger.debug("ARP table read failed", exc_info=True)
     return devices
 
 
@@ -424,7 +427,7 @@ class NetworkScannerScreen(ctk.CTkFrame):
                     if fut.result():
                         live_ips.add(f"{prefix}.{octet}")
                 except Exception:
-                    pass
+                    logger.debug("ping sweep worker failed", exc_info=True)
 
         self._scan_total = len(live_ips)
         self.after(0, self._status_var.set,
@@ -449,7 +452,7 @@ class NetworkScannerScreen(ctk.CTkFrame):
                     self.after(0, self._progress.set, pct)
                     self.after(0, self._on_device_found, device)
                 except Exception:
-                    pass
+                    logger.debug("device probe worker failed", exc_info=True)
 
         self.after(0, self._scan_complete)
 
@@ -468,7 +471,7 @@ class NetworkScannerScreen(ctk.CTkFrame):
                     if fut.result():
                         dev.open_ports.append(port)
                 except Exception:
-                    pass
+                    logger.debug("port scan worker failed", exc_info=True)
 
         dev.open_ports.sort()
         if is_gateway:
@@ -513,7 +516,7 @@ class NetworkScannerScreen(ctk.CTkFrame):
             try:
                 existing.destroy()
             except Exception:
-                pass
+                logger.debug("stale device card destroy failed", exc_info=True)
 
         # Hide placeholder
         if hasattr(self, "_placeholder") and self._placeholder.winfo_exists():

@@ -97,8 +97,10 @@ CAT_ICON = {
 class CodeSecurityChecker:
     """Scans source files for common security anti-patterns."""
 
+    # tests/ and scripts/ hold dev-only tooling that never ships — scanning
+    # them buries real findings in noise (fixture URLs, UI-automation hacks).
     SKIP_DIRS = {".git", "__pycache__", "node_modules", "venv", ".venv",
-                 "dist", "build", ".tox", "htmlcov"}
+                 "dist", "build", ".tox", "htmlcov", "tests", "scripts"}
     CODE_EXT  = {".py", ".js", ".ts", ".jsx", ".tsx", ".php", ".rb",
                  ".go", ".java", ".cs"}
     CONFIG_EXT = {".env", ".json", ".yaml", ".yml", ".ini", ".conf",
@@ -120,11 +122,25 @@ class CodeSecurityChecker:
         ]
 
     def _code_files(self):
+        self_file = Path(__file__).resolve()
         for dirpath, dirs, files in os.walk(self.root):
             dirs[:] = [d for d in dirs if d not in self.SKIP_DIRS]
             for fname in files:
-                if Path(fname).suffix in self.CODE_EXT:
-                    yield Path(dirpath) / fname
+                if Path(fname).suffix not in self.CODE_EXT:
+                    continue
+                fpath = Path(dirpath) / fname
+                # Never scan this scanner's own source — its regex patterns
+                # and remediation strings would match themselves.
+                try:
+                    if fpath.resolve() == self_file:
+                        continue
+                except OSError:
+                    pass
+                if (fname == self_file.name
+                        and any("class CodeSecurityChecker" in ln
+                                for ln in self._read(fpath))):
+                    continue
+                yield fpath
 
     def _read(self, path: Path) -> list:
         try:
@@ -143,6 +159,10 @@ class CodeSecurityChecker:
             for i, line in enumerate(lines, 1):
                 stripped = line.lstrip()
                 if stripped.startswith(("#", "//")):
+                    continue
+                if "# nosec" in line:
+                    # Explicit waiver — e.g. probes that deliberately test
+                    # whether a target exposes plain HTTP.
                     continue
                 if pattern.search(line):
                     rel = fpath.relative_to(self.root)
@@ -412,9 +432,12 @@ class CodeSecurityChecker:
             )
             for m in matches[:2]:
                 line_no = text[:m.start()].count("\n") + 1
-                # Only flag if the except block contains 'pass' or no re-raise
-                ctx = "\n".join(lines[line_no - 1: line_no + 3])
-                if "pass" in ctx or "log" not in ctx.lower():
+                # Flag only truly silent handlers whose body does nothing
+                # but ``pass`` (bandit B110 style). Handlers that return a
+                # fallback, log, or otherwise react are legitimate.
+                body = [ln.strip() for ln in lines[line_no: line_no + 3]
+                        if ln.strip() and not ln.strip().startswith("#")]
+                if body and body[0] == "pass":
                     rel = fpath.relative_to(self.root)
                     hits.append(f"{rel}:{line_no}")
             if len(hits) >= 5:

@@ -251,7 +251,9 @@ class BusinessInfoScreen(ctk.CTkFrame):
             if saved_province in PROVINCES:
                 self._vars["province"].set(saved_province)
         except Exception:
-            pass
+            import logging
+            logging.getLogger(__name__).debug(
+                "could not prefill saved organisation details", exc_info=True)
 
         # Validation error label
         ctk.CTkLabel(

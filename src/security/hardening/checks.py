@@ -213,7 +213,8 @@ def _service_state(name: str) -> str:
         if "1060" in query.stdout or "DOES NOT EXIST" in out:
             return "ABSENT"
     except Exception:
-        pass
+        logger.debug("service state query failed for %s", name,
+                     exc_info=True)
     return "UNKNOWN"
 
 
@@ -227,7 +228,7 @@ def _run_powershell(command: str, timeout: int = 20) -> str:
         if result.returncode == 0:
             return result.stdout.strip()
     except Exception:
-        pass
+        logger.debug("PowerShell command failed", exc_info=True)
     return ""
 
 

@@ -14,18 +14,20 @@ Node inventory format (YAML or JSON)::
 
     nodes:
       - name: file-server
-        url: http://192.168.1.10:8765
+        url: 192.168.1.10:8765
         token: shared-secret
       - name: pos-backoffice
-        url: http://192.168.1.11:8765
+        url: 192.168.1.11:8765
         token: shared-secret
 
 A top-level ``token`` may be given as a default for nodes that omit one.
+Bare ``host:port`` entries are expanded with :data:`DEFAULT_SCHEME`.
 """
 from __future__ import annotations
 
 import concurrent.futures
 import json
+import os
 import socket
 import urllib.error
 import urllib.request
@@ -39,6 +41,10 @@ from src.utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 DEFAULT_PORT = 8765
+# Scheme used for node-agent URLs. Agents on a trusted LAN speak plain
+# HTTP by default (with token auth); set ZDH_NODE_SCHEME=https when the
+# agents are served behind TLS.
+DEFAULT_SCHEME = os.environ.get("ZDH_NODE_SCHEME", "http")
 NODE_STATUS_ONLINE = "online"
 NODE_STATUS_OFFLINE = "offline"
 NODE_STATUS_UNAUTHORIZED = "unauthorized"
@@ -210,17 +216,18 @@ def load_nodes(path: str) -> List[Node]:
 
 
 def normalize_node_url(raw: str) -> str:
-    """Return a fully-qualified http URL with a port for a host/url string.
+    """Return a fully-qualified URL with a port for a host/url string.
 
-    Accepts ``host``, ``host:port``, ``http://host`` or ``http://host:port``
-    and always yields ``scheme://host:port``. This is what makes the bare
-    ``host:port`` shorthand in an inventory actually usable.
+    Accepts a bare ``host``, ``host:port``, or a full ``scheme://host[:port]``
+    URL and always yields ``scheme://host:port``. This is what makes the bare
+    ``host:port`` shorthand in an inventory actually usable. Bare hosts get
+    :data:`DEFAULT_SCHEME`; an explicit scheme in the input is kept as-is.
     """
     url = str(raw).strip()
     if not url:
         return ""
     if "://" not in url:
-        url = "http://" + url
+        url = f"{DEFAULT_SCHEME}://" + url
     scheme, _, rest = url.partition("://")
     host_part = rest.split("/", 1)[0]        # strip any path
     if ":" not in host_part:                  # no explicit port
@@ -385,7 +392,7 @@ def subnet_hosts(cidr24: Optional[str] = None) -> List[str]:
 def probe_node(host: str, port: int = DEFAULT_PORT,
                timeout: float = 0.7) -> Optional[Dict[str, Any]]:
     """Probe a host's /health endpoint; return node info if an agent answers."""
-    url = f"http://{host}:{port}/health"
+    url = f"{DEFAULT_SCHEME}://{host}:{port}/health"
     try:
         req = urllib.request.Request(url, method="GET")
         with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -394,7 +401,7 @@ def probe_node(host: str, port: int = DEFAULT_PORT,
                 return {
                     "host": host,
                     "port": port,
-                    "url": f"http://{host}:{port}",
+                    "url": f"{DEFAULT_SCHEME}://{host}:{port}",
                     "hostname": data.get("hostname", host),
                     "agent_version": data.get("agent_version", "?"),
                 }
@@ -438,7 +445,7 @@ def discover_nodes(port: int = DEFAULT_PORT, timeout: float = 0.7,
                 try:
                     progress(done, total, result)
                 except Exception:
-                    pass
+                    logger.debug("progress callback failed", exc_info=True)
 
     found.sort(key=lambda d: tuple(int(x) for x in d["host"].split(".")))
     logger.info("Discovery complete: %d node agent(s) found", len(found))
@@ -476,7 +483,7 @@ def scan_fleet(nodes: List[Node], timeout: float = 60.0,
                 try:
                     progress(len(results), total, result)
                 except Exception:
-                    pass
+                    logger.debug("progress callback failed", exc_info=True)
 
     # Keep the original inventory order for stable presentation
     order = {node.name: i for i, node in enumerate(nodes)}

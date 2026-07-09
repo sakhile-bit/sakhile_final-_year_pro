@@ -5,6 +5,10 @@ import platform
 import subprocess
 from typing import Dict, Any, Optional
 
+from src.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 try:
     from ldap3 import Server, Connection, ALL
     _HAS_LDAP = True
@@ -26,7 +30,7 @@ def get_domain_name() -> Optional[str]:
             if domain and domain.upper() != 'WORKGROUP':
                 return domain
     except Exception:
-        pass
+        logger.debug("domain lookup failed", exc_info=True)
     return None
 
 

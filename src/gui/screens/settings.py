@@ -285,7 +285,9 @@ class SettingsScreen(ctk.CTkFrame):
             import subprocess
             subprocess.Popen(["xdg-open", folder])
         except Exception:
-            pass
+            import logging
+            logging.getLogger(__name__).warning(
+                "could not open database folder", exc_info=True)
 
     def _confirm_clear(self):
         dlg = ctk.CTkToplevel(self)
@@ -318,7 +320,9 @@ class SettingsScreen(ctk.CTkFrame):
         try:
             local_db.clear_history()
         except Exception:
-            pass
+            import logging
+            logging.getLogger(__name__).warning(
+                "could not clear assessment history", exc_info=True)
         dlg.destroy()
         self._switch_tab("storage")   # refresh counts
         self._flash("History cleared.")

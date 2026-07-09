@@ -404,7 +404,9 @@ class ScanningScreen(CancellableScreenMixin, ctk.CTkFrame):
                     subprocess.run(cmd, capture_output=True,
                                    timeout=30, shell=False)
             except Exception:
-                pass
+                import logging
+                logging.getLogger(__name__).warning(
+                    "quick-fix command failed", exc_info=True)
             self._safe_after(0, self._recheck, cid)
 
         threading.Thread(target=run, daemon=True).start()

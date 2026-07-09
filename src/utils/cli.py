@@ -242,7 +242,9 @@ def scan(domain: str, backup_path: str, json_out: bool):
                     if s.connect_ex(('127.0.0.1', port)) == 0:
                         open_ports.append(port)
             except Exception:
-                pass
+                import logging
+                logging.getLogger(__name__).debug(
+                    "port %s probe failed", port, exc_info=True)
         results['open_ports'] = open_ports
         progress.update(task, advance=1)
 
@@ -547,7 +549,7 @@ def web(host: str, port: int, debug: bool):
         app = create_app()
         console.print(Panel.fit(
             f"[bold green]Web dashboard starting…[/bold green]\n"
-            f"[dim]http://{host}:{port}[/dim]",
+            f"[dim]http://{host}:{port}[/dim]",  # nosec — local dev server URL shown to the user
             title="🌐 Web Server"
         ))
         app.run(host=host, port=port, debug=debug)
@@ -843,7 +845,8 @@ def init_db():
             # Create default admin if none exists
             admin = WebUser.query.filter_by(role='admin').first()
             if not admin:
-                import os as _os, secrets as _sec
+                import os as _os
+                import secrets as _sec
                 _pw = _os.environ.get('ADMIN_DEFAULT_PASSWORD', '').strip() or _sec.token_urlsafe(16)
                 admin = WebUser(username='admin', email='admin@zambia-hygiene.local', role='admin')
                 admin.set_password(_pw)
@@ -1055,14 +1058,14 @@ def _check_firewall() -> str:
     try:
         if platform.system() == 'Windows':
             r = subprocess.run(
-                'netsh advfirewall show allprofiles state',
-                shell=True, capture_output=True, text=True, timeout=10
+                ['netsh', 'advfirewall', 'show', 'allprofiles', 'state'],
+                capture_output=True, text=True, timeout=10
             )
             if r.returncode == 0 and 'ON' in r.stdout.upper():
                 return 'Enabled'
             return 'Disabled / Unknown'
         elif platform.system() == 'Linux':
-            r = subprocess.run('ufw status', shell=True, capture_output=True, text=True, timeout=5)
+            r = subprocess.run(['ufw', 'status'], capture_output=True, text=True, timeout=5)
             if r.returncode == 0 and 'active' in r.stdout.lower():
                 return 'UFW active'
             return 'UFW inactive / not installed'
@@ -1075,8 +1078,9 @@ def _check_antivirus() -> str:
     try:
         if platform.system() == 'Windows':
             r = subprocess.run(
-                'powershell -Command "Get-MpComputerStatus | Select-Object -ExpandProperty AntivirusEnabled"',
-                shell=True, capture_output=True, text=True, timeout=10
+                ['powershell', '-Command',
+                 'Get-MpComputerStatus | Select-Object -ExpandProperty AntivirusEnabled'],
+                capture_output=True, text=True, timeout=10
             )
             if r.returncode == 0 and 'True' in r.stdout:
                 return 'Windows Defender enabled'
@@ -1095,7 +1099,7 @@ def _check_antivirus() -> str:
 def _check_disk_encryption() -> str:
     try:
         if platform.system() == 'Windows':
-            r = subprocess.run('manage-bde -status C:', shell=True,
+            r = subprocess.run(['manage-bde', '-status', 'C:'],
                                capture_output=True, text=True, timeout=10)
             if r.returncode == 0 and 'Fully Encrypted' in r.stdout:
                 return 'BitLocker enabled on C:'
@@ -1103,7 +1107,7 @@ def _check_disk_encryption() -> str:
                 return 'BitLocker not fully enabled'
             return 'Unable to determine BitLocker status'
         elif platform.system() == 'Linux':
-            r = subprocess.run('lsblk -o NAME,TYPE,MOUNTPOINT', shell=True,
+            r = subprocess.run(['lsblk', '-o', 'NAME,TYPE,MOUNTPOINT'],
                                capture_output=True, text=True)
             if 'crypt' in r.stdout:
                 return 'LUKS encryption detected'
@@ -1119,7 +1123,6 @@ def _check_outdated_packages() -> list:
         r = subprocess.run(
             [pip_cmd, 'list', '--outdated', '--format=json'],
             capture_output=True, text=True, timeout=30,
-            shell=(platform.system() == 'Windows')
         )
         if r.returncode == 0 and r.stdout.strip():
             packages = _json.loads(r.stdout)
@@ -1175,15 +1178,15 @@ def _check_backup_status(path: str = '/backups') -> str:
 def _check_patch_status() -> str:
     try:
         if platform.system() == 'Windows':
-            r = subprocess.run('wmic qfe get HotFixID,InstalledOn',
-                               shell=True, capture_output=True, text=True, timeout=15)
+            r = subprocess.run(['wmic', 'qfe', 'get', 'HotFixID,InstalledOn'],
+                               capture_output=True, text=True, timeout=15)
             if r.returncode == 0:
                 lines = [ln.strip() for ln in r.stdout.strip().split('\n') if ln.strip()]
                 return f"{len(lines) - 1} patches installed" if len(lines) > 1 else "Patch data unavailable"
             return "Patch status unavailable"
         else:
-            r = subprocess.run('apt list --upgradable 2>/dev/null',
-                               shell=True, capture_output=True, text=True, timeout=15)
+            r = subprocess.run(['apt', 'list', '--upgradable'],
+                               capture_output=True, text=True, timeout=15)
             upgradable = [ln for ln in r.stdout.split('\n') if 'upgradable' in ln]
             return f"{len(upgradable)} packages upgradable" if upgradable else "All packages up to date"
     except Exception as e:

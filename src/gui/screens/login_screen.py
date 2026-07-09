@@ -13,6 +13,9 @@ from src.gui.theme import (
     BTN_R,
 )
 from src.utils.auth import get_username, verify
+from src.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 _MAX_ATTEMPTS = 5
 _W, _H = 380, 400
@@ -145,7 +148,7 @@ class LoginScreen(ctk.CTkToplevel):
                 try:
                     self.attributes("-topmost", False)
                 except Exception:
-                    pass
+                    logger.debug("could not release topmost", exc_info=True)
 
             self.after(10, _release_topmost)
 
@@ -154,19 +157,20 @@ class LoginScreen(ctk.CTkToplevel):
             except Exception:
                 # grab_set can fail if another window holds the grab;
                 # the dialog still works — focus just isn't forced
-                pass
+                logger.debug("grab_set failed", exc_info=True)
 
             self.focus_force()
             self._password.focus()
         except Exception:
-            pass
+            logger.debug("could not force focus on login dialog",
+                         exc_info=True)
 
     def _cancel(self):
         """Dismiss the dialog — return to caller or exit the app."""
         try:
             self.grab_release()
         except Exception:
-            pass
+            logger.debug("grab_release failed", exc_info=True)
         self.destroy()
         if self._on_cancel is not None:
             self._on_cancel()

@@ -6,9 +6,12 @@ APScheduler or system services.
 """
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from typing import Callable
+
+logger = logging.getLogger(__name__)
 
 
 class SimpleScheduler:
@@ -29,7 +32,9 @@ class SimpleScheduler:
                         try:
                             f()
                         except Exception:
-                            pass
+                            logger.warning("scheduled job %r failed",
+                                           getattr(f, "__name__", f),
+                                           exc_info=True)
                         last_run[i] = now
                 time.sleep(1)
 

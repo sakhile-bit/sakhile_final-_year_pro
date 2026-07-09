@@ -336,7 +336,9 @@ class WelcomeScreen(ctk.CTkFrame):
                                  ).grid(padx=14, pady=8)
                     return
         except Exception:
-            pass
+            import logging
+            logging.getLogger(__name__).debug(
+                "reassessment reminder unavailable", exc_info=True)
 
     def _build_tools(self, parent, row):
         from src.utils.local_db import assessment_count
