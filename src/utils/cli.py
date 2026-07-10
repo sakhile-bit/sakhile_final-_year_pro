@@ -14,6 +14,9 @@ Usage (from project root):
     python cli.py web --debug
     python cli.py users list
     python cli.py users create --username dev1 --password secret
+    python cli.py session start
+    python cli.py session status
+    python cli.py session end
     python cli.py init-db
     python cli.py manual
     python cli.py status
@@ -952,6 +955,137 @@ def users_reset_password(username: str, password: str):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# session – sign in / sign out (shares the desktop app's credential store)
+# ──────────────────────────────────────────────────────────────────────────────
+
+_SESSION_KEYS = ("cli_session_user", "cli_session_token",
+                 "cli_session_started", "cli_session_expires")
+_MAX_SIGNIN_ATTEMPTS = 5   # same limit as the desktop sign-in dialog
+
+
+def _clear_session() -> None:
+    from src.utils.local_db import set_setting
+    for key in _SESSION_KEYS:
+        set_setting(key, "")
+
+
+def _active_session() -> Optional[dict]:
+    """Return the active CLI session, clearing it first if it expired."""
+    from src.utils.local_db import get_setting
+    user = get_setting("cli_session_user") or ""
+    expires = get_setting("cli_session_expires") or ""
+    if not user or not expires:
+        return None
+    try:
+        expires_at = datetime.fromisoformat(expires)
+    except ValueError:
+        _clear_session()
+        return None
+    if datetime.now() >= expires_at:
+        _clear_session()
+        return None
+    return {
+        "user": user,
+        "started": get_setting("cli_session_started") or "",
+        "expires": expires_at,
+    }
+
+
+@cli.group()
+def session():
+    """Manage the signed-in CLI session (start, status, end)."""
+    pass
+
+
+@session.command('start')
+@click.option('--hours', default=8, type=click.IntRange(1, 24),
+              show_default=True, help='How long the session stays valid')
+def session_start(hours: int):
+    """Sign in with the same local credentials as the desktop app."""
+    import secrets
+    from datetime import timedelta
+    from src.utils.auth import get_username, is_setup, verify
+    from src.utils.local_db import set_setting
+
+    if not is_setup():
+        console.print("[yellow]No credentials found — run the desktop app "
+                      "once to create your username and password.[/yellow]")
+        sys.exit(1)
+
+    current = _active_session()
+    if current:
+        console.print(f"[dim]Replacing the active session for "
+                      f"'{current['user']}'.[/dim]")
+
+    username = click.prompt("Username", default=get_username())
+    for attempt in range(1, _MAX_SIGNIN_ATTEMPTS + 1):
+        password = click.prompt("Password", hide_input=True)
+        if verify(username, password):
+            break
+        remaining = _MAX_SIGNIN_ATTEMPTS - attempt
+        if remaining:
+            console.print(f"[red]✗ Incorrect credentials — "
+                          f"{remaining} attempt(s) remaining[/red]")
+    else:
+        console.print("[red]✗ Too many failed attempts.[/red]")
+        logger.warning("CLI sign-in failed for user %r", username)
+        sys.exit(1)
+
+    started = datetime.now()
+    expires = started + timedelta(hours=hours)
+    set_setting("cli_session_user", username)
+    set_setting("cli_session_token", secrets.token_urlsafe(24))
+    set_setting("cli_session_started", started.isoformat(timespec="seconds"))
+    set_setting("cli_session_expires", expires.isoformat(timespec="seconds"))
+    logger.info("CLI session started for %r", username)
+
+    console.print(Panel.fit(
+        f"[bold green]Signed in as {username}[/bold green]\n"
+        f"[dim]Session valid until {expires.strftime('%Y-%m-%d %H:%M')}[/dim]",
+        title="🔓 Session started"))
+
+
+@session.command('status')
+def session_status():
+    """Show who is signed in and how long the session has left."""
+    s = _active_session()
+    if not s:
+        console.print("[yellow]No active session — run "
+                      "'session start' to sign in.[/yellow]")
+        return
+    remaining = s["expires"] - datetime.now()
+    mins = int(remaining.total_seconds() // 60)
+    table = Table(title="🔐 Active CLI Session")
+    table.add_column("User", style="cyan")
+    table.add_column("Started", style="dim")
+    table.add_column("Expires", style="dim")
+    table.add_column("Time left", style="green")
+    table.add_row(s["user"], s["started"].replace("T", " "),
+                  s["expires"].strftime('%Y-%m-%d %H:%M'),
+                  f"{mins // 60}h {mins % 60:02d}m")
+    console.print(table)
+
+
+@session.command('end')
+def session_end():
+    """Terminate the active CLI session (sign out)."""
+    s = _active_session()
+    _clear_session()
+    if not s:
+        console.print("[yellow]No active session to terminate.[/yellow]")
+        return
+    logger.info("CLI session terminated for %r", s["user"])
+    console.print(Panel.fit(
+        f"[bold]Session for '{s['user']}' terminated.[/bold]\n"
+        f"[dim]Signed in since {s['started'].replace('T', ' ')}[/dim]",
+        title="⏻ Session ended"))
+
+
+# 'terminate' mirrors the desktop app's button label
+session.add_command(session_end, name='terminate')
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # manual – generate the on-site assessment guide
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -1043,6 +1177,7 @@ def status():
         ("web",       "Start web dashboard"),
         ("init-db",   "Initialize database"),
         ("users",     "Manage users (list, create, reset-password)"),
+        ("session",   "Sign in / out of a CLI session (start, status, end)"),
         ("manual",    "Generate on-site assessment guide"),
         ("status",    "This status summary"),
     ]
