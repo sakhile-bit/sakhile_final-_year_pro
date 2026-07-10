@@ -9,13 +9,33 @@ Or as a compiled .exe built by PyInstaller:
     dist\\ZambiaDigitalHygiene.exe
 """
 
+import subprocess
 import sys
 import traceback
 import tkinter.messagebox as _mb
 from pathlib import Path
 
-# Ensure project root is on sys.path so all src.* imports resolve.
-project_root = str(Path(__file__).resolve().parent)
+# This is a windowed app: every console child process (powershell, netsh,
+# ping, sc, …) would otherwise flash its own console window during scans.
+# Force CREATE_NO_WINDOW on all subprocesses so features show only their
+# own progress UI.
+if sys.platform == "win32":
+    _orig_popen_init = subprocess.Popen.__init__
+
+    def _no_window_init(self, *args, **kwargs):
+        kwargs["creationflags"] = (kwargs.get("creationflags") or 0) \
+            | subprocess.CREATE_NO_WINDOW
+        _orig_popen_init(self, *args, **kwargs)
+
+    subprocess.Popen.__init__ = _no_window_init
+
+# Ensure the src package is importable in both modes:
+#  - frozen .exe: PyInstaller extracts the bundle (incl. src/) to _MEIPASS
+#  - from source: the project root is this file's directory
+if getattr(sys, "frozen", False):
+    project_root = getattr(sys, "_MEIPASS", str(Path(sys.executable).parent))
+else:
+    project_root = str(Path(__file__).resolve().parent)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 

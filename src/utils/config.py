@@ -39,7 +39,10 @@ class Config:
                 'name': 'Zambia Digital Hygiene Assessment Tool',
                 'version': '1.0.0',
                 'log_level': os.getenv('LOG_LEVEL', 'INFO'),
-                'log_file': os.getenv('LOG_FILE', 'logs/app.log'),
+                # Empty = let logging_config pick a per-user writable path.
+                # A relative default like 'logs/app.log' breaks the frozen
+                # .exe when launched from a read-only working directory.
+                'log_file': os.getenv('LOG_FILE', ''),
                 'debug': os.getenv('DEBUG', 'false').lower() == 'true'
             },
             'database': {

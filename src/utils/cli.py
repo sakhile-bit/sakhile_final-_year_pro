@@ -1175,15 +1175,34 @@ def _check_backup_status(path: str = '/backups') -> str:
         return f"Backup check error: {e}"
 
 
+def _list_hotfix_ids() -> list:
+    """Installed hotfix IDs via wmic, or Get-HotFix where wmic is absent
+    (removed in Windows 11 24H2)."""
+    r = subprocess.run(['wmic', 'qfe', 'get', 'HotFixID'],
+                       capture_output=True, text=True, timeout=15)
+    if r.returncode == 0 and r.stdout.strip():
+        lines = [ln.strip() for ln in r.stdout.splitlines() if ln.strip()]
+        return lines[1:]  # drop the header row
+    raise OSError("wmic unavailable")
+
+
+def _list_hotfix_ids_ps() -> list:
+    r = subprocess.run(
+        ['powershell', '-NonInteractive', '-Command',
+         '(Get-HotFix).HotFixID'],
+        capture_output=True, text=True, timeout=30)
+    return [ln.strip() for ln in r.stdout.splitlines() if ln.strip()]
+
+
 def _check_patch_status() -> str:
     try:
         if platform.system() == 'Windows':
-            r = subprocess.run(['wmic', 'qfe', 'get', 'HotFixID,InstalledOn'],
-                               capture_output=True, text=True, timeout=15)
-            if r.returncode == 0:
-                lines = [ln.strip() for ln in r.stdout.strip().split('\n') if ln.strip()]
-                return f"{len(lines) - 1} patches installed" if len(lines) > 1 else "Patch data unavailable"
-            return "Patch status unavailable"
+            try:
+                patches = _list_hotfix_ids()
+            except Exception:
+                patches = _list_hotfix_ids_ps()
+            return (f"{len(patches)} patches installed"
+                    if patches else "Patch data unavailable")
         else:
             r = subprocess.run(['apt', 'list', '--upgradable'],
                                capture_output=True, text=True, timeout=15)

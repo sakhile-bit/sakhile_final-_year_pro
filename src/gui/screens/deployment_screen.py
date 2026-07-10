@@ -748,7 +748,12 @@ class DeploymentCheckerScreen(ctk.CTkFrame):
         self._scanning = False
         self._report: DeploymentReadiness | None = None
         self._code_checks: List[CheckResult] = []
-        self._project_path = ctk.StringVar(value=str(Path.cwd()))
+        # Frozen .exe: cwd is wherever the exe sits (or a temp dir) — start
+        # the project picker at the user's home instead.
+        import sys
+        default_dir = (Path.home() if getattr(sys, "frozen", False)
+                       else Path.cwd())
+        self._project_path = ctk.StringVar(value=str(default_dir))
         self._build()
 
     # ------------------------------------------------------------------ build

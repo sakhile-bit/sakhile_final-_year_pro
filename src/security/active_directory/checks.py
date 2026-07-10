@@ -30,7 +30,18 @@ def get_domain_name() -> Optional[str]:
             if domain and domain.upper() != 'WORKGROUP':
                 return domain
     except Exception:
-        logger.debug("domain lookup failed", exc_info=True)
+        # wmic was removed in Windows 11 24H2 — fall back to CIM.
+        try:
+            r = subprocess.run(
+                ['powershell', '-NonInteractive', '-Command',
+                 '(Get-CimInstance Win32_ComputerSystem).Domain'],
+                capture_output=True, text=True, timeout=15,
+            )
+            domain = r.stdout.strip()
+            if domain and domain.upper() != 'WORKGROUP':
+                return domain
+        except Exception:
+            logger.debug("domain lookup failed", exc_info=True)
     return None
 
 

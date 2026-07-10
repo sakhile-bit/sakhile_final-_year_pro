@@ -1769,6 +1769,14 @@ def check_patch_status():
         if platform.system() == 'Windows':
             result = subprocess.run(['wmic', 'qfe', 'get', 'HotFixID,InstalledOn'],
                                     capture_output=True, text=True)
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout
+            # wmic was removed in Windows 11 24H2 — fall back to Get-HotFix.
+            result = subprocess.run(
+                ['powershell', '-NonInteractive', '-Command',
+                 'Get-HotFix | Select-Object HotFixID,InstalledOn '
+                 '| Format-Table -AutoSize | Out-String'],
+                capture_output=True, text=True, timeout=30)
             return result.stdout if result.returncode == 0 else "Patch status unavailable"
         else:
             result = subprocess.run(['apt', 'list', '--upgradable'],
