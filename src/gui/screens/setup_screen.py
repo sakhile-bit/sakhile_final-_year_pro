@@ -48,11 +48,17 @@ class SetupScreen(ctk.CTkFrame):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
+        # Scroll container: on short or high-DPI screens the card can be
+        # taller than the window — the submit button must stay reachable.
+        wrap = ctk.CTkScrollableFrame(self, fg_color=CLR_BG)
+        wrap.grid(row=0, column=0, sticky="nsew")
+        wrap.grid_columnconfigure(0, weight=1)
+
         # ── Centre card ───────────────────────────────────────────────
-        card = ctk.CTkFrame(self, fg_color=CLR_SURFACE, corner_radius=16,
+        card = ctk.CTkFrame(wrap, fg_color=CLR_SURFACE, corner_radius=16,
                             border_width=1, border_color=CLR_BORDER,
                             width=440)
-        card.grid(row=0, column=0, padx=40, pady=40)
+        card.grid(row=0, column=0, padx=40, pady=20)
         card.grid_columnconfigure(0, weight=1)
 
         # Brand strip
@@ -62,8 +68,8 @@ class SetupScreen(ctk.CTkFrame):
 
         # Icon + heading
         ctk.CTkLabel(card, text="🔐",
-                     font=("Segoe UI Emoji", 42)
-                     ).grid(row=1, column=0, pady=(28, 4))
+                     font=("Segoe UI Emoji", 32)
+                     ).grid(row=1, column=0, pady=(16, 2))
 
         ctk.CTkLabel(card, text="Welcome to",
                      font=FONT_SMALL, text_color=CLR_MUTED
@@ -75,7 +81,7 @@ class SetupScreen(ctk.CTkFrame):
 
         ctk.CTkLabel(card, text=f"v{APP_VERSION}  ·  First-time setup",
                      font=FONT_CAPTION, text_color=CLR_MUTED
-                     ).grid(row=4, column=0, pady=(2, 18))
+                     ).grid(row=4, column=0, pady=(2, 12))
 
         # Divider
         ctk.CTkFrame(card, fg_color=CLR_BORDER, height=1
@@ -86,7 +92,7 @@ class SetupScreen(ctk.CTkFrame):
                           "You will need these credentials every time you open the app.",
                      font=FONT_SMALL, text_color=CLR_TEXT_SEC,
                      justify="center", wraplength=380
-                     ).grid(row=6, column=0, padx=PAD, pady=(14, 18))
+                     ).grid(row=6, column=0, padx=PAD, pady=(10, 12))
 
         # ── Form ─────────────────────────────────────────────────────
         form = ctk.CTkFrame(card, fg_color="transparent")
@@ -103,7 +109,7 @@ class SetupScreen(ctk.CTkFrame):
             border_color=CLR_BORDER, border_width=1,
             text_color=CLR_TEXT, height=38, corner_radius=8,
         )
-        self._username.grid(row=1, column=0, sticky="ew", pady=(0, 14))
+        self._username.grid(row=1, column=0, sticky="ew", pady=(0, 10))
 
         # Password
         ctk.CTkLabel(form, text="Password", font=FONT_SMALL,
@@ -128,7 +134,7 @@ class SetupScreen(ctk.CTkFrame):
         self._strength_lbl = ctk.CTkLabel(
             form, text="", font=FONT_CAPTION, text_color=CLR_MUTED, anchor="w"
         )
-        self._strength_lbl.grid(row=5, column=0, sticky="w", pady=(0, 14))
+        self._strength_lbl.grid(row=5, column=0, sticky="w", pady=(0, 10))
 
         # Confirm password
         ctk.CTkLabel(form, text="Confirm Password", font=FONT_SMALL,
@@ -163,7 +169,7 @@ class SetupScreen(ctk.CTkFrame):
         ctk.CTkLabel(card,
                      text="🔒  Your credentials are stored locally on this device only.",
                      font=FONT_CAPTION, text_color=CLR_MUTED,
-                     ).grid(row=8, column=0, padx=PAD, pady=(4, 24))
+                     ).grid(row=8, column=0, padx=PAD, pady=(4, 16))
 
         # Focus username on open
         self.after(100, self._username.focus)
