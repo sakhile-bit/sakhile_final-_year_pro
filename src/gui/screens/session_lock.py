@@ -86,7 +86,7 @@ class SessionLockScreen(ctk.CTkFrame):
             inner, text="🔓  Start Session",
             font=("Segoe UI", 13, "bold"),
             fg_color=CLR_ACCENT, hover_color=CLR_ACCENT_HOV,
-            text_color="#000000", height=BTN_H_LG, corner_radius=BTN_R,
+            text_color="#FFFFFF", height=BTN_H_LG, corner_radius=BTN_R,
             width=300, command=self._on_start_session,
         ).grid(row=3, column=0, pady=(0, 10), sticky="ew")
 

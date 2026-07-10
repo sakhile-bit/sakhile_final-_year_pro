@@ -175,7 +175,7 @@ class ScanningScreen(CancellableScreenMixin, ctk.CTkFrame):
             nav, text="Manual Questions  →",
             font=("Segoe UI", 12, "bold"),
             fg_color=CLR_ACCENT, hover_color=CLR_ACCENT_HOV,
-            text_color="#000000", height=BTN_H, corner_radius=BTN_R,
+            text_color="#FFFFFF", height=BTN_H, corner_radius=BTN_R,
             state="disabled", command=self._proceed,
         )
         self._next_btn.grid(row=0, column=3, padx=PAD, pady=14)
@@ -385,7 +385,7 @@ class ScanningScreen(CancellableScreenMixin, ctk.CTkFrame):
                       command=dlg.destroy).pack(side="left", padx=8)
         ctk.CTkButton(row, text="Apply Fix", width=120,
                       fg_color=CLR_ACCENT, hover_color=CLR_ACCENT_HOV,
-                      text_color="#000000",
+                      text_color="#FFFFFF",
                       command=lambda: self._apply_fix(cid, fix, dlg),
                       ).pack(side="left", padx=8)
 

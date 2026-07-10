@@ -61,6 +61,10 @@ class DigitalHygieneApp(ctk.CTk):
         self.minsize(min(800, win_w), min(560, win_h))
         self.geometry(f"{win_w}x{win_h}+{x}+{y}")
 
+        # Soft fade-in instead of popping onto the screen
+        from src.gui import motion
+        motion.fade_in_window(self, duration_ms=260)
+
         # Single source of truth for wizard data + the navigation stack
         self.app_state = AppState()
         self.router = Router(self)
@@ -407,7 +411,7 @@ class DigitalHygieneApp(ctk.CTk):
                 font=FONT_SMALL, text_color=CLR_TEXT_SEC, wraplength=410,
                 justify="left").pack(pady=(0, 14), padx=16)
             ctk.CTkButton(dlg, text="OK", fg_color=CLR_ACCENT,
-                          text_color="#000000", height=BTN_H,
+                          text_color="#FFFFFF", height=BTN_H,
                           corner_radius=BTN_R, command=dlg.destroy).pack()
         except Exception:
             # Even the dialog failed — fall back to going home.

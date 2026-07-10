@@ -25,6 +25,7 @@ from typing import Callable, List
 
 import customtkinter as ctk
 
+from src.gui import motion
 from src.gui.theme import (
     BTN_H,
     BTN_R,
@@ -80,13 +81,13 @@ class Router:
         """Clear the whole stack and show ``name`` as the new root."""
         logger.debug("Router.reset_to(%s)", name)
         self._stack = [NavEntry(name, factory)]
-        self._render(factory)
+        self._render(factory, direction=1)
 
     def push(self, name: str, factory: ScreenFactory) -> None:
         """Navigate deeper, remembering the current screen for back()."""
         logger.debug("Router.push(%s) depth=%d", name, len(self._stack) + 1)
         self._stack.append(NavEntry(name, factory))
-        self._render(factory)
+        self._render(factory, direction=1)
 
     def replace(self, name: str, factory: ScreenFactory) -> None:
         """Swap the current screen without changing stack depth."""
@@ -95,7 +96,7 @@ class Router:
             self._stack[-1] = NavEntry(name, factory)
         else:
             self._stack.append(NavEntry(name, factory))
-        self._render(factory)
+        self._render(factory, direction=0)
 
     def back(self) -> bool:
         """Pop the current screen and rebuild the previous one.
@@ -108,15 +109,18 @@ class Router:
         self._stack.pop()
         entry = self._stack[-1]
         logger.debug("Router.back() → %s", entry.name)
-        self._render(entry.factory)
+        self._render(entry.factory, direction=-1)
         return True
 
     # ── rendering ────────────────────────────────────────────────────
-    def _render(self, factory: ScreenFactory) -> None:
+    def _render(self, factory: ScreenFactory, direction: int = 0) -> None:
         """Build the new screen, then retire the old one.
 
         The new screen is constructed *before* the current one is
-        destroyed so a failure can't strand the window blank.
+        destroyed so a failure can't strand the window blank. The new
+        screen then slides in (from the right going forward, from the
+        left going back); the slide degrades to an instant swap when
+        the window isn't viewable.
         """
         try:
             new_widget = factory()
@@ -126,12 +130,12 @@ class Router:
 
         old_widget = self._current_widget
         self._current_widget = new_widget
-        new_widget.pack(fill="both", expand=True)
         if old_widget is not None:
             try:
                 old_widget.destroy()
             except Exception:  # pragma: no cover - defensive teardown
                 logger.exception("Failed to destroy previous screen")
+        motion.slide_in(new_widget, distance=36 * direction, duration_ms=220)
 
     def _build_error_screen(self) -> ctk.CTkFrame:
         frame = ctk.CTkFrame(self._container, fg_color=CLR_BG, corner_radius=0)
@@ -151,7 +155,7 @@ class Router:
             justify="center").pack(pady=(4, 16))
         ctk.CTkButton(
             inner, text="⌂  Back to Home", font=FONT_BODY,
-            fg_color=CLR_ACCENT, text_color="#000000",
+            fg_color=CLR_ACCENT, text_color="#FFFFFF",
             height=BTN_H, corner_radius=BTN_R,
             command=self._go_home).pack()
         return frame

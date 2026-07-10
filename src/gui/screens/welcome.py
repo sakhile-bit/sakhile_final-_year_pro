@@ -123,18 +123,20 @@ class WelcomeScreen(ctk.CTkFrame):
         for i, (num, label, clr) in enumerate(stats):
             cell = ctk.CTkFrame(stats_frame, fg_color=CLR_SURFACE,
                                 corner_radius=10, border_width=1,
-                                border_color=CLR_BORDER)
+                                border_color=CLR_BORDER, height=56)
             cell.grid(row=i, column=0, pady=5, sticky="ew")
-            cell.grid_columnconfigure(1, weight=1)
+            cell.grid_propagate(False)   # honour the 56px height
+            cell.grid_columnconfigure(2, weight=1)
+            cell.grid_rowconfigure(0, weight=1)
 
-            ctk.CTkFrame(cell, fg_color=clr, width=4,
+            # Accent edge — height pinned so the tile can't stretch.
+            ctk.CTkFrame(cell, fg_color=clr, width=4, height=56,
                          corner_radius=2).grid(row=0, column=0,
-                                               sticky="ns", padx=(6, 0),
-                                               pady=8)
+                                               sticky="ns", padx=(6, 0))
             ctk.CTkLabel(cell, text=num,
                          font=("Segoe UI", 20, "bold"), text_color=clr,
                          width=44, anchor="e",
-                         ).grid(row=0, column=1, padx=(10, 6), pady=10)
+                         ).grid(row=0, column=1, padx=(10, 6))
             ctk.CTkLabel(cell, text=label, font=FONT_CAPTION,
                          text_color=CLR_MUTED, anchor="w",
                          ).grid(row=0, column=2, padx=(0, 10), sticky="w")
@@ -222,7 +224,7 @@ class WelcomeScreen(ctk.CTkFrame):
             text="  ▶   Start New Assessment",
             font=("Segoe UI", 14, "bold"),
             fg_color=CLR_ACCENT, hover_color=CLR_ACCENT_HOV,
-            text_color="#000000", command=self._on_start,
+            text_color="#FFFFFF", command=self._on_start,
             height=BTN_H_LG, corner_radius=BTN_R,
         ).grid(row=4, column=0, pady=(0, 14), sticky="ew")
 
@@ -256,23 +258,29 @@ class WelcomeScreen(ctk.CTkFrame):
                 ("🔍", "Infrastructure web scanner", CLR_BLUE),
                 ("📄", "Policy template library", "#CD8A3A"),
             ]
+            from src.gui import motion
             for i, (icon, txt, clr) in enumerate(items):
                 pill = ctk.CTkFrame(feat, fg_color=CLR_SURFACE,
                                     corner_radius=10, border_width=1,
-                                    border_color=CLR_BORDER)
+                                    border_color=CLR_BORDER, height=52)
                 pill.grid(row=i // 2, column=i % 2,
-                          padx=4, pady=4, sticky="ew")
-                pill.grid_columnconfigure(1, weight=1)
-                ctk.CTkFrame(pill, fg_color=clr, width=3,
+                          padx=5, pady=5, sticky="ew")
+                pill.grid_propagate(False)   # honour the 52px height
+                pill.grid_columnconfigure(2, weight=1)
+                pill.grid_rowconfigure(0, weight=1)
+                # Accent edge — height pinned so the pill can't balloon.
+                ctk.CTkFrame(pill, fg_color=clr, width=3, height=52,
                              corner_radius=0).grid(row=0, column=0,
-                                                   sticky="ns", pady=0)
+                                                   sticky="ns")
                 ctk.CTkLabel(pill, text=icon,
-                             font=("Segoe UI Emoji", 14),
+                             font=("Segoe UI Emoji", 15),
                              text_color=clr, width=30,
-                             ).grid(row=0, column=1, padx=(8, 4), pady=10)
+                             ).grid(row=0, column=1, padx=(10, 6))
                 ctk.CTkLabel(pill, text=txt, font=FONT_SMALL,
                              text_color=CLR_TEXT_SEC, anchor="w",
-                             ).grid(row=0, column=2, padx=(0, 10), sticky="w")
+                             ).grid(row=0, column=2, padx=(0, 12), sticky="w")
+                motion.bind_hover(pill, "border_color", CLR_BORDER,
+                                  motion.blend(CLR_BORDER, clr, 0.5))
             return
 
         r = rows[0]
@@ -381,18 +389,25 @@ class WelcomeScreen(ctk.CTkFrame):
             ("🖧  Fleet Scan",
              "#00BCD4",   "#00181C",      self._on_fleet,         3, 1),
         ]
+        from src.gui import motion
+        tiles = []
         for label, clr, hov, cmd, r, c in tools:
             btn = ctk.CTkFrame(grid, fg_color=CLR_SURFACE, corner_radius=12,
                                border_width=1, border_color=CLR_BORDER)
             btn.grid(row=r, column=c, padx=4, pady=4, sticky="ew")
             btn.grid_columnconfigure(0, weight=1)
-            btn.bind("<Enter>", lambda e, b=btn: b.configure(
-                fg_color=CLR_SURFACE_HVR))
-            btn.bind("<Leave>", lambda e, b=btn: b.configure(
-                fg_color=CLR_SURFACE))
+            # Eased hover: surface lifts and the border picks up the
+            # tool's accent colour instead of snapping between states.
+            motion.bind_hover(btn, "fg_color", CLR_SURFACE, CLR_SURFACE_HVR)
+            motion.bind_hover(btn, "border_color", CLR_BORDER,
+                              motion.blend(CLR_BORDER, clr, 0.45))
             ctk.CTkButton(
                 btn, text=label, font=FONT_SMALL,
                 fg_color="transparent", hover_color=CLR_SURFACE_HVR,
                 text_color=clr, height=36, corner_radius=10,
                 anchor="w", command=cmd,
             ).grid(row=0, column=0, padx=6, pady=2, sticky="ew")
+            tiles.append(btn)
+
+        # Cascade the tiles in on first paint (subtle 24 ms stagger)
+        self.after(30, lambda: motion.stagger_grid(tiles, interval_ms=24))

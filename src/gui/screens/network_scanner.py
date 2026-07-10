@@ -230,7 +230,7 @@ class NetworkScannerScreen(ctk.CTkFrame):
             ctrl, text="🔍  Scan Network",
             font=("Segoe UI", 12, "bold"),
             fg_color=CLR_ACCENT, hover_color=CLR_ACCENT_HOV,
-            text_color="#000000", height=34, corner_radius=BTN_R,
+            text_color="#FFFFFF", height=34, corner_radius=BTN_R,
             command=self._start_scan,
         )
         self._scan_btn.grid(row=0, column=4, padx=(0, PAD))
@@ -946,7 +946,7 @@ class NetworkScannerScreen(ctk.CTkFrame):
                      text_color=CLR_MUTED, wraplength=370,
                      ).pack(pady=(0, 12))
         ctk.CTkButton(dlg, text="OK",
-                      fg_color=CLR_ACCENT, text_color="#000000",
+                      fg_color=CLR_ACCENT, text_color="#FFFFFF",
                       height=BTN_H, corner_radius=BTN_R,
                       command=dlg.destroy).pack()
 

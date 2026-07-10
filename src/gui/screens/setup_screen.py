@@ -160,7 +160,7 @@ class SetupScreen(ctk.CTkFrame):
             form, text="Create Account & Continue →",
             font=("Segoe UI", 12, "bold"),
             fg_color=CLR_ACCENT, hover_color=CLR_ACCENT_HOV,
-            text_color="#000000", height=42, corner_radius=BTN_R,
+            text_color="#FFFFFF", height=42, corner_radius=BTN_R,
             command=self._submit,
         )
         self._btn.grid(row=9, column=0, sticky="ew", pady=(0, 4))

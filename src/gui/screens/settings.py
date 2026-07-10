@@ -126,7 +126,7 @@ class SettingsScreen(ctk.CTkFrame):
         self._tab_var.set(tab_id)
         for tid, btn in self._tab_btns.items():
             btn.configure(fg_color=CLR_ACCENT if tid == tab_id else CLR_SURFACE,
-                          text_color="#000000" if tid == tab_id else CLR_TEXT)
+                          text_color="#FFFFFF" if tid == tab_id else CLR_TEXT)
         for w in self._content.winfo_children():
             w.destroy()
         # Save button only applies to editable tabs

@@ -228,7 +228,7 @@ class ZambiaRiskScreen(ctk.CTkFrame):
             nav, text="Calculate Risk →",
             font=("Segoe UI", 13, "bold"),
             fg_color=CLR_ACCENT, hover_color="#7D70D6",
-            text_color="#000000", height=38, corner_radius=18,
+            text_color="#FFFFFF", height=38, corner_radius=18,
             command=self._calculate,
         ).grid(row=0, column=2, padx=PAD, pady=14)
 

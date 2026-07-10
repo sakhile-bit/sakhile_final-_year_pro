@@ -298,7 +298,7 @@ class HistoryScreen(ctk.CTkFrame):
                          font=FONT_SMALL, text_color=CLR_MUTED,
                          justify="center").pack(pady=(22, 14))
             ctk.CTkButton(dlg, text="OK", fg_color=CLR_ACCENT,
-                          text_color="#000000", command=dlg.destroy).pack()
+                          text_color="#FFFFFF", command=dlg.destroy).pack()
             return
 
         newer_id = row_id

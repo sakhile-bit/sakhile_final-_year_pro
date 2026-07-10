@@ -684,7 +684,7 @@ class ResultsScreen(ctk.CTkFrame):
                      text_color=CLR_MUTED, wraplength=400,
                      ).pack(pady=(0, 14))
         ctk.CTkButton(dlg, text="OK",
-                      fg_color=CLR_ACCENT, text_color="#000000",
+                      fg_color=CLR_ACCENT, text_color="#FFFFFF",
                       height=BTN_H, corner_radius=BTN_R,
                       command=dlg.destroy).pack()
 
@@ -701,7 +701,7 @@ class ResultsScreen(ctk.CTkFrame):
                      text_color=CLR_TEXT_SEC, wraplength=400,
                      ).pack(pady=(0, 14))
         ctk.CTkButton(dlg, text="OK", fg_color=CLR_ACCENT,
-                      text_color="#000000", command=dlg.destroy).pack()
+                      text_color="#FFFFFF", command=dlg.destroy).pack()
 
 
 class RecommendationsPanel(ctk.CTkFrame):

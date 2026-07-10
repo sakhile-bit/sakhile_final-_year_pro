@@ -160,7 +160,7 @@ class FleetScanScreen(CancellableScreenMixin, ctk.CTkFrame):
             ctrl, text="▶  Scan Selected",
             font=("Segoe UI", 12, "bold"),
             fg_color=CLR_ACCENT, hover_color=CLR_ACCENT_HOV,
-            text_color="#000000", height=34, corner_radius=BTN_R,
+            text_color="#FFFFFF", height=34, corner_radius=BTN_R,
             state="disabled", command=self._start_scan,
         )
         self._scan_btn.grid(row=0, column=5, padx=(0, PAD), pady=14)
@@ -750,6 +750,6 @@ class FleetScanScreen(CancellableScreenMixin, ctk.CTkFrame):
                      text_color=CLR_SUCCESS).pack(pady=(20, 4))
         ctk.CTkLabel(dlg, text=path, font=FONT_CAPTION, text_color=CLR_MUTED,
                      wraplength=380).pack(pady=(0, 12))
-        ctk.CTkButton(dlg, text="OK", fg_color=CLR_ACCENT, text_color="#000000",
+        ctk.CTkButton(dlg, text="OK", fg_color=CLR_ACCENT, text_color="#FFFFFF",
                       height=BTN_H, corner_radius=BTN_R,
                       command=dlg.destroy).pack()

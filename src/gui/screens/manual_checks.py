@@ -341,7 +341,7 @@ class ManualChecksScreen(ctk.CTkFrame):
             nav, text="Calculate Results  →",
             font=("Segoe UI", 12, "bold"),
             fg_color=CLR_ACCENT, hover_color=CLR_ACCENT_HOV,
-            text_color="#000000", height=BTN_H, corner_radius=BTN_R,
+            text_color="#FFFFFF", height=BTN_H, corner_radius=BTN_R,
             command=self._submit,
         ).grid(row=0, column=2, padx=PAD, pady=14)
 

@@ -49,6 +49,10 @@ class LoginScreen(ctk.CTkToplevel):
 
         self._build()
 
+        # Soft fade-in instead of popping open
+        from src.gui import motion
+        motion.fade_in_window(self, duration_ms=200)
+
         # Force to front AFTER building — CTkToplevel on Windows needs this
         self.after(50, self._force_focus)
 
@@ -91,7 +95,7 @@ class LoginScreen(ctk.CTkToplevel):
             self, text="Sign In  →",
             font=("Segoe UI", 12, "bold"),
             fg_color=CLR_ACCENT, hover_color=CLR_ACCENT_HOV,
-            text_color="#000000", height=40, corner_radius=BTN_R,
+            text_color="#FFFFFF", height=40, corner_radius=BTN_R,
             command=self._submit,
         )
         self._btn.pack(side="bottom", fill="x", padx=24, pady=(4, 14))

@@ -67,7 +67,7 @@ class InfraScannerScreen(ctk.CTkFrame):
             input_row, text="Scan",
             font=("Segoe UI", 12, "bold"),
             fg_color=CLR_ACCENT, hover_color="#7D70D6",
-            text_color="#000000",
+            text_color="#FFFFFF",
             width=100, height=42, corner_radius=10,
             command=self._start_scan,
         )
