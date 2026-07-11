@@ -393,7 +393,6 @@ class WelcomeScreen(ctk.CTkFrame):
              "#00BCD4",   "#00181C",      self._on_fleet,         3, 1),
         ]
         from src.gui import motion
-        tiles = []
         for label, clr, hov, cmd, r, c in tools:
             btn = ctk.CTkFrame(grid, fg_color=CLR_SURFACE, corner_radius=12,
                                border_width=1, border_color=CLR_BORDER)
@@ -410,7 +409,7 @@ class WelcomeScreen(ctk.CTkFrame):
                 text_color=clr, height=36, corner_radius=10,
                 anchor="w", command=cmd,
             ).grid(row=0, column=0, padx=6, pady=2, sticky="ew")
-            tiles.append(btn)
 
-        # Cascade the tiles in on first paint (subtle 24 ms stagger)
-        self.after(30, lambda: motion.stagger_grid(tiles, interval_ms=24))
+        # Tiles are gridded as they're built, so they all appear at once with
+        # the rest of the screen. No entrance cascade here: on the home screen
+        # a staggered pop-in read as the page "rebuilding" every visit.
