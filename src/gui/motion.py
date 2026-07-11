@@ -2,23 +2,99 @@
 Motion toolkit — easing-based micro-animations for the desktop app.
 
 Tk has no compositor, so the animations here stick to what it can do well:
-window alpha fades, place()-based slides, colour interpolation, and smooth
-progress. Everything is driven by ``after()`` at ~60 fps, follows the
-150-300 ms transition guideline, cancels itself if the widget dies, and
-degrades to an instant change when the window isn't viewable (withdrawn
-roots in tests, minimised windows) so behaviour stays synchronous there.
+window alpha fades, place()-based slides, colour interpolation, smooth
+progress, and pointer-driven wheel scrolling. Everything is driven by
+``after()`` at ~60 fps, follows the 150-300 ms transition guideline, cancels
+itself if the widget dies, and degrades to an instant change when the window
+isn't viewable (withdrawn roots in tests, minimised windows) so behaviour
+stays synchronous there.
+
+Two things are worth knowing:
+
+* Every effect is built on :func:`animate`, which honours a global
+  :func:`set_reduced_motion` switch — flip it on and animations resolve
+  instantly, for accessibility or low-powered machines.
+* A small palette of easing curves (``ease_out_cubic`` and friends) can be
+  passed to :func:`animate` via ``easing=`` to change the feel.
 """
 from __future__ import annotations
 
 import time
 from typing import Callable, Optional, Sequence
 
+__all__ = [
+    # core
+    "animate", "set_reduced_motion", "is_reduced_motion",
+    # easing curves
+    "linear", "ease_out_cubic", "ease_in_cubic", "ease_in_out_cubic",
+    "ease_out_quad", "ease_out_back",
+    # effects
+    "fade_in_window", "slide_in", "cross_slide", "blend", "animate_color",
+    "bind_hover", "stagger_grid", "slide_down_reveal", "smooth_progress",
+    # scrolling
+    "smooth_scroll", "enable_global_smooth_scroll",
+]
+
 FRAME_MS = 15          # ~66 fps
 DEFAULT_MS = 200       # inside the 150-300 ms sweet spot
 
 
+# ── reduced motion ────────────────────────────────────────────────────────────
+# A single global switch every animation honours. When on, animations resolve
+# instantly to their final frame — for users who find motion distracting, and
+# for low-powered machines. Wire it from the settings screen via
+# ``set_reduced_motion(get_bool_setting("reduced_motion", False))``.
+
+_reduced_motion = False
+
+
+def set_reduced_motion(enabled: bool) -> None:
+    """Enable/disable instant (motion-free) animations app-wide."""
+    global _reduced_motion
+    _reduced_motion = bool(enabled)
+
+
+def is_reduced_motion() -> bool:
+    return _reduced_motion
+
+
+# ── easing curves ─────────────────────────────────────────────────────────────
+# All take and return a 0‥1 progress value. ``animate`` defaults to
+# ``ease_out_cubic``; pass ``easing=`` to pick another feel.
+
+def linear(t: float) -> float:
+    return t
+
+
 def ease_out_cubic(t: float) -> float:
+    """Decelerate to a stop — the workhorse for entrances and moves."""
     return 1.0 - (1.0 - t) ** 3
+
+
+def ease_in_cubic(t: float) -> float:
+    """Accelerate from rest — good for exits."""
+    return t ** 3
+
+
+def ease_in_out_cubic(t: float) -> float:
+    """Ease in then out — natural for A→B moves that start and end at rest."""
+    return 4 * t ** 3 if t < 0.5 else 1.0 - (-2.0 * t + 2.0) ** 3 / 2.0
+
+
+def ease_out_quad(t: float) -> float:
+    """Gentler deceleration than cubic."""
+    return 1.0 - (1.0 - t) ** 2
+
+
+def ease_out_back(t: float) -> float:
+    """Overshoot slightly past the target then settle (playful pop).
+
+    Note: returns values > 1 mid-curve, so only use where a small overshoot
+    is safe (position, scale) — not for clamped values like alpha.
+    """
+    c1 = 1.70158
+    c3 = c1 + 1.0
+    return 1.0 + c3 * (t - 1.0) ** 3 + c1 * (t - 1.0) ** 2
 
 
 def _viewable(widget) -> bool:
@@ -37,7 +113,21 @@ def animate(widget, duration_ms: int, on_frame: Callable[[float], None],
     ``key`` scopes the animation per widget: starting a new animation with
     the same key cancels the previous one (rapid hover in/out, repeated
     navigation) instead of letting two loops fight over the widget.
+
+    Resolves instantly to the final frame when :func:`is_reduced_motion` is
+    set or ``duration_ms`` is non-positive, so every effect built on ``animate``
+    degrades gracefully without special-casing.
     """
+    # Instant path: reduced-motion preference or a zero/negative duration.
+    if _reduced_motion or duration_ms <= 0:
+        try:
+            on_frame(easing(1.0))
+            if on_done is not None:
+                on_done()
+        except Exception:
+            pass
+        return
+
     seqs = getattr(widget, "_motion_seq", None)
     if seqs is None:
         seqs = widget._motion_seq = {}
@@ -191,6 +281,8 @@ def cross_slide(old, new, direction: int, duration_ms: int = 240,
 
 def _hex_to_rgb(clr: str) -> tuple:
     clr = clr.lstrip("#")
+    if len(clr) == 3:                      # #abc → #aabbcc shorthand
+        clr = "".join(ch * 2 for ch in clr)
     return tuple(int(clr[i:i + 2], 16) for i in (0, 2, 4))
 
 
@@ -299,71 +391,165 @@ def smooth_progress(bar, target: float, duration_ms: int = 260) -> None:
 
 
 # ── smooth scrolling ──────────────────────────────────────────────────────────
+#
+# The mouse wheel has one well-known trap on Windows: Tk delivers
+# ``<MouseWheel>`` to the *focused* widget, not the widget under the cursor.
+# customtkinter's built-in handler keys off ``event.widget``, so a scroll
+# frame only responds once you have clicked into it — on the scan/result
+# screens focus usually sits on a nav button, so the wheel does nothing.
+#
+# The fix here is a single application-wide handler that finds the scroll
+# frame under the *pointer* (``winfo_containing``) and eases it. Because it is
+# pointer-based, every CTkScrollableFrame — scan output included — scrolls
+# with the wheel or a touchpad whether or not it holds focus.
 
-def smooth_scroll(scrollable, notch_fraction: float = 0.16,
-                  duration_ms: int = 160) -> None:
-    """Give a CTkScrollableFrame eased, momentum mouse-wheel scrolling.
+_NOTCH_FRACTION = 0.16     # viewport fraction travelled per full wheel notch
+_SCROLL_MS = 160           # ease duration per notch (momentum on fast flicks)
+_wheel_root = None         # the Tk root the global handler is bound to
+# Per-canvas scroll state (accumulating target + tuning) lives on the canvas
+# itself via ``_scroll_*`` attributes, so it dies with the canvas — no global
+# registry to leak or collide on id() reuse after garbage collection.
 
-    customtkinter scrolls the underlying canvas in coarse discrete jumps,
-    which reads as janky on long result screens. This replaces that with an
-    eased ``yview_moveto`` toward an accumulating target, so fast flicks feel
-    like momentum and single notches glide. Safe to call on any
-    CTkScrollableFrame; a no-op if the internal canvas can't be found.
 
-    ``notch_fraction`` is how much of the *visible* viewport one wheel notch
-    travels — kept constant so scroll speed feels the same on short and long
-    screens alike.
+def _find_scrollable_under_pointer(root, x_root, y_root):
+    """Return the innermost CTkScrollableFrame under the pointer that still
+    has content to scroll, or ``None``.
+
+    Walks outward from the hovered widget so a fully-visible inner frame never
+    swallows the wheel — the event bubbles to whatever outer page *can* move.
     """
-    if getattr(scrollable, "_smooth_scroll_on", False):
-        return  # already smoothed — avoid stacking duplicate handlers
-    canvas = getattr(scrollable, "_parent_canvas", None)
-    if canvas is None:
-        return
-    scrollable._smooth_scroll_on = True
-
-    # ctk registers a per-instance global <MouseWheel> handler that calls
-    # self.check_if_master_is_canvas(); forcing it False disables ctk's own
-    # discrete scroll for *this* frame only (other frames keep theirs).
+    import customtkinter as ctk
     try:
-        class_check = type(scrollable).check_if_master_is_canvas
-    except AttributeError:
-        return
-    scrollable.check_if_master_is_canvas = lambda _w: False  # type: ignore[assignment]
+        widget = root.winfo_containing(x_root, y_root)
+    except Exception:
+        widget = None
 
-    state: dict = {"target": None}
-
-    def handler(event):
+    while widget is not None:
+        if isinstance(widget, ctk.CTkScrollableFrame):
+            canvas = getattr(widget, "_parent_canvas", None)
+            if canvas is not None:
+                try:
+                    first, last = canvas.yview()
+                except Exception:
+                    first, last = 0.0, 1.0
+                if (last - first) < 1.0:      # genuinely overflows
+                    return widget
         try:
-            if not class_check(scrollable, event.widget):
-                return
-            first, last = canvas.yview()
-            span = last - first
-            if span >= 1.0:            # nothing to scroll
-                return
-            notch = -1 if event.delta > 0 else 1
-            base = state["target"] if state["target"] is not None else first
-            max_top = max(0.0, 1.0 - span)
-            target = min(max_top, max(0.0, base + notch * notch_fraction * span))
-            state["target"] = target
-            start = first
-
-            def on_frame(p: float) -> None:
-                canvas.yview_moveto(start + (target - start) * p)
-
-            def on_done() -> None:
-                state["target"] = None
-
-            animate(canvas, duration_ms, on_frame, on_done=on_done,
-                    key="smoothscroll")
+            widget = widget.master
         except Exception:
-            return  # frame torn down or canvas gone — ignore this event
+            return None
+    return None
 
-    # Same binding style ctk uses; consistent lifetime/cleanup profile.
-    scrollable.bind_all("<MouseWheel>", handler, add="+")
+
+def _scroll_canvas(canvas, steps: float) -> None:
+    """Ease ``canvas`` by ``steps`` wheel notches toward an accumulating target."""
+    try:
+        first, last = canvas.yview()
+    except Exception:
+        return
+    span = last - first
+    if span >= 1.0:
+        return
+
+    notch = getattr(canvas, "_scroll_notch", _NOTCH_FRACTION)
+    duration = getattr(canvas, "_scroll_ms", _SCROLL_MS)
+    # Accumulate onto any in-flight target so fast flicks build momentum.
+    pending = getattr(canvas, "_scroll_target", None)
+    base = pending if pending is not None else first
+    max_top = max(0.0, 1.0 - span)
+    target = min(max_top, max(0.0, base + steps * notch * span))
+    canvas._scroll_target = target
+    start = first
+
+    def on_frame(p: float) -> None:
+        try:
+            canvas.yview_moveto(start + (target - start) * p)
+        except Exception:
+            pass
+
+    def on_done() -> None:
+        try:
+            canvas._scroll_target = None
+        except Exception:
+            pass
+
+    animate(canvas, duration, on_frame, on_done=on_done, key="smoothscroll")
+
+
+def _on_global_wheel(event):
+    """Application-wide wheel handler: scroll whatever the pointer is over."""
+    try:
+        root = event.widget.winfo_toplevel()
+    except Exception:
+        return None
+    target = _find_scrollable_under_pointer(root, event.x_root, event.y_root)
+    if target is None:
+        return None
+
+    # Normalise across mouse wheels (Windows/macOS send ``delta`` in units of
+    # 120), precision touchpads (small deltas → fine, smooth steps) and X11
+    # (Button-4/5, no delta).
+    if getattr(event, "num", 0) in (4, 5):
+        steps = -1.0 if event.num == 4 else 1.0
+    else:
+        steps = -event.delta / 120.0
+        if steps == 0.0:
+            return None
+
+    _scroll_canvas(target._parent_canvas, steps)
+    return "break"   # we handled it — don't let ctk's focus-based handler re-scroll
+
+
+def _install_global_wheel(widget) -> None:
+    """Bind the pointer-based wheel handler once per Tk root."""
+    global _wheel_root
+    try:
+        root = widget.winfo_toplevel()
+    except Exception:
+        return
+    if _wheel_root is root:
+        return
+    try:
+        widget.bind_all("<MouseWheel>", _on_global_wheel, add="+")   # Win / macOS
+        widget.bind_all("<Button-4>", _on_global_wheel, add="+")     # X11 up
+        widget.bind_all("<Button-5>", _on_global_wheel, add="+")     # X11 down
+        _wheel_root = root
+    except Exception:
+        pass
+
+
+def smooth_scroll(scrollable, notch_fraction: float = _NOTCH_FRACTION,
+                  duration_ms: int = _SCROLL_MS) -> None:
+    """Give a CTkScrollableFrame eased, pointer-driven mouse-wheel scrolling.
+
+    Disables customtkinter's own focus-based discrete scroll for this frame
+    and makes sure the application-wide pointer handler is installed. Safe and
+    idempotent to call on any CTkScrollableFrame.
+
+    ``notch_fraction`` (viewport fraction per wheel notch) and ``duration_ms``
+    (ease length) tune this frame's feel — handy for a long log where you want
+    faster travel.
+    """
+    # Per-frame tuning rides on the canvas so the global handler can read it.
+    canvas = getattr(scrollable, "_parent_canvas", None)
+    if canvas is not None:
+        canvas._scroll_notch = notch_fraction
+        canvas._scroll_ms = duration_ms
+
+    if not getattr(scrollable, "_smooth_scroll_on", False):
+        scrollable._smooth_scroll_on = True
+        # Neutralise ctk's per-instance <MouseWheel> handler (it checks
+        # check_if_master_is_canvas against the *focused* widget); the global
+        # pointer-based handler drives all scrolling instead.
+        try:
+            scrollable.check_if_master_is_canvas = lambda _w: False  # type: ignore[assignment]
+        except Exception:
+            pass
+    _install_global_wheel(scrollable)
 
 
 def enable_global_smooth_scroll() -> None:
-    """Make every CTkScrollableFrame in the app scroll smoothly.
+    """Make every CTkScrollableFrame in the app scroll smoothly by wheel/touchpad.
 
     Wraps ``CTkScrollableFrame.__init__`` once so each instance opts into
     :func:`smooth_scroll` at construction — no per-screen wiring needed.
