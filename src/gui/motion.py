@@ -384,4 +384,5 @@ def enable_global_smooth_scroll() -> None:
             pass
 
     ctk.CTkScrollableFrame.__init__ = patched_init
-    setattr(ctk.CTkScrollableFrame, "_smooth_patched", True)   # avoid patching multiple times in case the function is called repeatedly
+    setattr(ctk.CTkScrollableFrame, "_smooth_patched", True)
+    # avoid patching multiple times in case the function is called repeatedly #
