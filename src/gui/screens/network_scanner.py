@@ -19,10 +19,11 @@ from src.gui.theme import (
     CLR_BG, CLR_SURFACE, CLR_SURFACE_ALT, CLR_SURFACE_HVR,
     CLR_ACCENT, CLR_ACCENT_HOV, CLR_BLUE,
     CLR_TEXT, CLR_TEXT_SEC, CLR_MUTED,
-    CLR_SUCCESS, CLR_WARNING, CLR_BORDER, CLR_DIVIDER,
+    CLR_SUCCESS, CLR_WARNING, CLR_DANGER, CLR_BORDER, CLR_DIVIDER,
     FONT_SUBHEAD, FONT_BODY, FONT_SMALL, FONT_CAPTION,
     PAD, PAD_SM, NAV_H, BTN_H, BTN_R,
 )
+from src.gui import motion
 from src.gui.screens.business_info import _header
 from src.utils.logging_config import get_logger
 
@@ -385,6 +386,20 @@ class NetworkScannerScreen(ctk.CTkFrame):
         self._status_var.set("Discovering devices…")
         for w in self._scroll.winfo_children():
             w.destroy()
+
+        # Load the previous scan of this subnet so we can highlight what has
+        # changed since. Keyed by device identity (MAC, else IP).
+        self._subnet = _get_subnet_prefix(self._local_ip)
+        try:
+            from src.utils.local_db import get_network_snapshot
+            snap = get_network_snapshot(self._subnet)
+        except Exception:
+            snap = None
+        self._prev_devices = (snap or {}).get("devices", {}) if snap else {}
+        self._prev_saved_at = (snap or {}).get("saved_at", "") if snap else ""
+        self._has_baseline = bool(self._prev_devices)
+        self._seen_identities: set[str] = set()
+
         self._draw_topology()
         threading.Thread(target=self._run_scan, daemon=True).start()
 
@@ -497,11 +512,110 @@ class NetworkScannerScreen(ctk.CTkFrame):
                        if d.risk_level == "CRITICAL")
         high = sum(1 for d in self._devices.values()
                    if d.risk_level == "HIGH")
-        self._status_var.set(
-            f"Scan complete  ·  {len(self._devices)} devices  ·  "
-            f"{critical} critical  ·  {high} high risk")
+
+        # Change detection: show devices that went offline since last scan,
+        # then persist this scan as the new baseline.
+        offline = self._render_offline_devices()
+        changed = self._count_changes()
+        self._persist_snapshot()
+
+        status = (f"Scan complete  ·  {len(self._devices)} devices  ·  "
+                  f"{critical} critical  ·  {high} high risk")
+        if self._has_baseline:
+            since = f" since {self._prev_saved_at[:10]}" if self._prev_saved_at else ""
+            status += (f"  ·  {changed} changed, {offline} offline{since}"
+                       if (changed or offline)
+                       else "  ·  no changes" + since)
+        self._status_var.set(status)
         self._build_summary()
         self._draw_topology()
+
+    def _count_changes(self) -> int:
+        """Number of online devices flagged as changed vs the last scan."""
+        if not self._has_baseline:
+            return 0
+        from src.utils.local_db import device_identity
+        n = 0
+        for d in self._devices.values():
+            prev = self._prev_devices.get(device_identity(d.mac, d.ip))
+            if prev is None:
+                n += 1
+            elif (prev.get("risk_level", "") != d.risk_level
+                  or set(prev.get("open_ports", [])) != set(d.open_ports)):
+                n += 1
+        return n
+
+    def _render_offline_devices(self) -> int:
+        """Render faded cards for devices present last scan but missing now.
+
+        Returns how many were rendered.
+        """
+        if not self._has_baseline:
+            return 0
+        missing = [snap for ident, snap in self._prev_devices.items()
+                   if ident not in self._seen_identities]
+        base_row = len(self._devices)
+        for i, snap in enumerate(missing):
+            card = ctk.CTkFrame(self._scroll, fg_color=CLR_SURFACE,
+                                corner_radius=12, border_width=1,
+                                border_color=CLR_BORDER)
+            card.grid(row=base_row + i, column=0, padx=PAD_SM,
+                      pady=3, sticky="ew")
+            card.grid_columnconfigure(1, weight=1)
+            ctk.CTkFrame(card, fg_color=CLR_MUTED, width=5,
+                         corner_radius=0).grid(row=0, column=0, rowspan=2,
+                                               sticky="ns")
+            name = snap.get("hostname") or snap.get("ip", "?")
+            ctk.CTkLabel(card, text=f"{name}",
+                         font=FONT_SUBHEAD, text_color=CLR_MUTED, anchor="w",
+                         ).grid(row=0, column=1, padx=(10, 8), pady=(10, 1),
+                                sticky="w")
+            ctk.CTkLabel(card, text=f"{snap.get('ip', '')}  ·  last seen "
+                                    f"{self._prev_saved_at[:10]}",
+                         font=FONT_CAPTION, text_color=CLR_MUTED, anchor="w",
+                         ).grid(row=1, column=1, padx=(10, 8), pady=(0, 10),
+                                sticky="w")
+            ctk.CTkLabel(card, text="○ OFFLINE",
+                         font=("Segoe UI", 10, "bold"), text_color=CLR_MUTED,
+                         fg_color=CLR_SURFACE_ALT, corner_radius=8, height=20,
+                         ).grid(row=0, column=2, padx=(0, 10), pady=(10, 2))
+        return len(missing)
+
+    def _persist_snapshot(self) -> None:
+        """Save this scan as the new baseline for the subnet."""
+        try:
+            from src.utils.local_db import save_network_snapshot
+            save_network_snapshot(
+                getattr(self, "_subnet", ""),
+                [{"ip": d.ip, "mac": d.mac, "hostname": d.hostname,
+                  "risk_level": d.risk_level, "open_ports": d.open_ports}
+                 for d in self._devices.values()])
+        except Exception:
+            logger.debug("could not persist network snapshot", exc_info=True)
+
+    # ------------------------------------------------------- change detection
+    def _change_for(self, device: DeviceInfo):
+        """How this device changed since the last scan of this subnet.
+
+        Returns ``(badge_text, colour)`` or ``(None, None)``. Only meaningful
+        once a baseline exists (i.e. the subnet has been scanned before).
+        """
+        if not getattr(self, "_has_baseline", False):
+            return None, None
+        from src.utils.local_db import device_identity
+        ident = device_identity(device.mac, device.ip)
+        self._seen_identities.add(ident)
+        prev = self._prev_devices.get(ident)
+        if prev is None:
+            return "● NEW", CLR_BLUE
+        if prev.get("risk_level", "") != device.risk_level:
+            higher = (RISK_ORDER.get(device.risk_level, 0)
+                      > RISK_ORDER.get(prev.get("risk_level", ""), 0))
+            return ("▲ RISK UP", CLR_DANGER) if higher \
+                else ("▼ RISK DOWN", CLR_SUCCESS)
+        if set(prev.get("open_ports", [])) != set(device.open_ports):
+            return "◆ PORTS CHANGED", CLR_WARNING
+        return None, None
 
     # ---------------------------------------------------------------- UI update
     def _refresh_device_card(self, device: DeviceInfo):
@@ -509,6 +623,7 @@ class NetworkScannerScreen(ctk.CTkFrame):
         tag = f"card_{device.ip.replace('.', '_')}"
         risk_clr = device.risk_colour
         is_local = device.ip == self._local_ip
+        change_txt, change_clr = self._change_for(device)
 
         # Remove existing card for this IP
         existing = getattr(self, f"_card_{tag}", None)
@@ -535,6 +650,20 @@ class NetworkScannerScreen(ctk.CTkFrame):
         card.grid(row=row_idx, column=0, padx=PAD_SM,
                   pady=3, sticky="ew")
         card.grid_columnconfigure(1, weight=1)
+
+        # Highlight devices that changed since the last scan: a steady
+        # coloured border plus a brief motion pulse to draw the eye.
+        if change_txt and change_clr:
+            card.configure(border_width=2, border_color=change_clr)
+            bright = motion.blend(change_clr, "#FFFFFF", 0.55)
+            motion.animate_color(card, "border_color", bright, change_clr,
+                                 duration_ms=750)
+            ctk.CTkLabel(card, text=change_txt,
+                         font=("Segoe UI", 10, "bold"), text_color=change_clr,
+                         fg_color=CLR_SURFACE_ALT, corner_radius=8,
+                         height=20,
+                         ).grid(row=0, column=1, padx=(0, 10), pady=(10, 1),
+                                sticky="e")
 
         # Risk stripe
         ctk.CTkFrame(card, fg_color=risk_clr, width=5,
@@ -566,7 +695,7 @@ class NetworkScannerScreen(ctk.CTkFrame):
         # Risk badge
         ctk.CTkLabel(card,
                      text=device.risk_level,
-                     font=("Segoe UI", 9, "bold"), text_color=risk_clr,
+                     font=("Segoe UI", 10, "bold"), text_color=risk_clr,
                      fg_color=CLR_SURFACE_ALT, corner_radius=8,
                      width=72, height=22,
                      ).grid(row=0, column=2, padx=(0, 10), pady=(10, 2))
@@ -654,7 +783,7 @@ class NetworkScannerScreen(ctk.CTkFrame):
                            fill=colour, outline="")
         # Labels
         canvas.create_text(x, y, text=line1,
-                           font=("Segoe UI", 8, "bold"), fill="#0B1622")
+                           font=("Segoe UI", 10, "bold"), fill="#0B1622")
         if line2:
             canvas.create_text(x, y + r + 9, text=line2,
                                font=("Segoe UI", 7), fill=CLR_TEXT_SEC)
@@ -1028,8 +1157,8 @@ class ConnectivityTestPanel(ctk.CTkFrame):
         results_frame.pack(fill="x", padx=12, pady=(0, 12))
         for test_name, status in [
             ("DNS Connectivity",    "✔ Connected"),
-            ("Gateway Reachability","✔ Connected"),
-            ("Internet Connectivity","✔ Connected"),
+            ("Gateway Reachability", "✔ Connected"),
+            ("Internet Connectivity", "✔ Connected"),
             ("Latency",             "45ms (Good)"),
             ("Packet Loss",         "0% (Excellent)"),
         ]:

@@ -15,56 +15,94 @@ from src.gui.theme import (
 )
 from src.gui.screens.business_info import _header, _nav
 
+# Each tool: (id, name, icon, control_id, colour, description, impact).
+# Descriptions are written for a non-technical business owner — plain
+# language first, with any technical term explained in everyday words.
 TOOLS = [
     (
         "active_dir",
-        "Active Directory",
+        "Staff Logins & Accounts",
         "🔐",
         "C16",
         CLR_ACCENT,
-        "The business manages user accounts and access through Microsoft Active Directory"
-        " (on-premises or Azure AD).",
-        "Adds: AD password policies, privileged account management, and stale account review.",
+        "Choose this if your staff sign in to shared computers or systems with"
+        " company usernames and passwords managed in one place (often called"
+        " \"Active Directory\" or a Microsoft 365 / Azure work account).",
+        "We'll check: strong password rules, that only the right people have"
+        " admin access, and that accounts of staff who leave are closed promptly.",
     ),
     (
         "network_scan",
-        "Network Architecture Scan",
+        "Your Office Network",
         "🌐",
         "C17",
         "#2485E8",
-        "The business has performed or requires a network scan to map devices,"
-        " detect rogue systems, and review exposed ports.",
-        "Adds: network device inventory, port exposure review, and segmentation assessment.",
+        "Choose this if you have an office network (Wi-Fi and cables connecting"
+        " your computers, printers, and other devices) that you'd like checked"
+        " for unknown or unsafe devices.",
+        "We'll check: a list of every device on your network, that guest Wi-Fi"
+        " is kept separate from business systems, and that nothing risky is"
+        " left open to the internet.",
     ),
     (
         "infra_scan",
-        "Infrastructure Security Scan",
+        "Your Website & Online Services",
         "🖥",
         "C18",
         "#5A7490",
-        "The business has public-facing services (website, email, APIs) that need"
-        " SSL certificate, security-header, and port-exposure checks.",
-        "Adds: SSL/TLS validity, HTTP security headers, and risky-port exposure.",
+        "Choose this if your business has a website, online store, or email"
+        " system that customers or staff reach over the internet.",
+        "We'll check: that your website's security padlock (the certificate) is"
+        " valid, that basic web protections are switched on, and that no unsafe"
+        " doors are left open for attackers.",
     ),
     (
         "zambia_risk",
-        "Zambia Local Threat Assessment",
+        "Local Zambian Threats",
         "🇿🇲",
         "C19",
         "#F0A500",
-        "The business wants to assess exposure to Zambia-specific threats such as SIM swap"
-        " fraud, mobile money scams, WhatsApp phishing, and local regulatory compliance.",
-        "Adds: mobile-money controls, local-threat training, and Data Protection Act compliance.",
+        "Choose this to check how well protected you are against scams common in"
+        " Zambia — SIM-swap fraud, mobile-money theft, and WhatsApp phishing —"
+        " and against local data-protection law.",
+        "We'll check: mobile-money account safeguards, staff awareness of local"
+        " scams, and whether you meet the Zambia Data Protection Act.",
     ),
     (
         "remediation",
-        "Remediation Process",
+        "Fixing Security Problems",
         "🔧",
         "C20",
         CLR_SUCCESS,
-        "The business actively tracks and remediates identified security findings with"
-        " assigned owners and defined SLAs.",
-        "Adds: finding-tracking, SLA adherence, and evidence of completed remediations.",
+        "Choose this if your business keeps track of security problems once they"
+        " are found and makes sure someone is responsible for fixing them.",
+        "We'll check: that problems are written down with an owner and a"
+        " deadline, and that the serious ones actually get fixed on time.",
+    ),
+    (
+        "fleet_scan",
+        "Multiple Computers or Branches",
+        "🖧",
+        "C21",
+        "#00BCD4",
+        "Choose this if your business runs several computers or servers — for"
+        " example across different branches — and you want them all checked"
+        " together, not one at a time.",
+        "We'll check: that every machine is accounted for, that they're all"
+        " scanned regularly, and that the weakest machine is brought up to"
+        " standard (a business is only as safe as its least-protected computer).",
+    ),
+    (
+        "server_hardening",
+        "Business Servers",
+        "🛡",
+        "C22",
+        "#4CAF50",
+        "Choose this if you run one or more servers — the always-on computers"
+        " that store shared files, run your website, or hold company data.",
+        "We'll check: that servers are set up securely rather than left on"
+        " default settings, that old risky features are switched off, and that"
+        " security updates are installed promptly.",
     ),
 ]
 
@@ -124,8 +162,12 @@ class ToolsProfileScreen(ctk.CTkFrame):
         def _refresh(c=card, v=var, col=colour):
             c.configure(border_color=col if v.get() else CLR_BORDER)
 
-        # Left accent bar
-        accent = ctk.CTkFrame(card, fg_color=colour, width=5, corner_radius=0)
+        # Left accent bar. Height is pinned to 1px so the stripe never
+        # inflates the card (an empty CTkFrame otherwise requests its 200px
+        # default height, which was pushing later cards off-screen); the
+        # sticky="ns" span still stretches it to the card's real height.
+        accent = ctk.CTkFrame(card, fg_color=colour, width=5, height=1,
+                              corner_radius=0)
         accent.grid(row=0, column=0, rowspan=3, sticky="ns", pady=0)
         accent.grid_propagate(False)
 

@@ -137,7 +137,7 @@ class HistoryScreen(ctk.CTkFrame):
 
         ctk.CTkLabel(
             card, text=tier,
-            font=("Segoe UI", 9, "bold"), text_color=tier_clr,
+            font=("Segoe UI", 10, "bold"), text_color=tier_clr,
             fg_color=CLR_SURFACE_ALT, corner_radius=6,
             width=90, height=18,
         ).grid(row=1, column=3, padx=(0, 8), pady=(0, 14))

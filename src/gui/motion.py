@@ -112,6 +112,81 @@ def slide_in(widget, distance: int = 32, duration_ms: int = DEFAULT_MS,
     animate(widget, duration_ms, frame, on_done=done, key="slide")
 
 
+# ── screen cross-transitions (push / pop) ────────────────────────────────────
+
+def cross_slide(old, new, direction: int, duration_ms: int = 240,
+                on_done: Optional[Callable[[], None]] = None,
+                parallax: float = 0.22) -> None:
+    """Cross-slide from ``old`` to ``new`` like a mobile push/pop.
+
+    Unlike a bare slide, the outgoing screen stays visible and parallaxes
+    away while the incoming one slides in over it, so there is never a flash
+    of blank background between screens.
+
+    * ``direction > 0`` (push/forward): ``new`` enters from the right on top;
+      ``old`` drifts left underneath.
+    * ``direction < 0`` (pop/back): ``old`` exits right on top; ``new`` is
+      revealed from the left underneath.
+    * ``direction == 0`` (replace) or an un-viewable window: instant swap.
+
+    Both frames are ``place``-managed (relwidth/relheight = 1) during the
+    animation, then ``new`` is packed and ``old`` destroyed. The animation is
+    keyed on the shared container, so starting a new transition cancels any
+    in-flight one cleanly.
+    """
+    container = new.master
+
+    def finish() -> None:
+        try:
+            if old is not None and old.winfo_exists():
+                old.destroy()
+        except Exception:
+            pass
+        try:
+            if new.winfo_exists():
+                new.place_forget()
+                new.pack(fill="both", expand=True)
+        except Exception:
+            pass
+        if on_done is not None:
+            on_done()
+
+    # Instant swap: no direction, first screen, or window not on-screen.
+    if direction == 0 or old is None or not _viewable(container):
+        if old is not None:
+            try:
+                old.destroy()
+            except Exception:
+                pass
+        try:
+            new.pack(fill="both", expand=True)
+        except Exception:
+            pass
+        if on_done is not None:
+            on_done()
+        return
+
+    old.place(relx=0, rely=0, relwidth=1, relheight=1)
+    if direction > 0:
+        # Push: incoming slides in from the right, on top.
+        new.place(relx=1.0, rely=0, relwidth=1, relheight=1)
+        new.lift()
+
+        def frame(p: float) -> None:
+            new.place_configure(relx=1.0 - p)
+            old.place_configure(relx=-parallax * p)
+    else:
+        # Pop: outgoing slides out to the right, on top; incoming revealed.
+        new.place(relx=-parallax, rely=0, relwidth=1, relheight=1)
+        old.lift()
+
+        def frame(p: float) -> None:
+            old.place_configure(relx=p)
+            new.place_configure(relx=-parallax * (1.0 - p))
+
+    animate(container, duration_ms, frame, on_done=finish, key="screen")
+
+
 # ── colour transitions ───────────────────────────────────────────────────────
 
 def _hex_to_rgb(clr: str) -> tuple:
@@ -180,6 +255,33 @@ def stagger_grid(widgets: Sequence, interval_ms: int = 24) -> None:
     show()
 
 
+def slide_down_reveal(widget, duration_ms: int = 200) -> None:
+    """Reveal a fixed-height banner by easing its height from 0 to natural.
+
+    The widget must have a configured ``height`` and ``grid/pack_propagate``
+    off so the height is honoured. No-op (instant) when not viewable.
+    """
+    try:
+        target = int(widget.cget("height"))
+    except Exception:
+        return
+    if target <= 1:
+        return
+    if not _viewable(widget):
+        return
+
+    def frame(p: float) -> None:
+        widget.configure(height=max(1, int(target * p)))
+
+    def done() -> None:
+        try:
+            widget.configure(height=target)
+        except Exception:
+            return
+
+    animate(widget, duration_ms, frame, on_done=done, key="reveal")
+
+
 def smooth_progress(bar, target: float, duration_ms: int = 260) -> None:
     """Ease a CTkProgressBar from its current value to ``target``."""
     try:
@@ -194,3 +296,92 @@ def smooth_progress(bar, target: float, duration_ms: int = 260) -> None:
         bar.set(current + (target - current) * p)
 
     animate(bar, duration_ms, frame, key="progress")
+
+
+# ── smooth scrolling ──────────────────────────────────────────────────────────
+
+def smooth_scroll(scrollable, notch_fraction: float = 0.16,
+                  duration_ms: int = 160) -> None:
+    """Give a CTkScrollableFrame eased, momentum mouse-wheel scrolling.
+
+    customtkinter scrolls the underlying canvas in coarse discrete jumps,
+    which reads as janky on long result screens. This replaces that with an
+    eased ``yview_moveto`` toward an accumulating target, so fast flicks feel
+    like momentum and single notches glide. Safe to call on any
+    CTkScrollableFrame; a no-op if the internal canvas can't be found.
+
+    ``notch_fraction`` is how much of the *visible* viewport one wheel notch
+    travels — kept constant so scroll speed feels the same on short and long
+    screens alike.
+    """
+    if getattr(scrollable, "_smooth_scroll_on", False):
+        return  # already smoothed — avoid stacking duplicate handlers
+    canvas = getattr(scrollable, "_parent_canvas", None)
+    if canvas is None:
+        return
+    scrollable._smooth_scroll_on = True
+
+    # ctk registers a per-instance global <MouseWheel> handler that calls
+    # self.check_if_master_is_canvas(); forcing it False disables ctk's own
+    # discrete scroll for *this* frame only (other frames keep theirs).
+    try:
+        class_check = type(scrollable).check_if_master_is_canvas
+    except AttributeError:
+        return
+    scrollable.check_if_master_is_canvas = lambda _w: False  # type: ignore[assignment]
+
+    state: dict = {"target": None}
+
+    def handler(event):
+        try:
+            if not class_check(scrollable, event.widget):
+                return
+            first, last = canvas.yview()
+            span = last - first
+            if span >= 1.0:            # nothing to scroll
+                return
+            notch = -1 if event.delta > 0 else 1
+            base = state["target"] if state["target"] is not None else first
+            max_top = max(0.0, 1.0 - span)
+            target = min(max_top, max(0.0, base + notch * notch_fraction * span))
+            state["target"] = target
+            start = first
+
+            def on_frame(p: float) -> None:
+                canvas.yview_moveto(start + (target - start) * p)
+
+            def on_done() -> None:
+                state["target"] = None
+
+            animate(canvas, duration_ms, on_frame, on_done=on_done,
+                    key="smoothscroll")
+        except Exception:
+            return  # frame torn down or canvas gone — ignore this event
+
+    # Same binding style ctk uses; consistent lifetime/cleanup profile.
+    scrollable.bind_all("<MouseWheel>", handler, add="+")
+
+
+def enable_global_smooth_scroll() -> None:
+    """Make every CTkScrollableFrame in the app scroll smoothly.
+
+    Wraps ``CTkScrollableFrame.__init__`` once so each instance opts into
+    :func:`smooth_scroll` at construction — no per-screen wiring needed.
+    Idempotent and defensive: a failure to smooth one frame never blocks
+    its creation.
+    """
+    import customtkinter as ctk
+
+    if getattr(ctk.CTkScrollableFrame, "_smooth_patched", False):
+        return
+    orig_init = ctk.CTkScrollableFrame.__init__
+
+    def patched_init(self, *args, **kwargs):
+        orig_init(self, *args, **kwargs)
+        try:
+            smooth_scroll(self)
+        except Exception:
+            pass
+
+    ctk.CTkScrollableFrame.__init__ = patched_init
+    setattr(ctk.CTkScrollableFrame, "_smooth_patched", True)   # avoid patching multiple times in case the function is called repeatedly

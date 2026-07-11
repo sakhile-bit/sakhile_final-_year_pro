@@ -25,7 +25,6 @@ from typing import Callable, List
 
 import customtkinter as ctk
 
-from src.gui import motion
 from src.gui.theme import (
     BTN_H,
     BTN_R,
@@ -114,13 +113,19 @@ class Router:
 
     # ── rendering ────────────────────────────────────────────────────
     def _render(self, factory: ScreenFactory, direction: int = 0) -> None:
-        """Build the new screen, then retire the old one.
+        """Build the new screen, then retire the old one with an instant swap.
 
-        The new screen is constructed *before* the current one is
-        destroyed so a failure can't strand the window blank. The new
-        screen then slides in (from the right going forward, from the
-        left going back); the slide degrades to an instant swap when
-        the window isn't viewable.
+        Screen swaps are instant on purpose. Tk has no compositor, so
+        sliding a full, widget-heavy screen (e.g. the two-panel welcome)
+        repaints the whole tree every frame and visibly janks — worse when
+        it overlaps the destination screen's own entrance animation. The
+        new screen is packed *before* the old one is destroyed so a build
+        failure can't strand the window blank and there's no blank flash.
+        Individual screens still animate their own lightweight entrances
+        (window fade-in, hover states, staggered cards).
+
+        ``direction`` is accepted for call-site compatibility but no longer
+        drives an animation.
         """
         try:
             new_widget = factory()
@@ -130,12 +135,12 @@ class Router:
 
         old_widget = self._current_widget
         self._current_widget = new_widget
+        new_widget.pack(fill="both", expand=True)
         if old_widget is not None:
             try:
                 old_widget.destroy()
             except Exception:  # pragma: no cover - defensive teardown
                 logger.exception("Failed to destroy previous screen")
-        motion.slide_in(new_widget, distance=36 * direction, duration_ms=220)
 
     def _build_error_screen(self) -> ctk.CTkFrame:
         frame = ctk.CTkFrame(self._container, fg_color=CLR_BG, corner_radius=0)

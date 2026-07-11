@@ -147,19 +147,94 @@ class TestDigitalHygieneAssessor:
 
 
 class TestInfrastructureAssessor:
+    def _patched(self, assessor, **overrides):
+        """Patch every network-touching method so run_checks is deterministic."""
+        defaults = {
+            '_check_dns_resolution': 'Resolves to 93.184.216.34',
+            '_check_dns_security': {'spf': 'SPF record found',
+                                    'dmarc': 'DMARC record found',
+                                    'caa': 'CAA record found', 'notes': ''},
+            '_check_ssl_certificate': 'SSL/TLS enabled, expires: ... (120 days)',
+            '_inspect_certificate': {'valid': True, 'self_signed': False,
+                                     'hostname_mismatch': False,
+                                     'issuer': 'Test CA', 'days_left': 120},
+            '_check_tls_version': 'Good – only TLS 1.2+ accepted',
+            '_check_https_redirect': 'HTTP redirects to HTTPS (https://example.com)',
+            '_check_security_headers': {
+                'Strict-Transport-Security': 'PRESENT – max-age=63072000'},
+            '_check_http_methods': {'allow': 'GET, POST', 'trace_enabled': False},
+            '_check_http_meta': {'server': '', 'powered_by': '',
+                                 'insecure_cookies': [], 'hsts_max_age': None},
+            '_get_external_ip': '203.0.113.1',
+            '_get_scanner_ip': '10.0.0.5',
+            '_reverse_dns': 'example.com',
+            '_scan_common_ports': [80, 443],
+            '_identify_risky_ports': [],
+        }
+        defaults.update(overrides)
+        from contextlib import ExitStack
+        stack = ExitStack()
+        for name, val in defaults.items():
+            stack.enter_context(patch.object(InfrastructureAssessor, name,
+                                             return_value=val))
+        return stack
+
     def test_run_checks_returns_expected_keys(self):
         assessor = InfrastructureAssessor('example.com')
-        with patch.object(InfrastructureAssessor, '_check_dns_resolution', return_value='Resolves to 93.184.216.34'):
-            with patch.object(InfrastructureAssessor, '_check_ssl_certificate', return_value='SSL/TLS enabled'):
-                with patch.object(InfrastructureAssessor, '_check_https_redirect', return_value='HTTP redirects to HTTPS (https://example.com)'):
-                    with patch.object(InfrastructureAssessor, '_get_external_ip', return_value='203.0.113.1'):
-                        with patch.object(InfrastructureAssessor, '_scan_common_ports', return_value=[80, 443]):
-                            result = assessor.run_checks()
-                            assert result['dns_resolution'] == 'Resolves to 93.184.216.34'
-                            assert result['ssl_certificate'] == 'SSL/TLS enabled'
-                            assert str(result['https_redirect']).startswith('HTTP redirects to HTTPS')
-                            assert result['external_ip'] == '203.0.113.1'
-                            assert result['open_ports'] == [80, 443]
+        with self._patched(assessor):
+            result = assessor.run_checks()
+        # Legacy keys preserved for backward compatibility
+        assert result['dns_resolution'] == 'Resolves to 93.184.216.34'
+        assert str(result['https_redirect']).startswith('HTTP redirects to HTTPS')
+        assert result['external_ip'] == '203.0.113.1'
+        assert result['open_ports'] == [80, 443]
+        # New enrichment keys
+        assert result['target_ip'] == '203.0.113.1'
+        assert result['services'] == {80: 'HTTP', 443: 'HTTPS'}
+        assert result['reverse_dns'] == 'example.com'
+        assert 'findings' in result and 'grade' in result and 'score' in result
+
+    def test_clean_target_is_secure(self):
+        assessor = InfrastructureAssessor('example.com')
+        with self._patched(assessor):
+            result = assessor.run_checks()
+        assert result['score'] == 100
+        assert result['grade'] == 'SECURE'
+        assert result['findings'] == []
+
+    def test_critical_port_makes_at_risk(self):
+        assessor = InfrastructureAssessor('example.com')
+        with self._patched(
+            assessor,
+            _scan_common_ports=[80, 443, 3389],
+            _identify_risky_ports=[
+                'Port 3389: RDP – remote desktop, brute-force/BlueKeep risk [CRITICAL]'],
+        ):
+            result = assessor.run_checks()
+        sevs = [f['severity'] for f in result['findings']]
+        assert 'CRITICAL' in sevs
+        assert result['grade'] == 'AT RISK'
+        assert result['score'] < 85
+
+    def test_expired_cert_and_missing_spf_flagged(self):
+        assessor = InfrastructureAssessor('example.com')
+        with self._patched(
+            assessor,
+            _check_ssl_certificate='SSL certificate EXPIRED (Jan 1 2020 GMT)',
+            _check_dns_security={'spf': 'No SPF record – email spoofing risk',
+                                 'dmarc': 'DMARC record found',
+                                 'caa': 'CAA record found', 'notes': ''},
+        ):
+            result = assessor.run_checks()
+        ids = {f['id'] for f in result['findings']}
+        assert 'TLS-CERT' in ids
+        assert 'DNS-SPF' in ids
+
+    def test_service_mapping_and_risky_ports_are_consistent(self):
+        # Every risky port must be a known service and carry a severity tag.
+        for port, (desc, sev) in InfrastructureAssessor.RISKY_PORTS.items():
+            assert port in InfrastructureAssessor.PORT_SERVICES
+            assert sev in ('CRITICAL', 'HIGH', 'MEDIUM')
 
 
 class TestZambiaRiskAssessor:

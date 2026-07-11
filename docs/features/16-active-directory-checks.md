@@ -1,162 +1,101 @@
-# Feature: Active Directory Checks
+# Feature: Active Directory Hygiene
 
 ## Overview
-The Active Directory module performs LDAP-based security checks against a Windows Active Directory domain. It is an **optional** feature — checks are gracefully skipped when the host is not domain-joined or when the `ldap3` library is not installed.
+The Active Directory module runs read-only LDAP checks against a Windows AD
+domain and rolls them into a **HEALTHY / NEEDS ATTENTION / AT RISK** grade —
+the same verdict model as the Server Hardening audit. It targets the
+misconfigurations attackers actually abuse for lateral movement and privilege
+escalation. It is **optional and safe to run anywhere**: no `ldap3`, a
+non-domain-joined host, or a failed bind all yield SKIP/ERROR findings rather
+than crashing.
 
-**File:** [`src/security/active_directory/checks.py`](../../src/security/active_directory/checks.py)
+**Engine:** [`src/security/active_directory/checks.py`](../../src/security/active_directory/checks.py) — `ADAuditor` / `run_ad_audit()`
+**GUI:** [`src/gui/screens/active_directory.py`](../../src/gui/screens/active_directory.py)
+
+> Note (July 2026): this replaced an earlier version where the GUI was a static
+> mock-up whose "Run" button only printed to the console, and the engine's
+> "stale account" check never actually measured staleness. Both are now real.
 
 ---
 
 ## Prerequisites
-
 ```bash
 pip install ldap3
 ```
-
-The module uses `ldap3` v2.9.1+ for all LDAP operations. If the library is absent, all check functions still return valid result dicts with `passed=False` and a clear explanation message — the application never crashes.
-
----
-
-## Helper Functions
-
-### `get_domain_name() -> Optional[str]`
-
-Reads the current machine's domain name via:
-```powershell
-wmic computersystem get domain
-```
-Returns `None` if the host is in `WORKGROUP` or if WMI fails.
-
-### `build_base_dn(domain: str) -> str`
-
-Converts a domain FQDN to an LDAP base DN:
-```python
-build_base_dn('corp.example.com')
-# → 'DC=corp,DC=example,DC=com'
-```
+Bundled in the packaged `.exe`. The bind account needs only **read** access to
+the directory — use a dedicated read-only service account, never a Domain
+Admin. Credentials are optional in the UI: `DOMAIN\user` uses NTLM, a UPN/DN
+uses a simple bind, and blank attempts an unauthenticated bind.
 
 ---
 
-## Check Functions
+## The checks
 
-### AD-01 — AD Connectivity (`check_ad_connectivity`)
+| ID | Check | Severity | What it catches |
+|---|---|---|---|
+| AD-01 | Directory Connectivity | HIGH | Can we bind to the domain at all |
+| AD-02 | Stale Accounts | MEDIUM | Enabled accounts idle **> stale_days** (default 90) — computed from `lastLogonTimestamp`, paged search |
+| AD-03 | Domain Admins Size | CRITICAL | More than `max_domain_admins` (default 5) standing Domain Admins — widens blast radius |
+| AD-04 | Machine Account Quota | HIGH | `ms-DS-MachineAccountQuota > 0` — any user can join computers (RBCD attacks) |
+| AD-05 | krbtgt Password Age | MEDIUM | krbtgt key older than 180 days — long-lived golden-ticket risk |
+| AD-06 | Risky Account Flags | HIGH | Enabled accounts with `PASSWD_NOTREQD`, reversible-encryption, or non-expiring passwords |
+| AD-07 | Anonymous LDAP Bind | MEDIUM | The directory lets an unauthenticated client read objects |
 
-```python
-from src.security.active_directory.checks import check_ad_connectivity, get_domain_name
+`ADAuditor` opens one reused connection, runs each check defensively (one
+failure never aborts the rest), and uses **paged search** so counts aren't
+capped at the AD 1000-object limit. Windows FILETIME values are converted to
+real datetimes via `_filetime_to_dt`.
 
-domain = get_domain_name()
-result = check_ad_connectivity(domain, user='svc-account@corp.example.com', password='...')
+---
+
+## Grade logic
 ```
+Score:  PASS = 1 · WARN/ERROR = ½ · FAIL = 0   (SKIP excluded)
 
-**What it does:**
-1. Creates a `Server` object pointing at the domain controller
-2. Opens an `auto_bind` connection (Kerberos or simple auth)
-3. Unbinds and reports success
-
-**Result:**
-```python
-{
-    'check_id':    'AD-01',
-    'name':        'AD Connectivity',
-    'passed':      True,
-    'severity':    'HIGH',
-    'details':     'Connected to Active Directory domain corp.example.com',
-}
+AT RISK          when any CRITICAL finding fails, OR score < 55
+HEALTHY          when score ≥ 85 and no CRITICAL failure
+NEEDS ATTENTION  otherwise
 ```
 
 ---
 
-### AD-02 — Stale Account Policy (`check_stale_account_policy`)
-
+## API
 ```python
-result = check_stale_account_policy(domain)
+from src.security.active_directory import run_ad_audit
+
+report = run_ad_audit(domain="corp.example.com",
+                      user="CORP\\svc-audit", password="…",
+                      stale_days=90, max_domain_admins=5)
+print(report.grade, report.score_percent)      # e.g. "NEEDS ATTENTION" 71
+for f in report.findings:
+    print(f.check_id, f.status, f.name)
+report.to_dict()                               # JSON-serialisable
 ```
 
-**What it does:**  
-Searches the domain for all **enabled user accounts** using the LDAP filter:
-```
-(&(objectClass=user)(!(userAccountControl:1.2.840.113556.1.4.803:=2)))
-```
-Returns the count of enabled accounts. In a full implementation this would also compare `lastLogonTimestamp` against a 90-day threshold to surface stale accounts.
-
-**Severity:** MEDIUM
+`get_domain_name()` (auto-detects the joined domain via CIM, wmic fallback) and
+`build_base_dn()` remain available, plus a backward-compatible
+`check_ad_connectivity()` returning a single result dict.
 
 ---
 
-### AD-03 — Admin Group Membership (`check_admin_group_members`)
-
-```python
-result = check_admin_group_members(domain)
-```
-
-**What it does:**  
-Searches for the `Domain Admins` group and returns its member count.
-
-```python
-{
-    'check_id': 'AD-03',
-    'name':     'Admin Group Membership',
-    'passed':   True,
-    'severity': 'HIGH',
-    'details':  'Domain Admins group has 3 member(s)',
-}
-```
-
-**Severity:** HIGH — excessive Domain Admin membership is a critical finding.
+## GUI
+Tools → **Active Directory Hygiene**. A connection bar (domain — auto-prefilled
+in the background — username, password) drives a threaded audit that renders a
+grade hero, a passed/warnings/failed summary, and prioritised finding cards with
+plain-language "Fix:" remediation. Progress and results animate
+([UI Motion](21-ui-motion.md)).
 
 ---
 
-## Graceful Fallback
-
-When `ldap3` is not installed or the host is not domain-joined, all three functions return a standardised skip result:
-
-```python
-{
-    'check_id':    'AD-01',
-    'name':        'AD Connectivity',
-    'passed':      False,
-    'severity':    'LOW',
-    'details':     'ldap3 not installed; AD checks skipped',
-    'remediation': 'Install ldap3 (pip install ldap3)',
-}
-```
-
-Severity is lowered to `LOW` for skipped checks so they don't inflate failure counts on workgroup machines.
-
----
-
-## Including AD Checks in Agent Reports
-
-```python
-from src.agents.windows_agent import collect_local_report
-from src.security.active_directory.checks import (
-    get_domain_name,
-    check_ad_connectivity,
-    check_stale_account_policy,
-    check_admin_group_members,
-)
-
-result = collect_local_report('Acme Ltd')
-domain = get_domain_name()
-
-if domain:
-    result['report']['ad_checks'] = {
-        'connectivity':  check_ad_connectivity(domain),
-        'stale_accounts': check_stale_account_policy(domain),
-        'admin_members': check_admin_group_members(domain),
-    }
-```
-
----
-
-## Security Note
-
-AD checks require **read-level LDAP access**. Use a dedicated **read-only service account** rather than a Domain Admin account. The account needs:
-- `Read` permission on the domain root
-- No write or admin permissions
+## Testing
+[`tests/test_active_directory.py`](../../tests/test_active_directory.py) — 15
+tests with an in-memory fake `ldap3` connection (runs on any OS): grade/score
+model, ldap3-missing and non-domain-joined SKIP paths, bind-failure ERROR, and
+each check's PASS/FAIL branch (stale accounts, oversized Domain Admins, open
+machine-account quota, old krbtgt, risky flags, anonymous bind).
 
 ---
 
 ## Related Features
-- [Windows Agent](10-windows-agent.md) — can include AD checks in reports
-- [Deployment Checker](07-deployment-checker.md) — system-level checks companion
+- [Server Hardening Audit](19-server-hardening.md) — host-level companion with the same grade model
+- [Windows Agent](10-windows-agent.md)

@@ -625,7 +625,7 @@ class FleetScanScreen(CancellableScreenMixin, ctk.CTkFrame):
         else:
             badge_txt = r.status.upper()
             badge_clr = status_clr
-        ctk.CTkLabel(card, text=badge_txt, font=("Segoe UI", 9, "bold"),
+        ctk.CTkLabel(card, text=badge_txt, font=("Segoe UI", 10, "bold"),
                      text_color=badge_clr, fg_color=CLR_SURFACE_ALT,
                      corner_radius=6, height=20,
                      ).grid(row=0, column=3, padx=(0, 12), pady=(10, 2),

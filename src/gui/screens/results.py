@@ -88,7 +88,7 @@ class _RingChart(tk.Canvas):
         self.create_text(cx, cy - 9, text=f"{pct}%",
                          font=("Segoe UI", 19, "bold"), fill=colour)
         self.create_text(cx, cy + 13, text="Score",
-                         font=("Segoe UI", 9), fill=CLR_MUTED)
+                         font=("Segoe UI", 10), fill=CLR_MUTED)
 
 
 # ── Screen ────────────────────────────────────────────────────────────────────
@@ -386,7 +386,7 @@ class ResultsScreen(ctk.CTkFrame):
                            padx=PAD, pady=2, sticky="ew")
                 rec_f.grid_columnconfigure(1, weight=1)
                 ctk.CTkLabel(rec_f, text=eff_label,
-                             font=("Segoe UI", 9, "bold"),
+                             font=("Segoe UI", 10, "bold"),
                              text_color=eff_clr,
                              fg_color=CLR_SURFACE_ALT, corner_radius=6,
                              width=88, height=20,

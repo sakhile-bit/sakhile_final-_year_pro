@@ -14,6 +14,7 @@ import customtkinter as ctk
 
 from src.gui.screens.business_info import _header
 from src.gui.screens._cancellable import CancellableScreenMixin
+from src.gui import motion
 from src.gui.theme import (
     BTN_H,
     BTN_R,
@@ -45,6 +46,7 @@ from src.security.hardening.checks import (
     HardeningReport,
     WindowsHardeningAuditor,
 )
+from src.security.hardening import fixes as hardening_fixes
 
 GRADE_STYLE = {
     "HARDENED": {
@@ -127,6 +129,7 @@ class ServerHardeningScreen(CancellableScreenMixin, ctk.CTkFrame):
         super().__init__(master, fg_color=CLR_BG, corner_radius=0)
         self._on_back = on_back
         self._scanning = False
+        self._fixing = False
         self._report: HardeningReport | None = None
         self._build()
 
@@ -165,6 +168,7 @@ class ServerHardeningScreen(CancellableScreenMixin, ctk.CTkFrame):
         body.grid(row=2, column=0, sticky="nsew")
         body.grid_columnconfigure(0, weight=1)
         self._body = body
+        motion.smooth_scroll(body)
 
         self._placeholder = ctk.CTkLabel(
             body,
@@ -247,7 +251,8 @@ class ServerHardeningScreen(CancellableScreenMixin, ctk.CTkFrame):
                     check_id="ERR", name=label.rstrip("…"),
                     status="ERROR", severity="MEDIUM",
                     details=str(exc)))
-            if not self._safe_after(0, self._progress.set, i / total):
+            if not self._safe_after(0, motion.smooth_progress,
+                                    self._progress, i / total):
                 return
 
         self._report = HardeningReport(checks=checks)
@@ -331,6 +336,9 @@ class ServerHardeningScreen(CancellableScreenMixin, ctk.CTkFrame):
                          font=("Segoe UI", 15, "bold"),
                          text_color=clr).pack()
 
+        # ── One-click fix bar ─────────────────────────────────────────
+        self._build_fix_bar(self._body, next_row())
+
         # ── Individual check results ──────────────────────────────────
         ctk.CTkLabel(self._body, text="Check Details",
                      font=FONT_HEADING, text_color=CLR_TEXT,
@@ -347,6 +355,10 @@ class ServerHardeningScreen(CancellableScreenMixin, ctk.CTkFrame):
         )
         for check in sorted_checks:
             self._make_check_card(self._body, next_row(), check)
+
+        # Reveal the results as a gentle top-down cascade.
+        self.after(20, lambda: motion.stagger_grid(
+            list(self._body.winfo_children()), interval_ms=16))
 
     def _make_check_card(self, parent, row_idx: int,
                          check: HardeningCheckResult):
@@ -387,7 +399,7 @@ class ServerHardeningScreen(CancellableScreenMixin, ctk.CTkFrame):
         # Severity badge
         ctk.CTkLabel(card,
                      text=check.severity,
-                     font=("Segoe UI", 9, "bold"),
+                     font=("Segoe UI", 10, "bold"),
                      text_color=SEV_CLR.get(check.severity, CLR_MUTED),
                      fg_color=CLR_SURFACE_ALT, corner_radius=6,
                      width=68, height=20,
@@ -410,14 +422,253 @@ class ServerHardeningScreen(CancellableScreenMixin, ctk.CTkFrame):
                        padx=(10, 12), pady=(0, 10), sticky="ew")
             rem_f.grid_columnconfigure(1, weight=1)
             ctk.CTkLabel(rem_f, text="Fix:",
-                         font=("Segoe UI", 9, "bold"),
+                         font=("Segoe UI", 10, "bold"),
                          text_color=CLR_ACCENT, width=28,
                          ).grid(row=0, column=0, padx=(10, 4), pady=6)
             ctk.CTkLabel(rem_f, text=check.remediation,
                          font=FONT_CAPTION, text_color=CLR_TEXT_SEC,
-                         anchor="w", wraplength=660, justify="left",
+                         anchor="w", wraplength=560, justify="left",
                          ).grid(row=0, column=1, padx=(0, 10),
                                 pady=6, sticky="w")
+
+            # One-click fix button when this finding has an auto-fix
+            action = hardening_fixes.fix_for(check.check_id)
+            if action is not None:
+                btn = ctk.CTkButton(
+                    rem_f,
+                    text="🔧 Fix Now" if action.safe else "🔧 Fix…",
+                    font=("Segoe UI", 11, "bold"),
+                    fg_color=CLR_ACCENT, hover_color=CLR_ACCENT_HOV,
+                    text_color="#FFFFFF", width=90, height=28,
+                    corner_radius=BTN_R,
+                    command=lambda a=action: self._fix_one(a),
+                )
+                btn.grid(row=0, column=2, padx=(0, 10), pady=6, sticky="e")
+                if not hardening_fixes.is_admin():
+                    btn.configure(state="disabled")
+
+    # ------------------------------------------------------------- fix bar
+    def _fixable_findings(self):
+        """(safe_ids, caution_ids) among the current failing/warning checks."""
+        report = self._report
+        safe, caution = [], []
+        if report is None:
+            return safe, caution
+        for c in report.checks:
+            if c.status not in ("FAIL", "WARNING"):
+                continue
+            action = hardening_fixes.fix_for(c.check_id)
+            if action is None:
+                continue
+            (safe if action.safe else caution).append(c.check_id)
+        return safe, caution
+
+    def _build_fix_bar(self, parent, row_idx: int):
+        safe_ids, caution_ids = self._fixable_findings()
+        has_undo = hardening_fixes.last_journal_entry() is not None
+        if not safe_ids and not caution_ids and not has_undo:
+            return
+
+        bar = ctk.CTkFrame(parent, fg_color=CLR_SURFACE, corner_radius=14,
+                           border_width=1, border_color=CLR_ACCENT)
+        bar.grid(row=row_idx, column=0, padx=PAD, pady=(0, 12), sticky="ew")
+        bar.grid_columnconfigure(0, weight=1)
+
+        is_admin = hardening_fixes.is_admin()
+
+        headline = ("🔧  One-Click Remediation"
+                    if is_admin else "🔧  One-Click Remediation (needs Administrator)")
+        ctk.CTkLabel(bar, text=headline, font=FONT_SUBHEAD,
+                     text_color=CLR_TEXT, anchor="w",
+                     ).grid(row=0, column=0, columnspan=3, padx=PAD,
+                            pady=(12, 2), sticky="w")
+
+        if is_admin:
+            sub = (f"{len(safe_ids)} issue(s) can be fixed automatically and "
+                   "safely. Every change is logged and can be undone.")
+        else:
+            sub = ("Re-launch the app as Administrator (right-click → Run as "
+                   "administrator) to enable one-click fixes.")
+        ctk.CTkLabel(bar, text=sub, font=FONT_SMALL, text_color=CLR_MUTED,
+                     anchor="w", wraplength=680, justify="left",
+                     ).grid(row=1, column=0, columnspan=3, padx=PAD,
+                            pady=(0, 10), sticky="w")
+
+        btns = ctk.CTkFrame(bar, fg_color="transparent")
+        btns.grid(row=2, column=0, columnspan=3, padx=PAD,
+                  pady=(0, 12), sticky="w")
+
+        fix_all = ctk.CTkButton(
+            btns, text=f"🛡️  Fix All Safe Issues ({len(safe_ids)})",
+            font=("Segoe UI", 12, "bold"),
+            fg_color=CLR_ACCENT, hover_color=CLR_ACCENT_HOV,
+            text_color="#FFFFFF", height=34, corner_radius=BTN_R,
+            command=lambda: self._apply_and_reaudit(safe_ids),
+        )
+        fix_all.grid(row=0, column=0, padx=(0, 8))
+        if not is_admin or not safe_ids:
+            fix_all.configure(state="disabled")
+
+        if caution_ids:
+            fix_caution = ctk.CTkButton(
+                btns, text=f"⚠  Review {len(caution_ids)} Advanced Fix(es)",
+                font=FONT_SMALL, fg_color=CLR_SURFACE_ALT,
+                hover_color=CLR_SURFACE_HVR, border_color=CLR_WARNING,
+                border_width=1, text_color=CLR_WARNING,
+                height=34, corner_radius=BTN_R,
+                command=lambda: self._review_caution(caution_ids),
+            )
+            fix_caution.grid(row=0, column=1, padx=(0, 8))
+            if not is_admin:
+                fix_caution.configure(state="disabled")
+
+        if has_undo:
+            undo = ctk.CTkButton(
+                btns, text="↩  Undo Last Fix",
+                font=FONT_SMALL, fg_color="transparent",
+                border_color=CLR_BORDER, border_width=1,
+                text_color=CLR_TEXT_SEC, hover_color=CLR_SURFACE_ALT,
+                height=34, corner_radius=BTN_R,
+                command=self._undo_last,
+            )
+            undo.grid(row=0, column=2, padx=(0, 8))
+            if not is_admin:
+                undo.configure(state="disabled")
+
+    # --------------------------------------------------------------- fixing
+    def _fix_one(self, action):
+        """Fix a single finding, confirming first if it is a caution fix."""
+        if not action.safe:
+            if not self._confirm_caution([action.check_id]):
+                return
+        self._apply_and_reaudit([action.check_id])
+
+    def _review_caution(self, caution_ids):
+        if self._confirm_caution(caution_ids):
+            self._apply_and_reaudit(caution_ids)
+
+    def _confirm_caution(self, check_ids) -> bool:
+        """Modal listing the caution text; returns True if the user proceeds."""
+        actions = [hardening_fixes.fix_for(c) for c in check_ids]
+        actions = [a for a in actions if a is not None]
+
+        dlg = ctk.CTkToplevel(self)
+        dlg.title("Confirm advanced fix")
+        dlg.geometry("520x360")
+        dlg.configure(fg_color=CLR_SURFACE)
+        dlg.transient(self.winfo_toplevel())
+        dlg.grab_set()
+
+        ctk.CTkLabel(dlg, text="⚠  Please read before applying",
+                     font=FONT_SUBHEAD, text_color=CLR_WARNING,
+                     ).pack(pady=(18, 6), padx=20, anchor="w")
+
+        box = ctk.CTkScrollableFrame(dlg, fg_color=CLR_BG, height=200)
+        box.pack(fill="both", expand=True, padx=20, pady=(0, 10))
+        for a in actions:
+            ctk.CTkLabel(box, text=f"• {a.title}",
+                         font=("Segoe UI", 12, "bold"), text_color=CLR_TEXT,
+                         anchor="w", justify="left", wraplength=440,
+                         ).pack(anchor="w", pady=(6, 0))
+            ctk.CTkLabel(box, text=a.caution or a.description,
+                         font=FONT_SMALL, text_color=CLR_TEXT_SEC,
+                         anchor="w", justify="left", wraplength=440,
+                         ).pack(anchor="w", pady=(0, 4))
+
+        choice = {"go": False}
+        row = ctk.CTkFrame(dlg, fg_color="transparent")
+        row.pack(fill="x", padx=20, pady=(0, 16))
+        ctk.CTkButton(row, text="Cancel", font=FONT_SMALL,
+                      fg_color="transparent", border_color=CLR_BORDER,
+                      border_width=1, text_color=CLR_TEXT_SEC,
+                      hover_color=CLR_SURFACE_ALT, height=BTN_H,
+                      corner_radius=BTN_R,
+                      command=dlg.destroy).pack(side="right", padx=(8, 0))
+
+        def _proceed():
+            choice["go"] = True
+            dlg.destroy()
+
+        ctk.CTkButton(row, text="Apply anyway", font=("Segoe UI", 12, "bold"),
+                      fg_color=CLR_WARNING, hover_color="#C88600",
+                      text_color="#FFFFFF", height=BTN_H, corner_radius=BTN_R,
+                      command=_proceed).pack(side="right")
+
+        dlg.wait_window()
+        return choice["go"]
+
+    def _apply_and_reaudit(self, check_ids):
+        if self._fixing or self._scanning or not check_ids:
+            return
+        self._fixing = True
+        threading.Thread(target=self._run_fixes, args=(list(check_ids),),
+                         daemon=True).start()
+
+    def _run_fixes(self, check_ids):
+        try:
+            results = hardening_fixes.apply_fixes(check_ids)
+        except Exception as exc:  # pragma: no cover — defensive
+            results = [hardening_fixes.FixResult("ERR", "Fix", False, str(exc))]
+        self._safe_after(0, self._after_fixes, results)
+
+    def _undo_last(self):
+        if self._fixing or self._scanning:
+            return
+        self._fixing = True
+        threading.Thread(target=self._run_undo, daemon=True).start()
+
+    def _run_undo(self):
+        ok, msg, details = hardening_fixes.revert_last()
+        self._safe_after(0, self._after_undo, ok, msg, details)
+
+    def _after_fixes(self, results):
+        self._fixing = False
+        applied = sum(1 for r in results if r.success and r.message == "Fixed")
+        failed = [r for r in results if not r.success]
+        reboot = any(r.reboot_required for r in results)
+        lines = []
+        for r in results:
+            mark = "✔" if r.success else "✖"
+            lines.append(f"{mark}  {r.title}: {r.message}")
+            for ch in r.changes[:4]:
+                lines.append(f"     • {ch}")
+        title = (f"Applied {applied} fix(es)" if not failed
+                 else f"Applied {applied}, {len(failed)} could not be applied")
+        if reboot:
+            title += " — restart required to fully take effect"
+        self._result_dialog("Remediation complete", title, "\n".join(lines),
+                             CLR_SUCCESS if not failed else CLR_WARNING)
+        # Re-audit so the grade and cards reflect the new state
+        self._start_scan()
+
+    def _after_undo(self, ok, msg, details):
+        self._fixing = False
+        self._result_dialog(
+            "Undo complete" if ok else "Undo finished with issues",
+            msg, "\n".join(f"• {d}" for d in details),
+            CLR_SUCCESS if ok else CLR_WARNING)
+        self._start_scan()
+
+    def _result_dialog(self, title, headline, body, colour):
+        dlg = ctk.CTkToplevel(self)
+        dlg.title(title)
+        dlg.geometry("560x400")
+        dlg.configure(fg_color=CLR_SURFACE)
+        dlg.transient(self.winfo_toplevel())
+        dlg.grab_set()
+        ctk.CTkLabel(dlg, text=headline, font=FONT_SUBHEAD,
+                     text_color=colour, anchor="w", wraplength=520,
+                     justify="left").pack(pady=(18, 6), padx=20, anchor="w")
+        box = ctk.CTkScrollableFrame(dlg, fg_color=CLR_BG, height=250)
+        box.pack(fill="both", expand=True, padx=20, pady=(0, 10))
+        ctk.CTkLabel(box, text=body or "No changes were necessary.",
+                     font=FONT_SMALL, text_color=CLR_TEXT_SEC,
+                     anchor="w", justify="left", wraplength=490,
+                     ).pack(anchor="w")
+        ctk.CTkButton(dlg, text="OK", font=("Segoe UI", 12, "bold"),
+                      fg_color=CLR_ACCENT, hover_color=CLR_ACCENT_HOV,
+                      text_color="#FFFFFF", height=BTN_H, corner_radius=BTN_R,
+                      command=dlg.destroy).pack(pady=(0, 16))
 
     # ---------------------------------------------------------------- export
     def _export_html(self):

@@ -5,9 +5,12 @@ End-user awareness is pointless when the infrastructure serving those users is s
 
 All checks are **read-only and registry-first**, so they work without administrator rights wherever Windows allows it; checks that need elevation degrade to a `WARNING` instead of crashing.
 
+Since July 2026 the audit is no longer read-only advice: **one-click auto-remediation** can apply and later undo the fixes for most findings (see below).
+
 **GUI file:** [`src/gui/screens/server_hardening.py`](../../src/gui/screens/server_hardening.py)
 **Engine file:** [`src/security/hardening/checks.py`](../../src/security/hardening/checks.py)
-**CLI:** `python cli.py harden [--json-out] [--output report.json]`
+**Fix engine:** [`src/security/hardening/fixes.py`](../../src/security/hardening/fixes.py)
+**CLI:** `python cli.py harden [--json-out] [--output report.json] [--fix HRD-XX] [--fix-all-safe] [--include-caution] [--undo-last] [--list-fixes]`
 **Agent:** included automatically in `windows_agent.collect_local_report()` under the `hardening` key
 
 ---
@@ -78,6 +81,53 @@ registered in the central remediation catalogue
 ([`src/security/remediation/guidance.py`](../../src/security/remediation/guidance.py))
 via `get_remediation("HRD-05")` → `{title, advice, powershell}`.
 
+## One-Click Auto-Remediation
+
+The audit can now *fix* what it finds, not just report it — aimed at
+non-technical SME owners who cannot translate a PowerShell snippet into action.
+
+**Engine:** [`src/security/hardening/fixes.py`](../../src/security/hardening/fixes.py)
+provides a `FixAction` registry keyed by check ID. Each fix writes exactly the
+registry value / service state its check reads, so a re-audit immediately
+reflects the repair.
+
+Fixes are classified into two tiers:
+
+- **safe** — no impact on normal SME workflows (SMBv1, SMB signing, RDP/NLA,
+  UAC, LLMNR/NetBIOS, PowerShell logging, Remote Registry, logon auditing, LSA,
+  anonymous enumeration). Applied in bulk by *Fix All Safe Issues*.
+- **caution** — may affect printing or very old clients (Print Spooler,
+  legacy TLS). Applied only after the user reads and confirms the warning.
+
+Two checks have **no** auto-fix because they need human judgement:
+`HRD-08` (unquoted service paths — quoting must be verified per service) and
+`HRD-12` (local accounts — disabling accounts can lock users out).
+
+**Safety guarantees**
+
+- Requires Administrator rights (`fixes.is_admin()`); buttons/commands are
+  disabled otherwise with a clear "Run as administrator" message.
+- Every change is recorded in an **undo journal** at
+  `%APPDATA%/ZambiaDigitalHygiene/fix_journal.json` *before* it is applied.
+  `revert_last()` (GUI **Undo Last Fix**, CLI `--undo-last`) restores the
+  previous registry values / service states — including deleting values that
+  did not exist before.
+- Idempotent: applying a fix that is already compliant makes no change and
+  writes no journal entry.
+
+**CLI examples**
+
+```
+harden --list-fixes                 # show every fixable finding + tier
+harden --fix-all-safe               # audit, then apply all safe fixes (admin)
+harden --fix HRD-05 --fix HRD-10    # fix specific findings
+harden --fix-all-safe --include-caution   # also apply caution-tier fixes
+harden --undo-last                  # roll back the most recent fix run
+```
+
+After applying fixes the CLI re-audits and prints the new grade; the exit code
+reflects the post-fix state.
+
 ## GUI
 
 Welcome screen → **🛡️ Server Hardening** tile. Runs all 14 checks in a
@@ -85,8 +135,12 @@ background thread with live progress, then shows:
 
 - **Grade hero** (HARDENED / NEEDS ATTENTION / AT RISK) with score percentage
 - **Summary strip** — passed / warnings / failed / critical / hostname
+- **One-click fix bar** — *Fix All Safe Issues (N)*, *Review Advanced Fixes*
+  (caution tier, behind a confirmation modal) and *Undo Last Fix*; disabled
+  with guidance when not running as Administrator
 - **Check cards** sorted failures-first, each with severity badge, plain-English
-  details and a "Fix:" panel containing the PowerShell remediation
+  details, a "Fix:" panel with the PowerShell remediation, and a **🔧 Fix Now**
+  button when an auto-fix exists. Applying a fix re-runs the audit automatically.
 - **Export Report** — standalone dark-theme HTML report
 
 ## Tests
@@ -94,3 +148,9 @@ background thread with live progress, then shows:
 [`tests/test_hardening.py`](../../tests/test_hardening.py) — 29 tests covering
 grade/scoring logic, per-check PASS/WARNING/FAIL branches with mocked registry
 and service state, non-Windows degradation, and remediation-catalogue coverage.
+
+[`tests/test_fixes.py`](../../tests/test_fixes.py) — 17 tests covering the
+auto-fix engine with in-memory registry/service fakes: safe/caution tiering,
+registry and service application, journal recording, idempotency, admin and
+non-Windows refusal, and full undo (including value-deletion and service-state
+restore). Runs on any OS.

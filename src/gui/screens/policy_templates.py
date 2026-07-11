@@ -482,7 +482,7 @@ class PolicyTemplatesScreen(ctk.CTkFrame):
 
         ctk.CTkLabel(
             card, text=f"📌 {tmpl['framework']}",
-            font=("Segoe UI", 9), text_color=CLR_ACCENT, anchor="w",
+            font=("Segoe UI", 10), text_color=CLR_ACCENT, anchor="w",
         ).grid(row=2, column=1, sticky="w", pady=(2, 14))
 
         # Buttons

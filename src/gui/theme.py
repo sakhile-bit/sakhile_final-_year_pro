@@ -47,15 +47,15 @@ TIER_THRESHOLD = {"GOLD": 80, "SILVER": 60, "BRONZE": 40}
 
 # ── Typography ────────────────────────────────────────────────────────────────
 # Segoe UI is Windows' Inter equivalent — clean and professional
-FONT_DISPLAY  = ("Segoe UI", 22, "bold")
-FONT_TITLE    = ("Segoe UI", 17, "bold")
-FONT_HEADING  = ("Segoe UI", 14, "bold")
-FONT_SUBHEAD  = ("Segoe UI", 12, "bold")
-FONT_SUBTITLE = ("Segoe UI", 12)
-FONT_BODY     = ("Segoe UI", 11)
-FONT_SMALL    = ("Segoe UI", 10)
-FONT_CAPTION  = ("Segoe UI", 9)
-FONT_MONO     = ("Consolas", 10)
+FONT_DISPLAY  = ("Segoe UI", 23, "bold")
+FONT_TITLE    = ("Segoe UI", 18, "bold")
+FONT_HEADING  = ("Segoe UI", 15, "bold")
+FONT_SUBHEAD  = ("Segoe UI", 13, "bold")
+FONT_SUBTITLE = ("Segoe UI", 13)
+FONT_BODY     = ("Segoe UI", 12)      # form fields / body text
+FONT_SMALL    = ("Segoe UI", 11)      # tips, secondary labels
+FONT_CAPTION  = ("Segoe UI", 10)      # captions / hints (was 9 — too small)
+FONT_MONO     = ("Consolas", 11)
 
 # ── Layout ────────────────────────────────────────────────────────────────────
 PAD     = 18
@@ -73,4 +73,4 @@ BTN_R    = 6      # tighter radius — Sentry uses 6px not pill-shaped
 BTN_R_SM = 4
 CARD_R   = 8      # 8px card radius
 CARD_R_LG = 10
-ENTRY_H  = 36
+ENTRY_H  = 40      # roomier so the larger form-field font isn't cramped

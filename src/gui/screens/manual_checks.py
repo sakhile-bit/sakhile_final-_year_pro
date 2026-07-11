@@ -160,6 +160,40 @@ TOOL_QUESTIONS: dict[str, list[tuple]] = {
          "Review your remediation register monthly. "
          "Escalate overdue critical items to senior management immediately."),
     ],
+    "fleet_scan": [
+        ("C21_fleet_scan", "C21", "Fleet Asset Inventory",
+         "Are all machines and servers in the business enrolled in the "
+         "fleet scan so every node is inventoried and reachable?",
+         "Run the Fleet Scan tool with an inventory (or auto-discovery). "
+         "Every production machine should appear as a reachable node."),
+        ("C21_fleet_scan_b", "C21b", "Fleet-Wide Scan Cadence",
+         "Is the whole fleet scanned on a regular schedule "
+         "(at least monthly), not just individual machines ad-hoc?",
+         "Schedule fleet scans monthly. Consistent cadence catches drift "
+         "on machines that would otherwise be forgotten."),
+        ("C21_fleet_scan_c", "C21c", "Weakest-Node Remediation",
+         "Is the fleet's weakest-node grade acted on — the lowest-scoring "
+         "machine brought up to standard rather than ignored?",
+         "The fleet is only as strong as its weakest node. Prioritise the "
+         "lowest-graded machine after each fleet scan."),
+    ],
+    "server_hardening": [
+        ("C22_server_hardening", "C22", "Secure Configuration Baseline",
+         "Do servers follow a documented secure-configuration baseline "
+         "(CIS Benchmark or equivalent) rather than default settings?",
+         "Apply a CIS Benchmark for the OS. Run the Server Hardening tool "
+         "to score the current baseline and close the gaps."),
+        ("C22_server_hardening_b", "C22b", "Legacy Service Disablement",
+         "Are unnecessary and legacy services disabled on servers? "
+         "(SMBv1, Telnet, unused roles/features, default sample apps)",
+         "Disable SMBv1 and Telnet. Remove unused roles/features. "
+         "Every enabled service is attack surface."),
+        ("C22_server_hardening_c", "C22c", "Server Patch Currency",
+         "Are servers kept patch-current with security updates applied "
+         "within a defined window (e.g. critical patches within 14 days)?",
+         "Enable automatic security updates or a managed patch process. "
+         "Track outstanding patches per server."),
+    ],
 }
 
 # Weights for tool sub-questions (map to parent control weight proportionally)
@@ -169,6 +203,8 @@ _TOOL_Q_WEIGHTS: dict[str, int] = {
     "C18_infra_scan": 3, "C18_infra_scan_b": 2, "C18_infra_scan_c": 2,
     "C19_zambia_risk": 3, "C19_zambia_risk_b": 3, "C19_zambia_risk_c": 2,
     "C20_remediation": 3, "C20_remediation_b": 3,
+    "C21_fleet_scan": 3, "C21_fleet_scan_b": 2, "C21_fleet_scan_c": 2,
+    "C22_server_hardening": 3, "C22_server_hardening_b": 3, "C22_server_hardening_c": 2,
 }
 
 # Parent control key for each sub-question
@@ -187,6 +223,12 @@ _TOOL_Q_PARENT: dict[str, str] = {
     "C19_zambia_risk_c": "C19_zambia_risk",
     "C20_remediation": "C20_remediation",
     "C20_remediation_b": "C20_remediation",
+    "C21_fleet_scan": "C21_fleet_scan",
+    "C21_fleet_scan_b": "C21_fleet_scan",
+    "C21_fleet_scan_c": "C21_fleet_scan",
+    "C22_server_hardening": "C22_server_hardening",
+    "C22_server_hardening_b": "C22_server_hardening",
+    "C22_server_hardening_c": "C22_server_hardening",
 }
 
 _ANS_STYLE = {
@@ -284,15 +326,18 @@ class ManualChecksScreen(ctk.CTkFrame):
 
         # ── Tool-specific sections ────────────────────────────────
         TOOL_LABELS = {
-            "active_dir":   ("🔐", "Active Directory Security",   "#6C5FC7"),
-            "network_scan": ("🌐", "Network Architecture",        "#2485E8"),
-            "infra_scan":   ("🖥",  "Infrastructure Security",     "#5A7490"),
-            "zambia_risk":  ("🇿🇲", "Zambia Local Threat Mitigation", "#F0A500"),
-            "remediation":  ("🔧", "Remediation Process",         "#27AE60"),
+            "active_dir":   ("🔐", "Staff Logins & Accounts",     "#6C5FC7"),
+            "network_scan": ("🌐", "Your Office Network",         "#2485E8"),
+            "infra_scan":   ("🖥",  "Your Website & Online Services", "#5A7490"),
+            "zambia_risk":  ("🇿🇲", "Local Zambian Threats",       "#F0A500"),
+            "remediation":  ("🔧", "Fixing Security Problems",    "#27AE60"),
+            "fleet_scan":   ("🖧", "Multiple Computers or Branches", "#00BCD4"),
+            "server_hardening": ("🛡", "Business Servers",        "#4CAF50"),
         }
         q_offset = len(MANUAL_CONTROLS) + 1
         for tid in ("active_dir", "network_scan", "infra_scan",
-                    "zambia_risk", "remediation"):
+                    "zambia_risk", "remediation", "fleet_scan",
+                    "server_hardening"):
             if tid not in self._selected_tools:
                 continue
             icon, label, colour = TOOL_LABELS[tid]
@@ -369,7 +414,7 @@ class ManualChecksScreen(ctk.CTkFrame):
         # Control ID chip
         ctk.CTkLabel(top,
                      text=cid,
-                     font=("Segoe UI", 9, "bold"), text_color=CLR_MUTED,
+                     font=("Segoe UI", 10, "bold"), text_color=CLR_MUTED,
                      fg_color=CLR_SURFACE_ALT, corner_radius=6,
                      width=36, height=20,
                      ).grid(row=0, column=1, padx=(0, 10))

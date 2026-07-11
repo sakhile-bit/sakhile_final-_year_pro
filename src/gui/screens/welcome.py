@@ -156,7 +156,7 @@ class WelcomeScreen(ctk.CTkFrame):
         # Spacer + UNZA footer
         ctk.CTkLabel(left,
                      text=f"v{APP_VERSION}  ·  University of Zambia",
-                     font=("Segoe UI", 9), text_color="#2A4060",
+                     font=("Segoe UI", 10), text_color="#2A4060",
                      ).grid(row=9, column=0, padx=28, pady=(0, 18), sticky="s")
 
     # ── Right action panel ─────────────────────────────────────────────────
@@ -288,15 +288,18 @@ class WelcomeScreen(ctk.CTkFrame):
         tier_clr = TIER_COLOURS.get(tier, CLR_DANGER)
 
         card = ctk.CTkFrame(parent, fg_color=CLR_SURFACE, corner_radius=14,
-                            border_width=1, border_color=CLR_BORDER)
+                            border_width=1, border_color=CLR_BORDER,
+                            height=86)
         card.grid(row=row, column=0, sticky="ew")
+        card.grid_propagate(False)   # honour the 86px height
         card.grid_columnconfigure(1, weight=1)
+        card.grid_rowconfigure(0, weight=1)
+        card.grid_rowconfigure(2, weight=1)
 
-        # Left tier stripe
-        ctk.CTkFrame(card, fg_color=tier_clr, width=5,
+        # Left tier stripe — height pinned so the card can't balloon.
+        ctk.CTkFrame(card, fg_color=tier_clr, width=5, height=86,
                      corner_radius=0).grid(row=0, column=0,
-                                           rowspan=3, sticky="ns",
-                                           padx=(0, 0), pady=0)
+                                           rowspan=3, sticky="ns")
 
         ctk.CTkLabel(card,
                      text="Last Assessment",

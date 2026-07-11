@@ -63,6 +63,7 @@ class DigitalHygieneApp(ctk.CTk):
 
         # Soft fade-in instead of popping onto the screen
         from src.gui import motion
+        motion.enable_global_smooth_scroll()
         motion.fade_in_window(self, duration_ms=260)
 
         # Single source of truth for wizard data + the navigation stack
@@ -123,6 +124,27 @@ class DigitalHygieneApp(ctk.CTk):
         from src.utils.auth import get_username
         self.app_state.start_session(get_username())
         self._show_welcome()
+        # Offer to relaunch elevated if we're not admin (once per process).
+        self.after(600, self._maybe_show_admin_banner)
+
+    def _maybe_show_admin_banner(self):
+        """Show the elevation banner when running unelevated on Windows."""
+        if getattr(self, "_admin_banner_shown", False):
+            return
+        from src.gui.screens.admin_banner import (
+            AdminBanner, should_offer_elevation, relaunch_as_admin)
+        if not should_offer_elevation():
+            return
+        self._admin_banner_shown = True
+
+        def _do_relaunch():
+            if relaunch_as_admin():
+                self.after(150, self.destroy)  # hand off to elevated instance
+                return True
+            return False
+
+        banner = AdminBanner(self, on_relaunch=_do_relaunch)
+        banner.reveal(before=self.router._current_widget)
 
     def _terminate_session(self):
         """Ask to confirm, then end the session and lock the app."""
@@ -287,7 +309,8 @@ class DigitalHygieneApp(ctk.CTk):
         from src.gui.screens.assessment_dashboard import AssessmentDashboardScreen
         self._push_tool(
             "assessment_dashboard",
-            lambda: AssessmentDashboardScreen(self, on_back=self.router.back))
+            lambda: AssessmentDashboardScreen(self, on_back=self.router.back,
+                                              on_new=self._start_assessment))
 
     # ─────────────────────────────────────── assessment wizard
     # business_info → tools → scanning → manual → results

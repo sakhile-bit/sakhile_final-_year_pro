@@ -453,7 +453,18 @@ def predeploy(project_root: str, json_out: bool):
               help='Output raw JSON instead of formatted table')
 @click.option('--output', '-o', type=click.Path(),
               help='Also write the JSON report to this file')
-def harden(json_out: bool, output: Optional[str]):
+@click.option('--fix', 'fix_ids', multiple=True, metavar='HRD-XX',
+              help='Auto-fix specific findings by id (repeatable).')
+@click.option('--fix-all-safe', is_flag=True,
+              help='Apply every safe auto-fix for the current findings.')
+@click.option('--include-caution', is_flag=True,
+              help='With --fix-all-safe, also apply advanced/caution fixes.')
+@click.option('--undo-last', is_flag=True,
+              help='Revert the most recent set of applied fixes.')
+@click.option('--list-fixes', is_flag=True,
+              help='List every finding that has an automatic fix and exit.')
+def harden(json_out: bool, output: Optional[str], fix_ids, fix_all_safe: bool,
+           include_caution: bool, undo_last: bool, list_fixes: bool):
     """Audit this Windows host against server hardening baselines.
 
     Fourteen infrastructure-grade checks: SMBv1, SMB signing, RDP/NLA,
@@ -461,9 +472,46 @@ def harden(json_out: bool, output: Optional[str]):
     paths, Print Spooler, Remote Registry, audit policy, local accounts,
     LSA protections and anonymous enumeration.
 
+    Add --fix-all-safe (as Administrator) to remediate the safe findings
+    automatically, or --fix HRD-05 to fix specific ones. Every change is
+    journaled and can be rolled back with --undo-last.
+
     Exit code 0 = HARDENED · 1 = NEEDS ATTENTION / AT RISK (use in CI/CD).
     """
     from src.security.hardening import WindowsHardeningAuditor
+    from src.security.hardening import fixes as _fixes
+
+    # ── list-fixes / undo-last short-circuit before running the audit ──
+    if list_fixes:
+        table = Table(title="Available Automatic Fixes")
+        table.add_column("ID", style="cyan", no_wrap=True)
+        table.add_column("Fix", style="white")
+        table.add_column("Tier", no_wrap=True)
+        table.add_column("What it does", style="dim")
+        for cid, action in sorted(_fixes.available_fixes().items()):
+            tier = (Text("safe", style="green") if action.safe
+                    else Text("caution", style="yellow"))
+            desc = action.description
+            if action.reboot_required:
+                desc += " (restart required)"
+            table.add_row(cid, action.title, tier, desc)
+        console.print(table)
+        console.print("[dim]HRD-08 and HRD-12 need manual judgement and have "
+                      "no automatic fix.[/dim]")
+        return
+
+    if undo_last:
+        if not _fixes.is_admin():
+            console.print("[red]✗ Undo requires Administrator rights.[/red]")
+            sys.exit(1)
+        ok, msg, details = _fixes.revert_last()
+        for d in details:
+            console.print(f"  • {d}")
+        console.print(Panel.fit(
+            f"[bold {'green' if ok else 'yellow'}]{msg}[/bold "
+            f"{'green' if ok else 'yellow'}]",
+            title="↩ Undo"))
+        sys.exit(0 if ok else 1)
 
     console.print(Panel.fit(
         "[bold blue]Windows Infrastructure Hardening Audit[/bold blue]\n"
@@ -531,6 +579,55 @@ def harden(json_out: bool, output: Optional[str]):
             f"{report.failed} failed ({report.critical_failures} critical).",
             title="🛡️ Hardening Verdict"
         ))
+
+    # ── Optional auto-remediation ──────────────────────────────────────
+    if fix_all_safe or fix_ids:
+        failing = {c.check_id for c in report.checks
+                   if c.status in ('FAIL', 'WARNING')}
+        available = _fixes.available_fixes()
+        if fix_all_safe:
+            targets = [cid for cid in failing
+                       if cid in available
+                       and (available[cid].safe or include_caution)]
+        else:
+            targets = [cid for cid in fix_ids if cid in available]
+            unknown = [cid for cid in fix_ids if cid not in available]
+            for cid in unknown:
+                console.print(f"[yellow]No automatic fix for {cid} — "
+                              "skipping.[/yellow]")
+
+        if not targets:
+            console.print("[dim]No applicable automatic fixes to apply.[/dim]")
+        elif not _fixes.is_admin():
+            console.print("[red]✗ Applying fixes requires Administrator "
+                          "rights. Re-run this command as Administrator."
+                          "[/red]")
+            sys.exit(1)
+        else:
+            console.print(Panel.fit(
+                f"Applying {len(targets)} fix(es): "
+                f"{', '.join(sorted(targets))}",
+                title="🔧 Remediation"))
+            results = _fixes.apply_fixes(targets)
+            reboot = False
+            for r in results:
+                mark = "[green]✔[/green]" if r.success else "[red]✖[/red]"
+                console.print(f"{mark} [bold]{r.title}[/bold]: {r.message}")
+                for ch in r.changes:
+                    console.print(f"    [dim]• {ch}[/dim]")
+                reboot = reboot or r.reboot_required
+            if reboot:
+                console.print("[yellow]⟳ A restart is required for some "
+                              "changes to fully take effect.[/yellow]")
+            console.print("[dim]Undo with:  harden --undo-last[/dim]")
+            # Re-audit so the exit code reflects the post-fix state
+            report = auditor.run_all()
+            colour = {"HARDENED": "green",
+                      "NEEDS ATTENTION": "yellow"}.get(report.grade, "red")
+            console.print(Panel.fit(
+                f"[bold {colour}]NEW GRADE: {report.grade}[/bold {colour}]\n"
+                f"Score {report.score_percent}% after remediation.",
+                title="🛡️ Re-audit"))
 
     if report.grade != 'HARDENED':
         sys.exit(1)

@@ -169,6 +169,86 @@ def assessment_count() -> int:
     return row[0] if row else 0
 
 
+# ── Network scan history (for change / motion detection) ─────────────────────
+# One row per subnet holds the most recent scan snapshot, so the next scan of
+# that subnet can highlight what changed (new/offline devices, risk & port
+# changes) even after the app has been closed and reopened.
+
+def _ensure_network_history_table() -> None:
+    with _connect() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS network_history (
+                subnet   TEXT PRIMARY KEY,
+                saved_at TEXT NOT NULL,
+                devices  TEXT NOT NULL
+            )
+        """)
+        conn.commit()
+
+
+def device_identity(mac: str, ip: str) -> str:
+    """Stable key for a device: its MAC when known, else its IP.
+
+    MAC is preferred because a device keeps it across IP/DHCP changes.
+    """
+    mac = (mac or "").strip().upper()
+    return mac if mac else f"ip:{ip}"
+
+
+def save_network_snapshot(subnet: str, devices: list[dict[str, Any]]) -> None:
+    """Persist the latest scan of ``subnet`` (replacing any previous one).
+
+    Each device dict should carry: ip, mac, hostname, risk_level, open_ports.
+    """
+    if not subnet:
+        return
+    _ensure_network_history_table()
+    payload = {
+        device_identity(d.get("mac", ""), d.get("ip", "")): {
+            "ip": d.get("ip", ""),
+            "mac": d.get("mac", ""),
+            "hostname": d.get("hostname", ""),
+            "risk_level": d.get("risk_level", ""),
+            "open_ports": sorted(d.get("open_ports", []) or []),
+        }
+        for d in devices
+    }
+    with _connect() as conn:
+        conn.execute(
+            """INSERT OR REPLACE INTO network_history (subnet, saved_at, devices)
+               VALUES (?,?,?)""",
+            (subnet, datetime.now().isoformat(timespec="seconds"),
+             json.dumps(payload)),
+        )
+        conn.commit()
+
+
+def get_network_snapshot(subnet: str) -> Optional[dict[str, Any]]:
+    """Return the previous snapshot for ``subnet`` as
+    ``{"saved_at": str, "devices": {identity: {...}}}`` or None if never scanned.
+    """
+    if not subnet:
+        return None
+    try:
+        _ensure_network_history_table()
+        with _connect() as conn:
+            row = conn.execute(
+                "SELECT saved_at, devices FROM network_history WHERE subnet = ?",
+                (subnet,),
+            ).fetchone()
+    except Exception:
+        import logging
+        logging.getLogger(__name__).debug(
+            "could not read network snapshot", exc_info=True)
+        return None
+    if row is None:
+        return None
+    try:
+        return {"saved_at": row["saved_at"], "devices": json.loads(row["devices"])}
+    except Exception:
+        return None
+
+
 # ── Credentials ──────────────────────────────────────────────────────────────
 
 def _ensure_credentials_table() -> None:

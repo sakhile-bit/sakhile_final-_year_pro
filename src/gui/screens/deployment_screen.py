@@ -10,7 +10,6 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 import threading
 from pathlib import Path
 from tkinter import filedialog
@@ -19,6 +18,8 @@ from typing import List
 import customtkinter as ctk
 
 from src.gui.screens.business_info import _header
+from src.gui.screens._cancellable import CancellableScreenMixin
+from src.utils.logging_config import get_logger
 from src.gui.theme import (
     BTN_H,
     BTN_R,
@@ -50,6 +51,8 @@ from src.security.deployment.checker import (
     DeploymentReadiness,
     PreDeploymentChecker,
 )
+
+logger = get_logger(__name__)
 
 # ── Verdict definitions ───────────────────────────────────────────────────────
 VERDICT_STYLE = {
@@ -481,10 +484,12 @@ class ApplicationHygieneChecker:
         "ENVIRONMENT":             ("Generic",       {"development", "dev", "staging", "local"}),
     }
 
-    # Package manifest → (display name, audit command)
+    # Package manifest → (display name, audit command). Commands are the
+    # stack's standalone audit *binary* — never sys.executable, which in a
+    # frozen build is this app itself and would relaunch the whole GUI.
     MANIFESTS = {
         "package.json":    ("Node.js",       ["npm", "audit", "--json"]),
-        "requirements.txt": ("Python (pip)",  [sys.executable, "-m", "pip", "audit"]),
+        "requirements.txt": ("Python (pip)",  ["pip-audit", "--desc"]),
         "Pipfile":         ("Python (pipenv)", ["pipenv", "check"]),
         "Gemfile":         ("Ruby",          ["bundle", "audit"]),
         "composer.json":   ("PHP (Composer)", ["composer", "audit"]),
@@ -740,7 +745,7 @@ def _compute_extended_verdict(report: DeploymentReadiness,
 
 
 # ── Screen ────────────────────────────────────────────────────────────────────
-class DeploymentCheckerScreen(ctk.CTkFrame):
+class DeploymentCheckerScreen(CancellableScreenMixin, ctk.CTkFrame):
 
     def __init__(self, master, on_back):
         super().__init__(master, fg_color=CLR_BG, corner_radius=0)
@@ -880,6 +885,15 @@ class DeploymentCheckerScreen(ctk.CTkFrame):
         threading.Thread(target=self._run_scan, daemon=True).start()
 
     def _run_scan(self):
+        # Any unexpected failure in the worker must never strand the screen
+        # on "Scanning…" forever — surface it and restore the controls.
+        try:
+            self._run_scan_inner()
+        except Exception as exc:
+            logger.exception("Deploy scan failed")
+            self._safe_after(0, self._scan_failed, str(exc))
+
+    def _run_scan_inner(self):
         root = self._project_path.get()
 
         # System + Network + Secrets checks from existing checker
@@ -894,10 +908,11 @@ class DeploymentCheckerScreen(ctk.CTkFrame):
         done = [0]
 
         def run_and_track(method, label):
-            self.after(0, lambda lbl=label: self._status_lbl.configure(text=lbl))
+            self._safe_after(
+                0, lambda lbl=label: self._status_lbl.configure(text=lbl))
             result = method()
             done[0] += 1
-            self.after(0, self._progress.set, done[0] / total_checks)
+            self._safe_after(0, self._progress.set, done[0] / total_checks)
             return result
 
         # System (4) + Network (3) + Secrets (3) — skip PDC-08/09/10
@@ -936,35 +951,52 @@ class DeploymentCheckerScreen(ctk.CTkFrame):
         ]
 
         report = DeploymentReadiness()
-        for method, label in system_network_secrets:
-            try:
-                report.checks.append(run_and_track(method, label))
-            except Exception as exc:
-                report.checks.append(CheckResult(
-                    "ERR", label.split(":")[1].strip(), False, "HIGH",
-                    str(exc), category="system"))
+        app_results: List[CheckResult] = []
+        code_results: List[CheckResult] = []
 
-        app_results = []
-        for method, label in app_checks_labeled:
-            try:
-                app_results.append(run_and_track(method, label))
-            except Exception as exc:
-                app_results.append(CheckResult(
-                    "ERR", label.split(":")[1].strip(), False, "MEDIUM",
-                    str(exc), category="application"))
+        stages = [
+            (system_network_secrets, report.checks, "HIGH", "system"),
+            (app_checks_labeled,     app_results,    "MEDIUM", "application"),
+            (code_checks_labeled,    code_results,   "LOW", "code"),
+        ]
+        for checks, sink, severity, category in stages:
+            for method, label in checks:
+                # User navigated away mid-scan — abandon the rest quietly.
+                if self._cancelled:
+                    return
+                try:
+                    sink.append(run_and_track(method, label))
+                except Exception as exc:
+                    sink.append(CheckResult(
+                        "ERR", label.split(":")[1].strip(), False, severity,
+                        str(exc), category=category))
 
-        code_results = []
-        for method, label in code_checks_labeled:
-            try:
-                code_results.append(run_and_track(method, label))
-            except Exception as exc:
-                code_results.append(CheckResult(
-                    "ERR", label.split(":")[1].strip(), False, "LOW",
-                    str(exc), category="code"))
-
+        if self._cancelled:
+            return
         self._report = report
         self._code_checks = app_results + code_results
-        self.after(0, self._show_results)
+        self._safe_after(0, self._show_results)
+
+    def _scan_failed(self, message: str):
+        """Restore the controls and explain when the scan crashes outright."""
+        self._scanning = False
+        self._scan_btn.configure(state="normal", text="▶  Run Security Check")
+        self._progress.grid_remove()
+        for w in self._body.winfo_children():
+            w.destroy()
+        box = ctk.CTkFrame(self._body, fg_color=CLR_SURFACE, corner_radius=14,
+                           border_width=1, border_color=CLR_DANGER)
+        box.grid(row=0, column=0, padx=PAD, pady=(PAD, 10), sticky="ew")
+        ctk.CTkLabel(box, text="⚠  Security check could not complete",
+                     font=FONT_SUBHEAD, text_color=CLR_DANGER,
+                     ).grid(padx=16, pady=(14, 4), sticky="w")
+        ctk.CTkLabel(box,
+                     text="Something went wrong while scanning. Check the "
+                          "project folder is correct and try again.\n\n"
+                          + message[:300],
+                     font=FONT_SMALL, text_color=CLR_TEXT_SEC, wraplength=640,
+                     justify="left",
+                     ).grid(padx=16, pady=(0, 14), sticky="w")
 
     def _show_results(self):
         self._scanning = False
@@ -1114,7 +1146,7 @@ class DeploymentCheckerScreen(ctk.CTkFrame):
         # Severity badge
         ctk.CTkLabel(card,
                      text=check.severity,
-                     font=("Segoe UI", 9, "bold"),
+                     font=("Segoe UI", 10, "bold"),
                      text_color=SEV_CLR.get(check.severity, CLR_MUTED),
                      fg_color=CLR_SURFACE_ALT, corner_radius=6,
                      width=68, height=20,
@@ -1137,7 +1169,7 @@ class DeploymentCheckerScreen(ctk.CTkFrame):
                        padx=(10, 12), pady=(0, 10), sticky="ew")
             rem_f.grid_columnconfigure(1, weight=1)
             ctk.CTkLabel(rem_f, text="Fix:",
-                         font=("Segoe UI", 9, "bold"),
+                         font=("Segoe UI", 10, "bold"),
                          text_color=CLR_ACCENT, width=28,
                          ).grid(row=0, column=0, padx=(10, 4), pady=6)
             ctk.CTkLabel(rem_f, text=check.remediation,

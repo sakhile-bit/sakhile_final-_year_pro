@@ -486,10 +486,18 @@ class PreDeploymentChecker:
                            'Upgrade to Python 3.8+', 'application')
 
     def _check_dependency_vulnerabilities(self) -> CheckResult:
-        """PDC-09: Run pip audit (if available) to find vulnerable packages."""
+        """PDC-09: Run pip-audit (if available) to find vulnerable packages."""
+        # Use the standalone pip-audit binary — NOT sys.executable, which in a
+        # frozen build is this app itself and would relaunch the whole GUI
+        # instead of auditing anything.
+        pip_audit = shutil.which('pip-audit')
+        if not pip_audit:
+            return CheckResult('PDC-09', 'Dependency Vulnerabilities', True, 'CRITICAL',
+                               'pip-audit not installed – skipped (install for full check)',
+                               'Install pip-audit: pip install pip-audit', 'application')
         try:
             r = subprocess.run(
-                [sys.executable, '-m', 'pip', 'audit', '--desc'],
+                [pip_audit, '--desc'],
                 capture_output=True, text=True, timeout=60,
             )
             if r.returncode == 0:

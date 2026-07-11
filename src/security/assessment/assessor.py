@@ -316,6 +316,24 @@ TOOL_CONTROLS: Dict[str, Dict[str, Any]] = {
         "cis_mapping": "CIS Control 7 – Continuous Vulnerability Management",
         "nist_mapping": "RS.MI-3, PR.IP-12",
     },
+    "C21_fleet_scan": {
+        "id": "C21", "name": "Fleet Scanning Coverage",
+        "weight": 7, "critical": False,
+        "category": "technical", "verification": "manual",
+        "tool_id": "fleet_scan",
+        "description": "Distributed multi-node scanning with weakest-link fleet grading across the estate",
+        "cis_mapping": "CIS Control 1 – Inventory and Control of Enterprise Assets",
+        "nist_mapping": "ID.AM-1, DE.CM-1",
+    },
+    "C22_server_hardening": {
+        "id": "C22", "name": "Server Hardening Baseline",
+        "weight": 8, "critical": False,
+        "category": "technical", "verification": "manual",
+        "tool_id": "server_hardening",
+        "description": "Infrastructure hygiene baseline: disabled legacy services, secure configuration, patch currency",
+        "cis_mapping": "CIS Control 4 – Secure Configuration of Enterprise Assets",
+        "nist_mapping": "PR.IP-1, PR.PT-3",
+    },
 }
 
 # Maps tool_id → control key for quick lookup
@@ -1590,43 +1608,302 @@ class DigitalHygieneAssessor:
         return recommendations
 
 
+@dataclass
+class InfraFinding:
+    """A single prioritised infrastructure-security finding."""
+    id: str
+    category: str          # tls | dns | headers | ports | email
+    severity: str          # CRITICAL | HIGH | MEDIUM | LOW | INFO
+    status: str            # OK | WARN | FAIL
+    title: str
+    detail: str
+    remediation: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'id': self.id, 'category': self.category,
+            'severity': self.severity, 'status': self.status,
+            'title': self.title, 'detail': self.detail,
+            'remediation': self.remediation,
+        }
+
+
 class InfrastructureAssessor:
     """Infrastructure hygiene checks for public-facing services.
 
     Extended checks cover:
-    - DNS resolution and DNS security (SPF, DMARC, DNSSEC)
-    - SSL/TLS certificate validity and minimum protocol version
+    - DNS resolution, reverse DNS and DNS security (SPF, DMARC, CAA, DNSSEC)
+    - SSL/TLS certificate validity, trust, hostname match and expiry
+    - Minimum TLS protocol version (rejects deprecated TLS 1.0/1.1)
     - HTTP→HTTPS redirect
     - HTTP security response headers (HSTS, CSP, X-Frame-Options, etc.)
-    - Common port exposure
-    - External IP discovery
+    - Parallel port exposure scan with service identification
+    - Prioritised findings feeding an overall SECURE / NEEDS ATTENTION /
+      AT RISK grade so non-technical owners get a clear verdict.
     """
 
-    COMMON_PORTS = [21, 22, 23, 25, 80, 443, 3306, 3389, 5432, 8080, 8443]
+    # Ports probed for exposure, with the service each normally runs.
+    PORT_SERVICES = {
+        21: 'FTP', 22: 'SSH', 23: 'Telnet', 25: 'SMTP', 53: 'DNS',
+        80: 'HTTP', 110: 'POP3', 135: 'MSRPC', 139: 'NetBIOS-SSN',
+        143: 'IMAP', 443: 'HTTPS', 445: 'SMB', 465: 'SMTPS',
+        587: 'SMTP-submission', 993: 'IMAPS', 995: 'POP3S',
+        1433: 'MSSQL', 1521: 'Oracle-DB', 2049: 'NFS', 3306: 'MySQL',
+        3389: 'RDP', 5432: 'PostgreSQL', 5900: 'VNC', 6379: 'Redis',
+        8080: 'HTTP-alt', 8443: 'HTTPS-alt', 9200: 'Elasticsearch',
+        11211: 'Memcached', 27017: 'MongoDB',
+    }
+    COMMON_PORTS = sorted(PORT_SERVICES)
+
+    # Ports that are dangerous to expose to the public internet, with the
+    # severity of that exposure.
     RISKY_PORTS = {
-        21: 'FTP (unencrypted)',
-        23: 'Telnet (unencrypted)',
-        25: 'SMTP (may expose mail relay)',
-        3306: 'MySQL (direct exposure)',
-        3389: 'RDP (remote desktop – high risk)',
-        5432: 'PostgreSQL (direct exposure)',
+        21: ('FTP – unencrypted file transfer', 'HIGH'),
+        23: ('Telnet – unencrypted remote shell', 'CRITICAL'),
+        25: ('SMTP – may be an open mail relay', 'MEDIUM'),
+        110: ('POP3 – unencrypted mail retrieval', 'MEDIUM'),
+        135: ('MSRPC – should never face the internet', 'HIGH'),
+        139: ('NetBIOS – legacy, exposes Windows shares', 'HIGH'),
+        143: ('IMAP – unencrypted mail retrieval', 'MEDIUM'),
+        445: ('SMB – EternalBlue/WannaCry surface if public', 'CRITICAL'),
+        1433: ('MSSQL – database directly exposed', 'HIGH'),
+        1521: ('Oracle DB – database directly exposed', 'HIGH'),
+        2049: ('NFS – file shares exposed', 'HIGH'),
+        3306: ('MySQL – database directly exposed', 'HIGH'),
+        3389: ('RDP – remote desktop, brute-force/BlueKeep risk', 'CRITICAL'),
+        5432: ('PostgreSQL – database directly exposed', 'HIGH'),
+        5900: ('VNC – remote desktop, often weak/no auth', 'HIGH'),
+        6379: ('Redis – frequently unauthenticated, data theft/RCE', 'CRITICAL'),
+        9200: ('Elasticsearch – frequently unauthenticated data exposure', 'CRITICAL'),
+        11211: ('Memcached – unauthenticated, DDoS amplification', 'HIGH'),
+        27017: ('MongoDB – frequently unauthenticated data exposure', 'CRITICAL'),
+    }
+
+    # How much each finding severity deducts from a starting score of 100.
+    _SEVERITY_PENALTY = {
+        'CRITICAL': 30, 'HIGH': 18, 'MEDIUM': 9, 'LOW': 4, 'INFO': 0,
     }
 
     def __init__(self, target: str = 'localhost'):
         self.target = target.strip() or 'localhost'
+        self._open_ports_cache: Optional[List[int]] = None
 
     def run_checks(self) -> Dict[str, Any]:
-        return {
-            'dns_resolution': self._check_dns_resolution(),
-            'dns_security': self._check_dns_security(),
-            'ssl_certificate': self._check_ssl_certificate(),
-            'tls_version': self._check_tls_version(),
-            'https_redirect': self._check_https_redirect(),
-            'security_headers': self._check_security_headers(),
-            'external_ip': self._get_external_ip(),
-            'open_ports': self._scan_common_ports(),
-            'risky_ports': self._identify_risky_ports(),
+        dns_resolution = self._check_dns_resolution()
+        dns_security = self._check_dns_security()
+        ssl_certificate = self._check_ssl_certificate()
+        certificate = self._inspect_certificate()
+        tls_version = self._check_tls_version()
+        https_redirect = self._check_https_redirect()
+        security_headers = self._check_security_headers()
+        http_methods = self._check_http_methods()
+        http_meta = self._check_http_meta()
+        open_ports = self._scan_common_ports()
+        risky_ports = self._identify_risky_ports()
+
+        raw = {
+            'target': self.target,
+            'dns_resolution': dns_resolution,
+            'dns_security': dns_security,
+            'ssl_certificate': ssl_certificate,
+            'certificate': certificate,
+            'tls_version': tls_version,
+            'https_redirect': https_redirect,
+            'security_headers': security_headers,
+            'http_methods': http_methods,
+            'http_meta': http_meta,
+            'target_ip': self._get_external_ip(),
+            'scanner_ip': self._get_scanner_ip(),
+            'reverse_dns': self._reverse_dns(),
+            'open_ports': open_ports,
+            'services': {p: self.PORT_SERVICES.get(p, 'unknown')
+                         for p in open_ports},
+            'risky_ports': risky_ports,
         }
+        # `external_ip` retained for backward compatibility (Shodan lookup,
+        # web templates) — now correctly the *target's* IP, not the scanner's.
+        raw['external_ip'] = raw['target_ip']
+
+        findings = self._build_findings(raw)
+        raw['findings'] = [f.to_dict() for f in findings]
+        raw['score'] = self._score(findings)
+        raw['grade'] = self._grade(raw['score'], findings)
+        return raw
+
+    # ------------------------------------------------------------- findings
+    def _build_findings(self, raw: Dict[str, Any]) -> List[InfraFinding]:
+        """Translate raw check output into prioritised, deduped findings."""
+        f: List[InfraFinding] = []
+
+        # ── TLS certificate ───────────────────────────────────────────
+        cert = raw.get('certificate') or {}
+        ssl_str = str(raw.get('ssl_certificate', ''))
+        if 'EXPIRED' in ssl_str:
+            f.append(InfraFinding(
+                'TLS-CERT', 'tls', 'CRITICAL', 'FAIL',
+                'TLS certificate has expired',
+                ssl_str,
+                'Renew the certificate immediately — visitors see security '
+                'warnings and cannot trust the site.'))
+        elif 'SOON' in ssl_str:
+            f.append(InfraFinding(
+                'TLS-CERT', 'tls', 'MEDIUM', 'WARN',
+                'TLS certificate expires soon', ssl_str,
+                'Renew the certificate before it expires; enable auto-renewal '
+                '(e.g. Let\'s Encrypt/certbot).'))
+        elif 'not detected' in ssl_str or 'verification failed' in ssl_str:
+            f.append(InfraFinding(
+                'TLS-CERT', 'tls', 'HIGH', 'FAIL',
+                'No trusted TLS certificate', ssl_str,
+                'Install a valid TLS certificate from a trusted CA so traffic '
+                'is encrypted and browsers do not warn users.'))
+        if cert.get('self_signed'):
+            f.append(InfraFinding(
+                'TLS-SELF', 'tls', 'HIGH', 'FAIL',
+                'Self-signed TLS certificate',
+                f"Issuer matches subject ({cert.get('issuer', 'unknown')}).",
+                'Replace the self-signed certificate with one from a trusted '
+                'Certificate Authority.'))
+        if cert.get('hostname_mismatch'):
+            f.append(InfraFinding(
+                'TLS-HOST', 'tls', 'HIGH', 'FAIL',
+                'Certificate does not match the hostname',
+                cert.get('detail', 'The certificate is not valid for this name.'),
+                'Reissue the certificate with the correct hostname in its '
+                'Subject Alternative Name list.'))
+
+        # ── TLS protocol version ──────────────────────────────────────
+        tls_str = str(raw.get('tls_version', ''))
+        if 'WARNING' in tls_str or 'deprecated' in tls_str:
+            f.append(InfraFinding(
+                'TLS-PROTO', 'tls', 'HIGH', 'FAIL',
+                'Deprecated TLS versions accepted', tls_str,
+                'Disable TLS 1.0 and 1.1 on the server; allow only TLS 1.2+.'))
+
+        # ── HTTPS redirect ────────────────────────────────────────────
+        redir = str(raw.get('https_redirect', ''))
+        if 'does not redirect' in redir:
+            f.append(InfraFinding(
+                'HTTP-REDIR', 'tls', 'MEDIUM', 'WARN',
+                'HTTP does not redirect to HTTPS', redir,
+                'Configure a 301 redirect from http:// to https:// so users '
+                'are never served content over plain HTTP.'))
+
+        # ── Security headers ──────────────────────────────────────────
+        header_sev = {
+            'Strict-Transport-Security': 'MEDIUM',
+            'Content-Security-Policy': 'MEDIUM',
+            'X-Frame-Options': 'LOW',
+            'X-Content-Type-Options': 'LOW',
+            'Referrer-Policy': 'LOW',
+            'Permissions-Policy': 'LOW',
+        }
+        headers = raw.get('security_headers', {}) or {}
+        for hname, hval in headers.items():
+            if str(hval).startswith('MISSING'):
+                f.append(InfraFinding(
+                    f'HDR-{hname}', 'headers', header_sev.get(hname, 'LOW'),
+                    'WARN', f'Missing HTTP header: {hname}', str(hval),
+                    f'Add the {hname} response header on your web server.'))
+
+        # ── Dangerous HTTP methods & disclosure ───────────────────────
+        methods = raw.get('http_methods', {}) or {}
+        if methods.get('trace_enabled'):
+            f.append(InfraFinding(
+                'HTTP-TRACE', 'headers', 'MEDIUM', 'FAIL',
+                'HTTP TRACE method is enabled',
+                'The server answers TRACE requests, enabling Cross-Site '
+                'Tracing (XST) to steal cookies/credentials.',
+                'Disable the TRACE and TRACK methods on your web server.'))
+
+        meta = raw.get('http_meta', {}) or {}
+        banner = str(meta.get('server', '') or '')
+        powered = str(meta.get('powered_by', '') or '')
+        if any(ch.isdigit() for ch in banner) or powered:
+            disclosed = '; '.join(x for x in (banner, powered) if x)
+            f.append(InfraFinding(
+                'HTTP-BANNER', 'headers', 'LOW', 'WARN',
+                'Server software version disclosed',
+                f'Response headers reveal software versions: {disclosed}. '
+                'This helps attackers target known CVEs.',
+                'Suppress version details in the Server / X-Powered-By headers.'))
+        insecure_cookies = meta.get('insecure_cookies', []) or []
+        if insecure_cookies:
+            f.append(InfraFinding(
+                'HTTP-COOKIE', 'headers', 'MEDIUM', 'WARN',
+                'Cookies missing security flags',
+                'Cookies set without Secure/HttpOnly: '
+                + '; '.join(insecure_cookies[:5])
+                + ('…' if len(insecure_cookies) > 5 else ''),
+                'Set the Secure and HttpOnly flags (and SameSite) on all '
+                'session cookies.'))
+        hsts_age = meta.get('hsts_max_age')
+        if isinstance(hsts_age, int) and 0 < hsts_age < 15552000:
+            f.append(InfraFinding(
+                'HTTP-HSTS-AGE', 'tls', 'LOW', 'WARN',
+                'HSTS max-age is short',
+                f'Strict-Transport-Security max-age is {hsts_age}s '
+                '(under 180 days), weakening HTTPS enforcement.',
+                'Set HSTS max-age to at least 15552000 (180 days), ideally '
+                '31536000 (1 year) with includeSubDomains.'))
+
+        # ── Email / DNS security ──────────────────────────────────────
+        dsec = raw.get('dns_security', {}) or {}
+        spf = str(dsec.get('spf', ''))
+        dmarc = str(dsec.get('dmarc', ''))
+        if 'No SPF' in spf:
+            f.append(InfraFinding(
+                'DNS-SPF', 'email', 'MEDIUM', 'WARN',
+                'No SPF record', spf,
+                'Publish an SPF TXT record listing your mail senders to stop '
+                'attackers spoofing your domain.'))
+        if 'No DMARC' in dmarc:
+            f.append(InfraFinding(
+                'DNS-DMARC', 'email', 'MEDIUM', 'WARN',
+                'No DMARC record', dmarc,
+                'Publish a _dmarc TXT record (start with p=none) to detect and '
+                'then block phishing that impersonates your domain.'))
+        caa = str(dsec.get('caa', ''))
+        if 'No CAA' in caa:
+            f.append(InfraFinding(
+                'DNS-CAA', 'dns', 'LOW', 'WARN',
+                'No CAA record', caa,
+                'Add a CAA DNS record naming the CA(s) allowed to issue '
+                'certificates for your domain.'))
+
+        # ── Port exposure ─────────────────────────────────────────────
+        for entry in raw.get('risky_ports', []):
+            # entry is "Port 3389: RDP – … [CRITICAL]"
+            sev = 'HIGH'
+            for s in ('CRITICAL', 'HIGH', 'MEDIUM'):
+                if entry.endswith(f'[{s}]'):
+                    sev = s
+                    break
+            text = entry.rsplit(' [', 1)[0]
+            f.append(InfraFinding(
+                'PORT', 'ports', sev, 'FAIL', 'Risky port exposed', text,
+                'Close the port at your firewall or restrict it to a VPN / '
+                'trusted IP range — it should not be public.'))
+
+        return f
+
+    def _score(self, findings: List[InfraFinding]) -> int:
+        score = 100
+        for finding in findings:
+            score -= self._SEVERITY_PENALTY.get(finding.severity, 0)
+        return max(0, min(100, score))
+
+    def _grade(self, score: int, findings: List[InfraFinding]) -> str:
+        criticals = sum(1 for x in findings if x.severity == 'CRITICAL')
+        # Any critical public-facing exposure (public DB/RDP, expired cert,
+        # unauthenticated Redis, …) is an immediate AT RISK verdict.
+        if criticals:
+            return 'AT RISK'
+        if score >= 85:
+            return 'SECURE'
+        if score >= 55:
+            return 'NEEDS ATTENTION'
+        return 'AT RISK'
 
     def _check_dns_resolution(self) -> str:
         try:
@@ -1695,6 +1972,30 @@ class InfrastructureAssessor:
                 results['dmarc'] = 'Unable to query DMARC (DNS lookup failed)'
         except Exception as exc:
             results['dmarc'] = f'DMARC check error: {exc}'
+
+        # CAA — which CAs may issue certificates for this domain
+        try:
+            if is_windows:
+                r = subprocess.run(
+                    ['nslookup', '-type=CAA', self.target],
+                    capture_output=True, text=True, timeout=8,
+                )
+                caa_out = (r.stdout + r.stderr)
+            else:
+                r = subprocess.run(
+                    ['dig', '+short', 'CAA', self.target],
+                    capture_output=True, text=True, timeout=8,
+                )
+                caa_out = r.stdout
+            low = caa_out.lower()
+            if 'issue' in low or 'caa' in low and 'timeout' not in low:
+                results['caa'] = 'CAA record found'
+            elif caa_out.strip():
+                results['caa'] = 'No CAA record – any CA may issue certificates'
+            else:
+                results['caa'] = 'Unable to query CAA'
+        except Exception as exc:
+            results['caa'] = f'CAA check error: {exc}'
 
         return results
 
@@ -1818,32 +2119,218 @@ class InfrastructureAssessor:
                 headers_status[header] = f'MISSING – {description} not configured'
         return headers_status
 
-    def _get_external_ip(self) -> str:
+    def _inspect_certificate(self) -> Dict[str, Any]:
+        """Deep TLS certificate inspection: trust, hostname match, issuer.
+
+        Returns a dict that is always safe to read; empty/False fields when
+        the target has no HTTPS or is a local host.
+        """
+        result: Dict[str, Any] = {
+            'checked': False, 'valid': False, 'self_signed': False,
+            'hostname_mismatch': False, 'issuer': '', 'subject': '',
+            'days_left': None, 'not_after': '', 'detail': '',
+        }
+        if self.target in ('localhost', '127.0.0.1'):
+            result['detail'] = 'Local host – certificate inspection skipped'
+            return result
+
+        # First: does the certificate pass full trust + hostname validation?
+        try:
+            ctx = ssl.create_default_context()
+            with socket.create_connection((self.target, 443), timeout=5) as s:
+                with ctx.wrap_socket(s, server_hostname=self.target) as ss:
+                    cert = ss.getpeercert() or {}
+                    result['checked'] = True
+                    result['valid'] = True
+                    result['not_after'] = str(cert.get('notAfter', ''))
+                    result['issuer'] = self._name_org(cert.get('issuer', ()))
+                    result['subject'] = self._name_org(cert.get('subject', ()))
+                    try:
+                        import time as _t
+                        epoch = ssl.cert_time_to_seconds(result['not_after'])
+                        result['days_left'] = int((epoch - _t.time()) / 86400)
+                    except Exception:
+                        pass
+                    return result
+        except ssl.SSLCertVerificationError as exc:
+            reason = str(getattr(exc, 'verify_message', '') or exc).lower()
+            result['checked'] = True
+            result['detail'] = str(exc)
+            if 'hostname mismatch' in reason or "doesn't match" in reason:
+                result['hostname_mismatch'] = True
+            if 'self signed' in reason or 'self-signed' in reason:
+                result['self_signed'] = True
+        except Exception as exc:
+            result['detail'] = f'No HTTPS/certificate: {exc}'
+            return result
+
+        # Trust failed — pull the raw cert (unverified) for issuer/subject so
+        # we can tell self-signed from other trust failures.
+        try:
+            ctx = ssl._create_unverified_context()  # nosec — inspection only
+            with socket.create_connection((self.target, 443), timeout=5) as s:
+                with ctx.wrap_socket(s, server_hostname=self.target) as ss:
+                    cert = ss.getpeercert() or {}
+                    issuer = self._name_org(cert.get('issuer', ()))
+                    subject = self._name_org(cert.get('subject', ()))
+                    result['issuer'] = issuer
+                    result['subject'] = subject
+                    result['not_after'] = str(cert.get('notAfter', ''))
+                    if issuer and issuer == subject:
+                        result['self_signed'] = True
+        except Exception:
+            logger.debug('unverified cert fetch failed', exc_info=True)
+        return result
+
+    @staticmethod
+    def _name_org(name_field) -> str:
+        """Extract the organisation/common name from a getpeercert name tuple."""
+        wanted = ('organizationName', 'commonName')
+        found = {}
+        for rdn in name_field or ():
+            for attr, val in rdn:
+                if attr in wanted:
+                    found[attr] = str(val)
+        return found.get('organizationName') or found.get('commonName') or ''
+
+    def _reverse_dns(self) -> str:
+        try:
+            ip = socket.gethostbyname(self.target)
+            host, _, _ = socket.gethostbyaddr(ip)
+            return host
+        except Exception:
+            return 'No PTR record'
+
+    def _get_scanner_ip(self) -> str:
+        """This scanner's own egress IP (useful context, not the target)."""
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
                 sock.connect(('8.8.8.8', 53))
                 return sock.getsockname()[0]
         except Exception as exc:
-            return f'External IP unavailable: {exc}'
+            return f'unavailable: {exc}'
 
-    def _scan_common_ports(self) -> List[int]:
-        open_ports = []
-        for port in self.COMMON_PORTS:
+    def _open_url(self, method: str = 'GET', timeout: int = 5):
+        """Open the target over HTTPS (fallback HTTP) with the given method.
+
+        Returns the response object or None. Certificate errors are ignored
+        here — we are inspecting configuration, not trusting the endpoint.
+        """
+        if self.target in ('localhost', '127.0.0.1'):
+            return None
+        import urllib.request
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        for scheme in ('https', 'http'):
             try:
-                with socket.create_connection((self.target, port), timeout=0.75):
-                    open_ports.append(port)
+                req = urllib.request.Request(  # nosec — configuration probe
+                    f'{scheme}://{self.target}', method=method)
+                context = ctx if scheme == 'https' else None
+                return urllib.request.urlopen(  # type: ignore[call-overload]
+                    req, timeout=timeout, context=context)
             except Exception:
                 continue
+        return None
+
+    def _check_http_methods(self) -> Dict[str, Any]:
+        """Detect dangerous HTTP methods (TRACE → Cross-Site Tracing)."""
+        result: Dict[str, Any] = {'allow': '', 'trace_enabled': False}
+        resp = self._open_url(method='OPTIONS')
+        if resp is not None:
+            try:
+                result['allow'] = (resp.headers.get('Allow', '')
+                                   or resp.headers.get(
+                                       'Access-Control-Allow-Methods', ''))
+            except Exception:
+                pass
+        trace = self._open_url(method='TRACE')
+        if trace is not None:
+            try:
+                if getattr(trace, 'status', None) == 200:
+                    result['trace_enabled'] = True
+            except Exception:
+                pass
+        return result
+
+    def _check_http_meta(self) -> Dict[str, Any]:
+        """Server banner, cookie security flags and HSTS strength from a GET."""
+        import re
+        result: Dict[str, Any] = {
+            'server': '', 'powered_by': '',
+            'insecure_cookies': [], 'hsts_max_age': None}
+        resp = self._open_url(method='GET')
+        if resp is None:
+            return result
+        try:
+            headers = resp.headers
+            result['server'] = headers.get('Server', '') or ''
+            result['powered_by'] = headers.get('X-Powered-By', '') or ''
+            try:
+                cookies = headers.get_all('Set-Cookie') or []
+            except Exception:
+                one = headers.get('Set-Cookie')
+                cookies = [one] if one else []
+            for c in cookies:
+                name = c.split('=', 1)[0].strip()
+                low = c.lower()
+                missing = [flag for flag in ('secure', 'httponly')
+                           if flag not in low]
+                if missing:
+                    result['insecure_cookies'].append(
+                        f"{name} (missing {', '.join(missing)})")
+            hsts = headers.get('Strict-Transport-Security', '') or ''
+            m = re.search(r'max-age=(\d+)', hsts)
+            if m:
+                result['hsts_max_age'] = int(m.group(1))
+        except Exception:
+            logger.debug("http meta parse failed", exc_info=True)
+        return result
+
+    def _get_external_ip(self) -> str:
+        """The *target's* public IP (used by the Shodan exposure lookup)."""
+        try:
+            return socket.gethostbyname(self.target)
+        except Exception as exc:
+            return f'Target IP unavailable: {exc}'
+
+    def _scan_common_ports(self) -> List[int]:
+        """Scan the common-port list concurrently. Result is cached per run."""
+        if self._open_ports_cache is not None:
+            return self._open_ports_cache
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        def _probe(port: int):
+            try:
+                with socket.create_connection((self.target, port), timeout=1.0):
+                    return port
+            except Exception:
+                return None
+
+        open_ports: List[int] = []
+        with ThreadPoolExecutor(max_workers=min(32, len(self.COMMON_PORTS))) as ex:
+            futures = {ex.submit(_probe, p): p for p in self.COMMON_PORTS}
+            for fut in as_completed(futures):
+                port = fut.result()
+                if port is not None:
+                    open_ports.append(port)
+        open_ports.sort()
+        self._open_ports_cache = open_ports
         return open_ports
 
     def _identify_risky_ports(self) -> List[str]:
-        """Return descriptions of open ports considered risky for public exposure."""
+        """Descriptions of open ports that are risky to expose publicly.
+
+        Each entry ends with a ``[SEVERITY]`` tag so downstream code can map
+        it to a finding severity without re-deriving it.
+        """
         open_ports = self._scan_common_ports()
-        return [
-            f"Port {p}: {self.RISKY_PORTS[p]}"
-            for p in open_ports
-            if p in self.RISKY_PORTS
-        ]
+        out: List[str] = []
+        for p in open_ports:
+            if p in self.RISKY_PORTS:
+                desc, sev = self.RISKY_PORTS[p]
+                out.append(f"Port {p}: {desc} [{sev}]")
+        return out
 
 
 class ZambiaRiskAssessor:
