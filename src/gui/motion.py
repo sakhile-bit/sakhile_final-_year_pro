@@ -19,6 +19,7 @@ Two things are worth knowing:
 """
 from __future__ import annotations
 
+import sys
 import time
 from typing import Callable, Optional, Sequence
 
@@ -35,7 +36,7 @@ __all__ = [
     "smooth_scroll", "enable_global_smooth_scroll",
 ]
 
-FRAME_MS = 15          # ~66 fps
+FRAME_MS = 8           # ~120 fps target (paired with a high-res timer on Windows)
 DEFAULT_MS = 200       # inside the 150-300 ms sweet spot
 
 
@@ -104,6 +105,43 @@ def _viewable(widget) -> bool:
         return False
 
 
+# ── high-resolution timer (Windows) ────────────────────────────────────────────
+# Windows' default scheduler granularity is ~15.6 ms, which caps Tk's after()
+# loop near 64 fps and delivers frames with visible jitter. timeBeginPeriod(1)
+# lifts that to 1 ms so animations run at the requested ~120 fps *evenly* — the
+# single biggest smoothness win here. It carries a small power cost, so it is
+# held only while something is actually animating (ref-counted) and released the
+# moment the app goes idle.
+
+_hires_refs = 0
+
+
+def _hires_acquire() -> None:
+    global _hires_refs
+    if sys.platform != "win32":
+        return
+    if _hires_refs == 0:
+        try:
+            import ctypes
+            ctypes.windll.winmm.timeBeginPeriod(1)
+        except Exception:
+            pass
+    _hires_refs += 1
+
+
+def _hires_release() -> None:
+    global _hires_refs
+    if sys.platform != "win32" or _hires_refs == 0:
+        return
+    _hires_refs -= 1
+    if _hires_refs == 0:
+        try:
+            import ctypes
+            ctypes.windll.winmm.timeEndPeriod(1)
+        except Exception:
+            pass
+
+
 def animate(widget, duration_ms: int, on_frame: Callable[[float], None],
             on_done: Optional[Callable[[], None]] = None,
             easing: Callable[[float], float] = ease_out_cubic,
@@ -113,6 +151,12 @@ def animate(widget, duration_ms: int, on_frame: Callable[[float], None],
     ``key`` scopes the animation per widget: starting a new animation with
     the same key cancels the previous one (rapid hover in/out, repeated
     navigation) instead of letting two loops fight over the widget.
+
+    Frames are time-based (driven by a monotonic clock), so position is always
+    correct regardless of scheduling jitter, and the loop compensates each
+    frame to hold an even ~120 fps cadence. Ticks are scheduled on the toplevel
+    rather than ``widget`` so the animation still settles cleanly if ``widget``
+    is destroyed mid-flight.
 
     Resolves instantly to the final frame when :func:`is_reduced_motion` is
     set or ``duration_ms`` is non-positive, so every effect built on ``animate``
@@ -132,19 +176,43 @@ def animate(widget, duration_ms: int, on_frame: Callable[[float], None],
     if seqs is None:
         seqs = widget._motion_seq = {}
     seqs[key] = seq = seqs.get(key, 0) + 1
-    start = time.perf_counter()
 
-    def tick():
+    # Schedule on the toplevel: it outlives individual screens, so a destroyed
+    # widget's pending frame still fires, notices, and releases the timer.
+    try:
+        clock = widget.winfo_toplevel()
+    except Exception:
+        clock = widget
+
+    start = time.perf_counter()
+    _hires_acquire()
+    done_flag = {"released": False}
+
+    def _release() -> None:
+        if not done_flag["released"]:
+            done_flag["released"] = True
+            _hires_release()
+
+    def tick() -> None:
         try:
             if not widget.winfo_exists() or seqs.get(key) != seq:
+                _release()
                 return
-            t = min(1.0, (time.perf_counter() - start) * 1000 / duration_ms)
+            frame_start = time.perf_counter()
+            t = min(1.0, (frame_start - start) * 1000 / duration_ms)
             on_frame(easing(t))
             if t < 1.0:
-                widget.after(FRAME_MS, tick)
-            elif on_done is not None:
-                on_done()
+                # Hold cadence: subtract the time this frame's work took so the
+                # interval stays ~FRAME_MS instead of FRAME_MS + work.
+                spent = (time.perf_counter() - frame_start) * 1000
+                delay = max(1, int(round(FRAME_MS - spent)))
+                clock.after(delay, tick)
+            else:
+                _release()
+                if on_done is not None:
+                    on_done()
         except Exception:
+            _release()
             return  # widget torn down mid-frame — animation simply ends
 
     tick()
@@ -404,7 +472,7 @@ def smooth_progress(bar, target: float, duration_ms: int = 260) -> None:
 # with the wheel or a touchpad whether or not it holds focus.
 
 _NOTCH_FRACTION = 0.16     # viewport fraction travelled per full wheel notch
-_SCROLL_MS = 160           # ease duration per notch (momentum on fast flicks)
+_SCROLL_MS = 200           # ease duration per notch — a gentle glide, not a jump
 _wheel_root = None         # the Tk root the global handler is bound to
 # Per-canvas scroll state (accumulating target + tuning) lives on the canvas
 # itself via ``_scroll_*`` attributes, so it dies with the canvas — no global
