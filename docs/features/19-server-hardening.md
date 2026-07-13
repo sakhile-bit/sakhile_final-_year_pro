@@ -10,7 +10,7 @@ Since July 2026 the audit is no longer read-only advice: **one-click auto-remedi
 **GUI file:** [`src/gui/screens/server_hardening.py`](../../src/gui/screens/server_hardening.py)
 **Engine file:** [`src/security/hardening/checks.py`](../../src/security/hardening/checks.py)
 **Fix engine:** [`src/security/hardening/fixes.py`](../../src/security/hardening/fixes.py)
-**CLI:** `python cli.py harden [--json-out] [--output report.json] [--fix HRD-XX] [--fix-all-safe] [--include-caution] [--undo-last] [--list-fixes]`
+**CLI:** `zamsec harden [--json-out] [--output report.json] [--fix HRD-XX] [--fix-all-safe] [--include-caution] [--undo-last] [--list-fixes]` — see [CLI.md](../CLI.md)
 **Agent:** included automatically in `windows_agent.collect_local_report()` under the `hardening` key
 
 ---

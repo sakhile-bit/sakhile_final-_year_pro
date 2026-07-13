@@ -1,25 +1,28 @@
 """
 Command-line interface for the Zambia Digital Hygiene Assessment Tool.
 
-Provides developer-friendly terminal commands for running assessments,
-system scans, pre-deployment checks, the web server, and user management
-— all without needing the web UI.
+Provides terminal commands for running assessments, system scans,
+hardening audits, fleet scans, pre-deployment checks, the web server,
+and user management — all without needing the web UI.
 
-Usage (from project root):
-    python cli.py --help
-    python cli.py assess --business-name "Acme" --business-id REG-001
-    python cli.py scan
-    python cli.py zambia
-    python cli.py predeploy
-    python cli.py web --debug
-    python cli.py users list
-    python cli.py users create --username dev1 --password secret
-    python cli.py session start
-    python cli.py session status
-    python cli.py session end
-    python cli.py init-db
-    python cli.py manual
-    python cli.py status
+Installed as the ``zamsec`` command (see pyproject.toml); also runnable
+from a source checkout with ``python cli.py``.
+
+Usage:
+    zamsec --help
+    zamsec assess --business-name "Acme" --business-id REG-001
+    zamsec scan
+    zamsec zambia
+    zamsec predeploy
+    zamsec harden --fix-all-safe
+    zamsec web --debug
+    zamsec users list
+    zamsec session start / status / end
+    zamsec init-db
+    zamsec manual
+    zamsec status
+    zamsec completion        # shell tab-completion setup
+    zamsec upgrade           # self-update from GitHub
 """
 
 import click
@@ -53,25 +56,72 @@ from src.reporting.generator import ReportGenerator  # noqa: E402
 from src.utils.logging_config import get_logger  # noqa: E402
 from src.utils.config import config  # noqa: E402
 
+# On Windows, piped/redirected output defaults to a legacy codepage
+# (cp1252) that cannot encode the emoji/box characters used below and
+# crashes with UnicodeEncodeError (e.g. ``zamsec status > report.txt``).
+if sys.platform == 'win32':
+    for _stream in (sys.stdout, sys.stderr):
+        _reconfigure = getattr(_stream, 'reconfigure', None)
+        if _reconfigure is not None:
+            try:
+                _reconfigure(encoding='utf-8', errors='replace')
+            except ValueError:
+                pass
+
 console = Console()
 logger = get_logger(__name__)
+
+#: PyPI-style distribution name (see pyproject.toml) and GitHub source.
+PACKAGE_NAME = "zambia-digital-hygiene"
+GITHUB_REPO = "https://github.com/sakhile-bit/sakhile_final-_year_pro"
+
+
+def _get_version() -> str:
+    """Version of the installed package, falling back to the source tree."""
+    try:
+        from importlib.metadata import version
+        return version(PACKAGE_NAME)
+    except Exception:
+        try:
+            from src import __version__
+            return __version__
+        except Exception:
+            return "unknown"
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Root CLI group
 # ──────────────────────────────────────────────────────────────────────────────
 
-@click.group()
-@click.version_option(version="1.0.0")
+@click.group(context_settings={'help_option_names': ['-h', '--help']})
+@click.version_option(version=_get_version(), prog_name='zamsec',
+                      message='%(prog)s %(version)s '
+                              f'(Python {platform.python_version()} on {platform.system()})')
 @click.option('--config', 'config_file', type=click.Path(exists=True),
               help='Path to YAML configuration file')
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose / DEBUG output')
-def cli(config_file: Optional[str], verbose: bool):
-    """Zambia Digital Hygiene Assessment Tool  –  Developer CLI
+@click.option('--no-color', is_flag=True, envvar='NO_COLOR',
+              help='Disable colored output (also honours the NO_COLOR env var)')
+def cli(config_file: Optional[str], verbose: bool, no_color: bool):
+    """Zambia Digital Hygiene Assessment Tool — zamsec
 
-    A comprehensive cybersecurity assessment toolkit for SMEs in Zambia.
-    Run any command with --help for details.
+    A comprehensive cybersecurity assessment toolkit for SMEs in Zambia:
+    digital-hygiene assessment, infrastructure hardening, fleet scanning
+    and certification. Run any command with --help for details.
+
+    \b
+    Quick examples:
+      zamsec assess --business-name "Acme Ltd" --business-id REG-001
+      zamsec scan
+      zamsec harden --fix-all-safe
+      zamsec agent --json-out -o host.json
+      zamsec fleet-scan --nodes nodes.yaml
+      zamsec web --port 5000
     """
+    if no_color:
+        global console
+        console = Console(no_color=True)
+
     if config_file:
         config.load_from_file(config_file)
 
@@ -751,7 +801,7 @@ def agent_reports(limit: int, show_id: Optional[int]):
     rows = list_agent_reports(limit=limit)
     if not rows:
         console.print("[dim]No agent reports saved yet. "
-                      "Run 'python cli.py agent' first.[/dim]")
+                      "Run 'zamsec agent' first.[/dim]")
         return
     table = Table(title="Saved Agent Reports")
     table.add_column("ID", style="cyan", no_wrap=True)
@@ -1216,6 +1266,89 @@ def manual():
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# completion – shell tab-completion setup (bash, zsh, fish, powershell)
+# ──────────────────────────────────────────────────────────────────────────────
+
+@cli.command()
+@click.argument('shell', type=click.Choice(['bash', 'zsh', 'fish', 'powershell']),
+                required=False)
+def completion(shell: Optional[str]):
+    """Set up tab-completion for your shell.
+
+    Prints the snippet to add to your shell profile so that pressing TAB
+    completes zamsec commands and options. Run without an argument to see
+    instructions for every supported shell.
+    """
+    # Scripts are printed as plain unwrapped text (no panels/markup) so
+    # they can be copy-pasted straight into a shell profile.
+    def _script(text: str) -> None:
+        console.print(Text(text), soft_wrap=True)
+
+    if shell in (None, 'bash'):
+        console.print("[bold cyan]Bash[/bold cyan] — add to [bold]~/.bashrc[/bold]:")
+        _script('eval "$(_ZAMSEC_COMPLETE=bash_source zamsec)"\n')
+    if shell in (None, 'zsh'):
+        console.print("[bold cyan]Zsh[/bold cyan] — add to [bold]~/.zshrc[/bold]:")
+        _script('eval "$(_ZAMSEC_COMPLETE=zsh_source zamsec)"\n')
+    if shell in (None, 'fish'):
+        console.print("[bold cyan]Fish[/bold cyan] — add to "
+                      "[bold]~/.config/fish/completions/zamsec.fish[/bold]:")
+        _script('_ZAMSEC_COMPLETE=fish_source zamsec | source\n')
+    if shell in (None, 'powershell'):
+        commands = ',\n        '.join(
+            f"'{name}'" for name in sorted(cli.commands))
+        ps_script = (
+            "Register-ArgumentCompleter -Native -CommandName zamsec -ScriptBlock {\n"
+            "    param($wordToComplete, $commandAst, $cursorPosition)\n"
+            "    $commands = @(\n"
+            f"        {commands}\n"
+            "    )\n"
+            "    $commands | Where-Object { $_ -like \"$wordToComplete*\" } |\n"
+            "        ForEach-Object {\n"
+            "            [System.Management.Automation.CompletionResult]::new(\n"
+            "                $_, $_, 'ParameterValue', $_)\n"
+            "        }\n"
+            "}\n"
+        )
+        console.print("[bold cyan]PowerShell[/bold cyan] — add to your profile "
+                      "(open it with [bold]notepad $PROFILE[/bold]):")
+        _script(ps_script)
+        console.print("[dim]Tip: run 'echo $PROFILE' in PowerShell to see "
+                      "where your profile lives. Create it if it does not "
+                      "exist, then restart the shell.[/dim]")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# upgrade – self-update from GitHub
+# ──────────────────────────────────────────────────────────────────────────────
+
+@cli.command()
+@click.option('--branch', default='main', show_default=True,
+              help='Git branch to upgrade from')
+def upgrade(branch: str):
+    """Upgrade zamsec to the latest version from GitHub.
+
+    Re-installs the package with pip from the project repository. Works
+    without git installed (downloads the branch archive over HTTPS).
+    """
+    url = f"{GITHUB_REPO}/archive/refs/heads/{branch}.zip"
+    console.print(Panel.fit(
+        f"[bold blue]Upgrading zamsec[/bold blue]\n"
+        f"[dim]Current version: {_get_version()}\n"
+        f"Source: {url}[/dim]",
+        title="⬆️ Upgrade"))
+
+    result = subprocess.run(
+        [sys.executable, '-m', 'pip', 'install', '--upgrade', url])
+    if result.returncode == 0:
+        console.print("[green]✓ Upgrade complete. Run 'zamsec --version' in a "
+                      "new shell to confirm the new version.[/green]")
+    else:
+        console.print("[red]✗ Upgrade failed — see pip output above.[/red]")
+        sys.exit(result.returncode)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # status – quick project / environment status summary
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -1231,6 +1364,7 @@ def status():
     table.add_column("Key", style="cyan bold")
     table.add_column("Value", style="white")
 
+    table.add_row("Version", _get_version())
     table.add_row("Python", f"{platform.python_version()} ({sys.executable})")
     table.add_row("OS", f"{platform.system()} {platform.release()}")
     table.add_row("Project Root", _project_root)
@@ -1264,22 +1398,13 @@ def status():
 
     console.print(table)
 
-    # Show available commands
+    # Show available commands (derived from the CLI itself, so it never
+    # goes stale when commands are added)
     console.print("\n[bold cyan]Available Commands:[/bold cyan]")
-    cmds = [
-        ("assess",    "Run full 15-control assessment"),
-        ("scan",      "Quick system security scan"),
-        ("zambia",    "Zambia-specific risk assessment"),
-        ("predeploy", "Pre-deployment hygiene gate"),
-        ("web",       "Start web dashboard"),
-        ("init-db",   "Initialize database"),
-        ("users",     "Manage users (list, create, reset-password)"),
-        ("session",   "Sign in / out of a CLI session (start, status, end)"),
-        ("manual",    "Generate on-site assessment guide"),
-        ("status",    "This status summary"),
-    ]
-    for name, desc in cmds:
-        console.print(f"  [green]{name:12s}[/green] {desc}")
+    for name in sorted(cli.commands):
+        cmd = cli.commands[name]
+        desc = (cmd.help or '').strip().splitlines()[0] if cmd.help else ''
+        console.print(f"  [green]{name:14s}[/green] {desc}")
 
 
 # ──────────────────────────────────────────────────────────────────────────────

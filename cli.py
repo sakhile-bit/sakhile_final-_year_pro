@@ -2,6 +2,10 @@
 """
 Convenience CLI entry-point for the Zambia Digital Hygiene Assessment Tool.
 
+Prefer installing the package (``pip install .``) which puts a global
+``zamsec`` command on your PATH — every command below then works as
+``zamsec <command>`` from any directory.
+
 Run from the project root:
     python cli.py --help
     python cli.py assess --business-name "Acme Ltd" --business-id REG-001

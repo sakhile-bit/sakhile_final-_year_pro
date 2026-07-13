@@ -822,40 +822,60 @@ A spreadsheet table with one row per control. Columns include: Control ID, Name,
 
 The CLI is intended for IT staff and developers who prefer working from the terminal.
 
-Open a Command Prompt or PowerShell window in the project directory and run:
+The easiest way to get it is to install the package, which puts a global
+`zamsec` command on your PATH — usable from any Command Prompt, PowerShell,
+or Unix shell (see [INSTALL_SCRIPTS.md](INSTALL_SCRIPTS.md)):
 
+```bash
+pip install "https://github.com/sakhile-bit/sakhile_final-_year_pro/archive/refs/heads/main.zip"
+zamsec --help
 ```
-python cli.py --help
-```
+
+If you are working from a source checkout instead, `python cli.py <command>`
+from the project directory behaves identically.
 
 ### Available commands
 
 | Command | What It Does |
 |---|---|
-| `python cli.py assess` | Run a full 15-control assessment with prompted business details |
-| `python cli.py scan` | Quick automated system security scan (C01–C05 only) |
-| `python cli.py zambia` | Interactive Zambia-specific risk assessment |
-| `python cli.py predeploy` | Run the 15-check pre-deployment gate |
-| `python cli.py web` | Start the Flask web portal server |
-| `python cli.py init-db` | Create all database tables and default admin user |
-| `python cli.py users list` | List all registered web portal users |
-| `python cli.py users create` | Create a new web portal user |
-| `python cli.py users reset-password` | Reset a user's web portal password |
-| `python cli.py manual` | Generate an on-site assessment guide as PDF |
-| `python cli.py status` | Show project and environment status |
+| `zamsec assess` | Run a full 15-control assessment with prompted business details |
+| `zamsec scan` | Quick automated system security scan (C01–C05 only) |
+| `zamsec zambia` | Interactive Zambia-specific risk assessment |
+| `zamsec manual` | Generate an on-site assessment guide as PDF |
+| `zamsec harden` | Windows hardening audit (14 checks) with `--fix-all-safe` auto-remediation |
+| `zamsec predeploy` | Run the pre-deployment hygiene gate (CI/CD friendly) |
+| `zamsec agent` | Scan this host: assessment + hardening + readiness in one report |
+| `zamsec agent-reports` | List or show saved agent reports |
+| `zamsec node-agent` | Run this machine as a scannable node for fleet scanning |
+| `zamsec fleet-scan` | Scan every node in an inventory and grade the whole fleet |
+| `zamsec web` | Start the Flask web portal server |
+| `zamsec init-db` | Create all database tables and default admin user |
+| `zamsec users list` | List all registered web portal users |
+| `zamsec users create` | Create a new web portal user |
+| `zamsec users reset-password` | Reset a user's web portal password |
+| `zamsec session start` | Sign in to a CLI session (also `status`, `end`) |
+| `zamsec status` | Show version, environment status, and all commands |
+| `zamsec completion` | Set up TAB completion for bash/zsh/fish/PowerShell |
+| `zamsec upgrade` | Update the tool to the latest version from GitHub |
 
 **Examples:**
 
 ```bash
 # Run a full assessment from the terminal
-python cli.py assess --business-name "Acme Ltd" --business-id "REG-001"
+zamsec assess --business-name "Acme Ltd" --business-id "REG-001"
+
+# Audit and auto-fix this server's hardening (run as Administrator)
+zamsec harden --fix-all-safe
 
 # Start the web portal on port 8080
-python cli.py web --host 0.0.0.0 --port 8080
+zamsec web --host 0.0.0.0 --port 8080
 
 # Create a new assessor user
-python cli.py users create --username john --password Secure@123 --role assessor
+zamsec users create --username john --password Secure@123 --role assessor
 ```
+
+👉 **Full command-by-command documentation — every option, exit codes,
+fleet-scanning setup, environment variables — is in [CLI.md](CLI.md).**
 
 ---
 

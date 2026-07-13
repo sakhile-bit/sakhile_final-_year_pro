@@ -1,86 +1,69 @@
 #!/bin/bash
-# Zambia Digital Hygiene Assessment Tool - Quick Install & Run
-# Usage: curl -s https://your-domain.com/install.sh | bash
+# Zambia Digital Hygiene Assessment Tool (zamsec) - Linux/macOS installer
+# Usage:
+#   curl -fsSL https://raw.githubusercontent.com/sakhile-bit/sakhile_final-_year_pro/main/devops/install.sh | bash
+#
+# Installs the "zamsec" command globally via pipx (preferred) or pip.
 
 set -e
 
-echo "========================================"
-echo "Zambia Digital Hygiene Assessment Tool"
-echo "Quick Install & Run Script"
-echo "========================================"
+REPO="https://github.com/sakhile-bit/sakhile_final-_year_pro"
+ARCHIVE="$REPO/archive/refs/heads/main.zip"
 
-# Check if Python is installed
-if ! command -v python3 &> /dev/null && ! command -v python &> /dev/null; then
-    echo "❌ ERROR: Python is not installed"
-    echo "Please install Python 3.8+ first"
-    echo "Ubuntu/Debian: sudo apt install python3 python3-pip"
-    echo "CentOS/RHEL: sudo yum install python3 python3-pip"
-    echo "macOS: brew install python3"
+echo "=============================================="
+echo " Zambia Digital Hygiene Assessment Tool"
+echo " zamsec - terminal installer"
+echo "=============================================="
+
+# --- 1. Check Python --------------------------------------------------------
+if command -v python3 >/dev/null 2>&1; then
+    PY=python3
+elif command -v python >/dev/null 2>&1; then
+    PY=python
+else
+    echo "ERROR: Python is not installed."
+    echo "  Ubuntu/Debian: sudo apt install python3 python3-pip"
+    echo "  CentOS/RHEL:   sudo yum install python3 python3-pip"
+    echo "  macOS:         brew install python3"
+    exit 1
+fi
+echo "Python found: $($PY --version)"
+if ! $PY -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)'; then
+    echo "ERROR: Python 3.9+ is required."
     exit 1
 fi
 
-# Use python3 if available, otherwise python
-if command -v python3 &> /dev/null; then
-    PYTHON_CMD="python3"
+# --- 2. Install --------------------------------------------------------------
+if command -v pipx >/dev/null 2>&1; then
+    echo "Installing with pipx (isolated environment)..."
+    pipx install --force "$ARCHIVE"
 else
-    PYTHON_CMD="python"
+    echo "Installing with pip..."
+    # --user keeps it out of system site-packages; --break-system-packages
+    # handles PEP 668 distros (Ubuntu 23.04+, Debian 12+) where user
+    # installs are refused without it.
+    $PY -m pip install --user --upgrade "$ARCHIVE" ||
+        $PY -m pip install --user --break-system-packages --upgrade "$ARCHIVE"
 fi
 
-echo "✓ Python found: $($PYTHON_CMD --version)"
-
-# Create temp directory
-TEMP_DIR=$(mktemp -d)
-cd "$TEMP_DIR"
-
-# Try to clone repository first, fallback to download ZIP
-echo "Downloading repository..."
-if command -v git &> /dev/null; then
-    git clone https://github.com/yourusername/digital-hygiene-tool.git .
+# --- 3. Verify ----------------------------------------------------------------
+echo ""
+echo "=============================================="
+if command -v zamsec >/dev/null 2>&1; then
+    echo "Installed successfully!"
+    zamsec --version
 else
-    echo "Git not found, downloading ZIP..."
-    curl -L -o repo.zip https://github.com/yourusername/digital-hygiene-tool/archive/main.zip
-    unzip repo.zip
-    cd digital-hygiene-tool-main
+    echo "Installed, but 'zamsec' is not on your PATH yet."
+    echo "Add your user scripts directory to PATH, e.g. append to ~/.bashrc:"
+    echo '  export PATH="$HOME/.local/bin:$PATH"'
+    echo "then open a new terminal."
 fi
-
-# Install dependencies
-echo "Installing dependencies..."
-$PYTHON_CMD -m pip install --user --upgrade pip
-$PYTHON_CMD -m pip install --user -r requirements.txt
-
-# Setup database
-echo "Setting up database..."
-if $PYTHON_CMD database/setup_mysql.py; then
-    echo "✓ Database setup completed"
-else
-    echo "⚠️  Database setup failed or was cancelled"
-    echo "You can run it manually later: $PYTHON_CMD database/setup_mysql.py"
-fi
-
-# Run the tool
+echo "=============================================="
 echo ""
-echo "========================================"
-echo "Installation complete!"
-echo "========================================"
-echo ""
-echo "To run the web interface:"
-echo "  $PYTHON_CMD src/web/app.py"
-echo ""
-echo "To use the CLI:"
-echo "  $PYTHON_CMD src/utils/cli.py --help"
-echo ""
-echo "Visit: http://localhost:5000"
-echo ""
-
-# Ask if user wants to start the web interface
-read -p "Start web interface now? (y/N): " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    echo "Starting web interface..."
-    echo "Press Ctrl+C to stop"
-    $PYTHON_CMD src/web/app.py
-fi
-
-echo ""
-echo "Installation directory: $(pwd)"
-echo "You can safely delete this directory after copying the files elsewhere."
+echo "Get started:"
+echo "  zamsec --help        all commands"
+echo "  zamsec scan          quick system security scan"
+echo "  zamsec assess        full 15-control assessment"
+echo "  zamsec web           web dashboard (http://127.0.0.1:5000)"
+echo "  zamsec completion    enable TAB completion"
+echo "  zamsec upgrade       update to the latest version"

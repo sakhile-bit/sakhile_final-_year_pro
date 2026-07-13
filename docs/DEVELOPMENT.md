@@ -100,6 +100,11 @@ make health
 python3 cli.py --help
 ```
 
+> **Tip:** installing the package in editable mode (`pip install -e .`) puts a
+> global `zamsec` command on your PATH, so every `python3 cli.py …` example in
+> this guide also works as `zamsec …` from any directory. Full command
+> reference: [CLI.md](CLI.md).
+
 ---
 
 ## Development Workflow

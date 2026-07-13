@@ -6,7 +6,7 @@ A single business rarely runs on one machine — it has a file server, a POS bac
 **Node agent:** [`src/agents/node_agent.py`](../../src/agents/node_agent.py)
 **Master coordinator:** [`src/agents/master_coordinator.py`](../../src/agents/master_coordinator.py)
 **GUI:** [`src/gui/screens/fleet_scan.py`](../../src/gui/screens/fleet_scan.py) (welcome tile "🖧 Fleet Scan")
-**CLI:** `python cli.py node-agent …` (on each node) and `python cli.py fleet-scan --nodes nodes.yaml` (on the master)
+**CLI:** `zamsec node-agent …` (on each node) and `zamsec fleet-scan --nodes nodes.yaml` (on the master) — see [CLI.md](../CLI.md)
 
 ---
 
@@ -81,17 +81,18 @@ See [`nodes.example.yaml`](../../nodes.example.yaml).
 
 ## Usage
 
-**On each infrastructure node:**
+**On each infrastructure node** (install the CLI once via pip — see
+[INSTALL_SCRIPTS.md](../INSTALL_SCRIPTS.md) — then):
 ```bash
 set NODE_AGENT_TOKEN=your-strong-secret
-python cli.py node-agent --host 0.0.0.0 --port 8765
+zamsec node-agent --host 0.0.0.0 --port 8765
 ```
 
 **On the master node:**
 ```bash
-python cli.py fleet-scan --nodes nodes.yaml            # formatted table + verdict
-python cli.py fleet-scan --nodes nodes.yaml --json-out # machine-readable
-python cli.py fleet-scan --nodes nodes.yaml -o fleet.json
+zamsec fleet-scan --nodes nodes.yaml            # formatted table + verdict
+zamsec fleet-scan --nodes nodes.yaml --json-out # machine-readable
+zamsec fleet-scan --nodes nodes.yaml -o fleet.json
 ```
 
 Or use the desktop app: **🖧 Fleet Scan** tile. No inventory file needed —

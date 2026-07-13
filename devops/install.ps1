@@ -1,99 +1,75 @@
-# Zambia Digital Hygiene Assessment Tool - PowerShell Quick Install
-# Usage: irm https://your-domain.com/install.ps1 | iex
+# Zambia Digital Hygiene Assessment Tool (zamsec) - PowerShell installer
+# Usage:
+#   irm https://raw.githubusercontent.com/sakhile-bit/sakhile_final-_year_pro/main/devops/install.ps1 | iex
+#
+# Installs the "zamsec" command globally via pip (or pipx when available).
 
-param(
-    [switch]$NoWeb,
-    [switch]$NoDB,
-    [string]$Branch = "main"
-)
+$ErrorActionPreference = "Stop"
+$Repo = "https://github.com/sakhile-bit/sakhile_final-_year_pro"
+$Archive = "$Repo/archive/refs/heads/main.zip"
 
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "Zambia Digital Hygiene Assessment Tool" -ForegroundColor Cyan
-Write-Host "PowerShell Quick Install & Run Script" -ForegroundColor Cyan
-Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "==============================================" -ForegroundColor Cyan
+Write-Host " Zambia Digital Hygiene Assessment Tool" -ForegroundColor Cyan
+Write-Host " zamsec - terminal installer" -ForegroundColor Cyan
+Write-Host "==============================================" -ForegroundColor Cyan
 
-# Check Python installation
-try {
-    $pythonVersion = python --version 2>$null
-    Write-Host "✓ Python found: $pythonVersion" -ForegroundColor Green
-} catch {
-    Write-Host "❌ ERROR: Python is not installed or not in PATH" -ForegroundColor Red
-    Write-Host "Please install Python 3.8+ from https://python.org" -ForegroundColor Yellow
-    Read-Host "Press Enter to exit"
+# --- 1. Check Python -------------------------------------------------------
+$python = Get-Command python -ErrorAction SilentlyContinue
+if (-not $python) {
+    Write-Host "ERROR: Python is not installed or not in PATH." -ForegroundColor Red
+    Write-Host "Install Python 3.9+ from https://python.org (tick 'Add to PATH')." -ForegroundColor Yellow
+    exit 1
+}
+$pyVersion = & python -c "import sys; print('%d.%d' % sys.version_info[:2])"
+Write-Host "Python found: $pyVersion" -ForegroundColor Green
+$verOk = & python -c "import sys; print(1 if sys.version_info >= (3, 9) else 0)"
+if ($verOk -ne "1") {
+    Write-Host "ERROR: Python 3.9+ is required (found $pyVersion)." -ForegroundColor Red
     exit 1
 }
 
-# Create temp directory
-$tempDir = Join-Path $env:TEMP "digital_hygiene_install"
-if (Test-Path $tempDir) {
-    Remove-Item $tempDir -Recurse -Force
-}
-New-Item -ItemType Directory -Path $tempDir | Out-Null
-Set-Location $tempDir
-
-# Download the repository
-Write-Host "Downloading repository..." -ForegroundColor Yellow
-try {
-    $zipUrl = "https://github.com/yourusername/digital-hygiene-tool/archive/$Branch.zip"
-    $zipPath = Join-Path $tempDir "repo.zip"
-    Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -UseBasicParsing
-
-    # Extract ZIP
-    Expand-Archive -Path $zipPath -DestinationPath $tempDir
-    $extractedDir = Get-ChildItem -Directory | Select-Object -First 1
-    Set-Location $extractedDir.FullName
-
-    Write-Host "✓ Repository downloaded and extracted" -ForegroundColor Green
-} catch {
-    Write-Host "❌ Failed to download repository: $($_.Exception.Message)" -ForegroundColor Red
-    exit 1
-}
-
-# Install dependencies
-Write-Host "Installing Python dependencies..." -ForegroundColor Yellow
-try {
-    & python -m pip install --upgrade pip
-    & pip install -r requirements.txt
-    Write-Host "✓ Dependencies installed" -ForegroundColor Green
-} catch {
-    Write-Host "❌ Failed to install dependencies" -ForegroundColor Red
-    exit 1
-}
-
-# Setup database (unless skipped)
-if (-not $NoDB) {
-    Write-Host "Setting up database..." -ForegroundColor Yellow
-    try {
-        & python database/setup_mysql.py
-        Write-Host "✓ Database setup completed" -ForegroundColor Green
-    } catch {
-        Write-Host "⚠️  Database setup failed or was cancelled" -ForegroundColor Yellow
-        Write-Host "You can run it manually later: python database/setup_mysql.py" -ForegroundColor Yellow
-    }
-}
-
-# Run the tool
-Write-Host "`n========================================" -ForegroundColor Cyan
-Write-Host "Installation complete!" -ForegroundColor Green
-Write-Host "========================================" -ForegroundColor Cyan
-
-if (-not $NoWeb) {
-    Write-Host "`nStarting web interface..." -ForegroundColor Yellow
-    Write-Host "Visit: http://localhost:5000" -ForegroundColor Cyan
-    Write-Host "Press Ctrl+C to stop the server`n" -ForegroundColor Yellow
-
-    try {
-        & python src/web/app.py
-    } catch {
-        Write-Host "❌ Failed to start web interface" -ForegroundColor Red
-        Write-Host "You can start it manually: python src/web/app.py" -ForegroundColor Yellow
-    }
+# --- 2. Install ------------------------------------------------------------
+$pipx = Get-Command pipx -ErrorAction SilentlyContinue
+if ($pipx) {
+    Write-Host "Installing with pipx (isolated environment)..." -ForegroundColor Yellow
+    & pipx install --force $Archive
 } else {
-    Write-Host "`nTo start the web interface manually:" -ForegroundColor Cyan
-    Write-Host "  python src/web/app.py" -ForegroundColor White
+    Write-Host "Installing with pip..." -ForegroundColor Yellow
+    & python -m pip install --upgrade $Archive
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Retrying with --user (no admin rights needed)..." -ForegroundColor Yellow
+        & python -m pip install --user --upgrade $Archive
+    }
+}
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: installation failed - see pip output above." -ForegroundColor Red
+    exit 1
 }
 
-Write-Host "`nTo use the CLI:" -ForegroundColor Cyan
-Write-Host "  python src/utils/cli.py --help" -ForegroundColor White
-
-Write-Host "`nInstallation directory: $((Get-Location).Path)" -ForegroundColor Gray
+# --- 3. Verify -------------------------------------------------------------
+$zamsec = Get-Command zamsec -ErrorAction SilentlyContinue
+Write-Host ""
+Write-Host "==============================================" -ForegroundColor Cyan
+if ($zamsec) {
+    Write-Host "Installed successfully!" -ForegroundColor Green
+    & zamsec --version
+} else {
+    $scriptsDir = & python -c "import sysconfig; print(sysconfig.get_path('scripts'))"
+    $userScripts = & python -m site --user-site 2>$null
+    Write-Host "Installed, but 'zamsec' is not on your PATH yet." -ForegroundColor Yellow
+    Write-Host "Add this folder to PATH, then open a new terminal:" -ForegroundColor Yellow
+    Write-Host "  $scriptsDir" -ForegroundColor White
+    if ($userScripts) {
+        Write-Host "(or the user Scripts folder next to: $userScripts)" -ForegroundColor Gray
+    }
+}
+Write-Host "==============================================" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "Get started:" -ForegroundColor Cyan
+Write-Host "  zamsec --help        all commands"
+Write-Host "  zamsec scan          quick system security scan"
+Write-Host "  zamsec assess        full 15-control assessment"
+Write-Host "  zamsec harden        infrastructure hardening audit"
+Write-Host "  zamsec web           web dashboard (http://127.0.0.1:5000)"
+Write-Host "  zamsec completion    enable TAB completion"
+Write-Host "  zamsec upgrade       update to the latest version"

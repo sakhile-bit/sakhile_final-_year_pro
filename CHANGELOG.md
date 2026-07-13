@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Installable CLI (`zamsec`) — v1.1.0
+- **`pip install` support** — new `pyproject.toml` packages the project as
+  `zambia-digital-hygiene`; installing from GitHub (pip, pipx, or the one-line
+  installer scripts) puts a global `zamsec` command (alias `zambia-hygiene`)
+  on PATH for PowerShell, CMD, and Unix shells. Web templates/static and
+  report templates ship inside the wheel; optional extras: `pdf`, `mysql`,
+  `postgres`, `ad`, `audit`, `gui`, `server`, `all`.
+- **`zamsec completion`** — tab-completion setup for bash, zsh, fish, and
+  PowerShell (generated `Register-ArgumentCompleter` block).
+- **`zamsec upgrade`** — self-update from the GitHub main branch via pip
+  (works without git installed).
+- **CLI polish** — `--version` reports package version + Python/OS; `-h`
+  shortcut; `--no-color` flag honouring `NO_COLOR`; usage examples in
+  `--help`; `status` shows the version and derives the command list from the
+  CLI itself so it can't go stale.
+- **Installer scripts rewritten** — `devops/install.ps1` / `.bat` / `.sh`
+  now install via pipx/pip from the real repository URL, verify PATH, and
+  print getting-started hints (previously pointed at placeholder domains).
+
+### Fixed
+- **Windows UnicodeEncodeError on redirected output** — piping or redirecting
+  CLI output (e.g. `zamsec status > report.txt`) crashed with a `charmap`
+  codec error; stdout/stderr are now reconfigured to UTF-8 on Windows.
+- Added missing `src/utils/__init__.py` and `src/web/__init__.py` so the
+  packages resolve as regular (not namespace) packages when installed.
+
 ### Added — Certificate Signing & Verification (anti-forgery)
 - **Ed25519-signed certificates** — every certificate is signed over its material
   facts; altering any field invalidates the signature (tamper detection).

@@ -51,43 +51,72 @@ A comprehensive cybersecurity assessment tool for Small and Medium Enterprises (
 
 ## 🚀 Quick Start
 
-### One-Command Installation
+### Install from your terminal (PowerShell, CMD, or bash)
 
-Install and run the tool with a single command:
+The tool installs as a normal Python package and puts a global **`zamsec`**
+command on your PATH — no cloning or virtualenv juggling required.
 
-**Windows (PowerShell):**
-
-```powershell
-irm https://your-domain.com/install.ps1 | iex
-```
-
-**Windows (Command Prompt):**
-
-```cmd
-curl -s https://your-domain.com/install.bat | cmd
-```
-
-**Linux/macOS:**
+**Any OS — with pip (Python 3.9+):**
 
 ```bash
-curl -s https://your-domain.com/install.sh | bash
+pip install "https://github.com/sakhile-bit/sakhile_final-_year_pro/archive/refs/heads/main.zip"
 ```
 
-These scripts will automatically:
+**Recommended — with [pipx](https://pipx.pypa.io) (isolated, always-on-PATH):**
 
-- Check Python installation
-- Download the tool
-- Install dependencies
-- Setup the database
-- Start the web interface
+```bash
+pipx install "https://github.com/sakhile-bit/sakhile_final-_year_pro/archive/refs/heads/main.zip"
+```
 
-See [INSTALL_SCRIPTS.md](docs/INSTALL_SCRIPTS.md) for details.
+**Or use the one-line installers** (they check Python, install, and verify PATH):
+
+_Windows PowerShell:_
+
+```powershell
+irm https://raw.githubusercontent.com/sakhile-bit/sakhile_final-_year_pro/main/devops/install.ps1 | iex
+```
+
+_Windows Command Prompt:_
+
+```cmd
+curl -fsSL -o install.bat https://raw.githubusercontent.com/sakhile-bit/sakhile_final-_year_pro/main/devops/install.bat && install.bat
+```
+
+_Linux/macOS:_
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sakhile-bit/sakhile_final-_year_pro/main/devops/install.sh | bash
+```
+
+Then, from **any** terminal:
+
+```bash
+zamsec --help          # all commands
+zamsec scan            # quick system security scan
+zamsec assess          # full 15-control assessment
+zamsec harden          # infrastructure hardening audit (+ --fix-all-safe)
+zamsec web             # web dashboard at http://127.0.0.1:5000
+zamsec completion      # enable TAB completion for your shell
+zamsec upgrade         # self-update to the latest version
+```
+
+**Optional extras** (PDF reports, MySQL, Active Directory auditing, …):
+
+```bash
+pip install "zambia-digital-hygiene[all] @ https://github.com/sakhile-bit/sakhile_final-_year_pro/archive/refs/heads/main.zip"
+```
+
+Available extras: `pdf`, `mysql`, `postgres`, `ad`, `audit`, `gui`, `server`, `all`.
+
+See [INSTALL_SCRIPTS.md](docs/INSTALL_SCRIPTS.md) for installation details and
+[CLI.md](docs/CLI.md) for the complete command reference.
 
 ### Prerequisites
 
-- Windows 7+ (for automated assessment)
-- Python 3.8+
-- MySQL 8.0+ (required for production)
+- Python 3.9+
+- Windows 10/11 for the automated host assessment & hardening checks
+  (the CLI itself runs anywhere)
+- MySQL 8.0+ only for production web deployments (SQLite works out of the box)
 
 ## 🔧 Environment Setup
 
@@ -511,9 +540,13 @@ Key documentation files for your project:
 
 | Document | Purpose |
 |----------|---------|
-| [ENVIRONMENT_SETUP.md](docs/ENVIRONMENT_SETUP.md) | **👉 Start here for Ubuntu/Linux setup** – Comprehensive guide with troubleshooting || [DATABASE_SETUP_FOR_TEAM.md](docs/DATABASE_SETUP_FOR_TEAM.md) | **👉 Team database setup** – Step-by-step MySQL database creation, credentials, and initialization || [DATABASE_SETUP.md](docs/DATABASE_SETUP.md) | Database configuration for MySQL and SQLite |
+| [CLI.md](docs/CLI.md) | **👉 Full `zamsec` CLI reference** – every command, option, exit code, and env var |
+| [INSTALL_SCRIPTS.md](docs/INSTALL_SCRIPTS.md) | Installing from your terminal (pip/pipx + one-line scripts) |
+| [USER_GUIDE.md](docs/USER_GUIDE.md) | End-user guide for the desktop app, web portal, and CLI |
+| [ENVIRONMENT_SETUP.md](docs/ENVIRONMENT_SETUP.md) | **👉 Start here for Ubuntu/Linux setup** – Comprehensive guide with troubleshooting |
+| [DATABASE_SETUP_FOR_TEAM.md](docs/DATABASE_SETUP_FOR_TEAM.md) | **👉 Team database setup** – Step-by-step MySQL database creation, credentials, and initialization |
+| [DATABASE_SETUP.md](docs/DATABASE_SETUP.md) | Database configuration for MySQL and SQLite |
 | [SETUP.md](docs/SETUP.md) | Manual setup instructions for other platforms |
-| [INSTALL_SCRIPTS.md](docs/INSTALL_SCRIPTS.md) | One-command installation scripts |
 | [TESTING_CHECKLIST.md](docs/TESTING_CHECKLIST.md) | Test procedures and acceptance criteria |
 | [PROJECT_PROPOSAL.md](docs/PROJECT_PROPOSAL.md) | Project overview and requirements |
 

@@ -1,69 +1,107 @@
-# Quick Install Scripts
+# Installing from your terminal
 
-These scripts allow you to install and run the Zambia Digital Hygiene Assessment Tool with a single command, similar to `irm https://get.activated.win | iex`.
+The tool ships as a standard Python package (see `pyproject.toml`). Installing
+it puts a global **`zamsec`** command (alias: `zambia-hygiene`) on your PATH,
+usable from PowerShell, Command Prompt, or any Unix shell.
 
-## Windows (PowerShell)
+## The short way — pip / pipx
 
-```powershell
-irm https://your-domain.com/install.ps1 | iex
-```
-
-Or using curl:
-
-```cmd
-curl -s https://your-domain.com/install.ps1 | powershell -Command -
-```
-
-## Windows (Command Prompt)
-
-```cmd
-curl -s https://your-domain.com/install.bat | cmd
-```
-
-## Linux/macOS
+Works on every OS with Python 3.9+:
 
 ```bash
-curl -s https://your-domain.com/install.sh | bash
+pip install "https://github.com/sakhile-bit/sakhile_final-_year_pro/archive/refs/heads/main.zip"
 ```
 
-## What the scripts do:
-
-1. **Check Python installation** - Ensures Python 3.8+ is available
-2. **Download the tool** - Clones or downloads the repository
-3. **Install dependencies** - Runs `pip install -r requirements.txt`
-4. **Setup database** - Runs the MySQL setup script
-5. **Start the tool** - Launches the web interface on http://localhost:5000
-
-## Options
-
-### PowerShell Script Options:
-
-- `-NoWeb`: Skip starting the web interface
-- `-NoDB`: Skip database setup
-- `-Branch "branch-name"`: Specify git branch to download
-
-Example:
-
-```powershell
-irm https://your-domain.com/install.ps1 | iex -NoDB
-```
-
-## Hosting the Scripts
-
-To make this work like the example, you need to:
-
-1. Host these scripts on a web server
-2. Update the repository URLs in the scripts
-3. Make sure the scripts are accessible via HTTPS
-
-## Manual Installation
-
-If the quick install doesn't work, you can still install manually:
+Or, for an isolated install that never conflicts with other Python packages
+(recommended for end users):
 
 ```bash
-git clone https://github.com/yourusername/digital-hygiene-tool.git
-cd digital-hygiene-tool
-pip install -r requirements.txt
-python database/setup_mysql.py
-python src/web/app.py
+pipx install "https://github.com/sakhile-bit/sakhile_final-_year_pro/archive/refs/heads/main.zip"
+```
+
+If you have git installed, `pip install git+https://github.com/sakhile-bit/sakhile_final-_year_pro.git`
+works too.
+
+## One-line installer scripts
+
+These live in `devops/` and are fetched straight from GitHub. They check your
+Python version, install with pipx or pip, and verify `zamsec` landed on PATH.
+
+### Windows (PowerShell)
+
+```powershell
+irm https://raw.githubusercontent.com/sakhile-bit/sakhile_final-_year_pro/main/devops/install.ps1 | iex
+```
+
+### Windows (Command Prompt)
+
+```cmd
+curl -fsSL -o install.bat https://raw.githubusercontent.com/sakhile-bit/sakhile_final-_year_pro/main/devops/install.bat && install.bat
+```
+
+### Linux/macOS
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sakhile-bit/sakhile_final-_year_pro/main/devops/install.sh | bash
+```
+
+## After installing
+
+```bash
+zamsec --version       # confirm the install
+zamsec --help          # all commands
+zamsec scan            # quick system security scan
+zamsec assess          # full 15-control assessment
+zamsec harden          # hardening audit (add --fix-all-safe as Administrator)
+zamsec web             # web dashboard at http://127.0.0.1:5000
+zamsec completion      # TAB-completion setup for bash/zsh/fish/PowerShell
+zamsec upgrade         # self-update from GitHub
+```
+
+## Optional extras
+
+The base install covers the CLI, scanning, hardening, fleet scanning and the
+web dashboard (SQLite). Extras add optional integrations:
+
+| Extra      | Adds                                        |
+| ---------- | ------------------------------------------- |
+| `pdf`      | PDF report generation (reportlab)           |
+| `mysql`    | MySQL database support                      |
+| `postgres` | PostgreSQL database support                 |
+| `ad`       | Active Directory auditing (ldap3)           |
+| `audit`    | Dependency vulnerability scanning           |
+| `gui`      | Desktop GUI app (customtkinter)             |
+| `server`   | Production WSGI server (gunicorn)           |
+| `all`      | Everything above                            |
+
+```bash
+pip install "zambia-digital-hygiene[all] @ https://github.com/sakhile-bit/sakhile_final-_year_pro/archive/refs/heads/main.zip"
+```
+
+## `zamsec` not found after install?
+
+pip prints a yellow warning when the scripts folder is not on PATH.
+
+- **Windows:** add the folder printed by
+  `python -c "import sysconfig; print(sysconfig.get_path('scripts'))"`
+  to your PATH, then open a new terminal.
+- **Linux/macOS:** add `export PATH="$HOME/.local/bin:$PATH"` to `~/.bashrc`.
+- **pipx:** run `pipx ensurepath` once, then open a new terminal.
+
+## Developer install (from a clone)
+
+```bash
+git clone https://github.com/sakhile-bit/sakhile_final-_year_pro.git
+cd sakhile_final-_year_pro
+python -m venv .venv && .venv\Scripts\activate   # or source .venv/bin/activate
+pip install -e .[all]
+zamsec status
+```
+
+`python cli.py …` still works from the project root exactly as before.
+
+## Uninstall
+
+```bash
+pip uninstall zambia-digital-hygiene    # or: pipx uninstall zambia-digital-hygiene
 ```
