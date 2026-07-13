@@ -168,7 +168,16 @@ class ResultsScreen(ctk.CTkFrame):
                 save_certificate(row_id, "REGISTERED", cert)
             else:
                 self._cert_status = "PROVISIONAL"
-                save_certificate(row_id, "PROVISIONAL", None)
+                # Queue the issuance payload so the app can register (and sign)
+                # this certificate automatically once the portal is reachable —
+                # no re-assessment needed.
+                try:
+                    from src.utils.cert_client import build_issue_payload
+                    prov = {"issue_payload": build_issue_payload(self._results),
+                            "level": self._results.certification_level}
+                except Exception:
+                    prov = None
+                save_certificate(row_id, "PROVISIONAL", prov)
         except Exception:
             log.exception("failed to persist certificate state")
         try:
@@ -190,8 +199,8 @@ class ResultsScreen(ctk.CTkFrame):
                 text_color=CLR_SUCCESS)
         elif self._cert_status == "PROVISIONAL":
             lbl.configure(
-                text="⚠  Provisional — certificate not yet registered "
-                     "(verification portal offline)",
+                text="⚠  Provisional — will register & sign automatically "
+                     "when the verification portal is reachable",
                 text_color=CLR_WARNING)
 
     # ------------------------------------------------------------------ build
@@ -649,11 +658,13 @@ class ResultsScreen(ctk.CTkFrame):
   </div>
  </div>"""
         else:
-            verify_html = ("""<hr>
- <div class="unverified">&#9888; Provisional copy — not yet registered with """
-                "the verification portal, so it carries no digital signature "
-                "and cannot be verified online. Reconnect and re-export once "
-                "registration completes.</div>")
+            _msg = (
+                "&#9888; Provisional copy — not yet registered with the "
+                "verification portal, so it carries no digital signature and "
+                "cannot be verified online. The app will register and sign it "
+                "automatically once the portal is reachable; re-export it then."
+            )
+            verify_html = f'<hr>\n <div class="unverified">{_msg}</div>'
 
         html = f"""<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><title>Certificate — {r.business_info.name}</title>

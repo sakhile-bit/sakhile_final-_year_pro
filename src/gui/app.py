@@ -82,6 +82,12 @@ class DigitalHygieneApp(ctk.CTk):
             logging.getLogger(__name__).debug(
                 "could not apply detailed-logging setting", exc_info=True)
 
+        # Register any certificates left provisional while offline, now that
+        # the app is up and the portal may be reachable again. Background +
+        # best-effort: it only touches the local DB, never the UI, and stays
+        # silent if still offline.
+        self._sync_provisional_certificates_bg()
+
         # Route through auth before showing the app
         from src.utils.auth import is_setup
         if is_setup():
@@ -90,6 +96,19 @@ class DigitalHygieneApp(ctk.CTk):
             self._start_session()
         else:
             self._show_setup()
+
+    def _sync_provisional_certificates_bg(self):
+        """Best-effort background registration of offline-provisional certs."""
+        def _run():
+            try:
+                from src.utils.cert_client import sync_provisional_certificates
+                sync_provisional_certificates()
+            except Exception:
+                import logging
+                logging.getLogger(__name__).debug(
+                    "provisional certificate sync failed", exc_info=True)
+        import threading
+        threading.Thread(target=_run, daemon=True).start()
 
     # ─────────────────────────────────────── auth / session screens
     def _show_setup(self):

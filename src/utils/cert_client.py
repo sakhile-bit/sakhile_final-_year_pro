@@ -16,6 +16,7 @@ Configuration (checked in order):
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 from typing import Any, Optional
@@ -40,6 +41,16 @@ def issue_api_key() -> str:
     return (get_setting("issue_api_key")
             or os.environ.get("ZDH_ISSUE_API_KEY")
             or _DEV_API_KEY)
+
+
+def build_issue_payload(result: Any) -> dict:
+    """The JSON body the portal signs for an assessment.
+
+    Exposed publicly so a certificate that could not be issued offline can be
+    stored with its request payload and registered later by a background sync,
+    without re-running the scan.
+    """
+    return _payload_from_result(result)
 
 
 def _payload_from_result(result: Any) -> dict:
@@ -73,7 +84,16 @@ def issue_certificate(result: Any, timeout: float = 6.0) -> Optional[dict]:
         return None
     if getattr(result, "provisional", False):
         return None      # unverified critical checks — not certifiable yet
+    return _post_issue(build_issue_payload(result), timeout)
 
+
+def _post_issue(payload: dict, timeout: float) -> Optional[dict]:
+    """POST a pre-built issuance payload to the portal; return the signed
+    certificate dict, or ``None`` if the portal is offline / rejects it.
+
+    Shared by live issuance and the deferred sync so both hit the endpoint the
+    same way. Never raises.
+    """
     try:
         import requests
     except Exception:
@@ -83,7 +103,7 @@ def issue_certificate(result: Any, timeout: float = 6.0) -> Optional[dict]:
     url = f"{portal_base_url()}/api/certificates/issue"
     try:
         resp = requests.post(
-            url, json=_payload_from_result(result),
+            url, json=payload,
             headers={"X-API-Key": issue_api_key()}, timeout=timeout,
         )
     except Exception:
@@ -100,3 +120,61 @@ def issue_certificate(result: Any, timeout: float = 6.0) -> Optional[dict]:
     logger.warning("Certificate issuance rejected (%s): %s",
                    resp.status_code, resp.text[:200])
     return None
+
+
+def _stored_issue_payload(row: dict) -> Optional[dict]:
+    """Pull the queued issuance payload out of a stored provisional cert row."""
+    raw = row.get("payload")
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except Exception:
+        return None
+    ip = data.get("issue_payload") if isinstance(data, dict) else None
+    return ip if isinstance(ip, dict) else None
+
+
+def sync_provisional_certificates(timeout: float = 6.0) -> int:
+    """Register any certificates left provisional while the portal was offline.
+
+    For each provisional row that carries its queued issuance payload, re-POST
+    it; on success the local mirror is upgraded from PROVISIONAL to REGISTERED
+    with the portal's real signature. Returns the number upgraded.
+
+    Meant to run in the background at startup (and any time connectivity may
+    have returned). Never raises — if the portal is still unreachable the rows
+    simply stay provisional for the next attempt.
+    """
+    try:
+        from src.utils.local_db import (
+            list_provisional_certificates, save_certificate)
+    except Exception:
+        return 0
+    try:
+        rows = list_provisional_certificates()
+    except Exception:
+        logger.info("Could not list provisional certificates", exc_info=True)
+        return 0
+    if not rows:
+        return 0
+
+    synced = 0
+    for row in rows:
+        aid = row.get("assessment_id")
+        payload = _stored_issue_payload(row)
+        if aid is None or not payload:
+            continue        # nothing queued (e.g. a pre-sync provisional row)
+        cert = _post_issue(payload, timeout)
+        if not cert or not cert.get("certificate_number"):
+            continue        # portal still offline / rejected — try again later
+        try:
+            save_certificate(aid, "REGISTERED", cert)
+            synced += 1
+        except Exception:
+            logger.warning("Failed to persist synced certificate for "
+                           "assessment %s", aid, exc_info=True)
+    if synced:
+        logger.info("Auto-registered %d previously-provisional certificate(s)",
+                    synced)
+    return synced

@@ -108,6 +108,62 @@ def test_issue_rejection_returns_none(monkeypatch):
     assert cert_client.issue_certificate(_result()) is None
 
 
+# ── deferred (offline) auto-sync ─────────────────────────────────────────────────
+
+def _queue_provisional(row_id=7):
+    """Save a provisional cert carrying its queued issuance payload."""
+    from src.utils import cert_client, local_db
+    payload = cert_client.build_issue_payload(_result())
+    local_db.save_certificate(
+        row_id, "PROVISIONAL", {"issue_payload": payload, "level": "SILVER"})
+    return payload
+
+
+def test_sync_registers_provisional_when_portal_returns(monkeypatch):
+    from src.utils import cert_client, local_db
+    queued = _queue_provisional(7)
+
+    def fake_post(payload, timeout):
+        assert payload == queued            # the exact queued body is re-sent
+        return {"certificate_number": "ZDH-2026-SYNC-9911-ABCD", "level": "SILVER",
+                "issued_date": "2026-07-13", "expiry_date": "2027-07-13",
+                "verify_url": "http://localhost:5000/verify/ZDH-2026-SYNC-9911-ABCD",
+                "verification_block": "blk"}
+
+    monkeypatch.setattr(cert_client, "_post_issue", fake_post)
+    assert cert_client.sync_provisional_certificates() == 1
+
+    row = local_db.get_certificate(7)
+    assert row is not None and row["status"] == "REGISTERED"
+    assert row["cert_number"] == "ZDH-2026-SYNC-9911-ABCD"
+    assert row["verification_block"] == "blk"
+    assert local_db.list_provisional_certificates() == []
+    # Idempotent: nothing left to sync.
+    assert cert_client.sync_provisional_certificates() == 0
+
+
+def test_sync_leaves_provisional_when_still_offline(monkeypatch):
+    from src.utils import cert_client, local_db
+    _queue_provisional(8)
+    monkeypatch.setattr(cert_client, "_post_issue", lambda payload, timeout: None)
+    assert cert_client.sync_provisional_certificates() == 0
+    row = local_db.get_certificate(8)
+    assert row is not None and row["status"] == "PROVISIONAL"
+
+
+def test_sync_skips_rows_without_queued_payload(monkeypatch):
+    from src.utils import cert_client, local_db
+    local_db.save_certificate(9, "PROVISIONAL", None)   # legacy row, nothing queued
+
+    def _should_not_call(payload, timeout):        # pragma: no cover
+        raise AssertionError("must not POST when there is no queued payload")
+
+    monkeypatch.setattr(cert_client, "_post_issue", _should_not_call)
+    assert cert_client.sync_provisional_certificates() == 0
+    row = local_db.get_certificate(9)
+    assert row is not None and row["status"] == "PROVISIONAL"
+
+
 # ── local_db certificate persistence ────────────────────────────────────────────
 
 def test_save_and_get_certificate():
