@@ -758,16 +758,6 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
 
-        # Password hygiene: check for strong password
-        def is_strong_password(pw):
-            return (
-                len(pw) >= 10 and
-                re.search(r'[A-Z]', pw) and
-                re.search(r'[a-z]', pw) and
-                re.search(r'\d', pw) and
-                re.search(r'[^A-Za-z0-9]', pw)
-            )
-
         user = User.query.filter_by(username=username).first()
         if user and user.check_password(password):
             if not user.is_active:
@@ -1037,6 +1027,11 @@ def dashboard():
     """Role-based assessment dashboard"""
     query = Assessment.query
     pending_requests = []
+    owner_business = None
+    owner_certificate = None
+    cert_status = None
+    cert_days_left = None
+    work_queue = None
 
     if current_user.role == 'admin':
         # Admins see everything
@@ -1045,16 +1040,57 @@ def dashboard():
         # Business owners see their own business assessments
         if current_user.business_id:
             query = query.filter_by(business_id=current_user.business_id)
+            owner_business = Business.query.get(current_user.business_id)
         else:
             query = query.filter_by(id=-1)  # no results
         # Show their pending requests
         pending_requests = AssessmentRequest.query.filter_by(
             requested_by=current_user.id
         ).order_by(AssessmentRequest.created_at.desc()).limit(5).all()
+        # Current active certificate for the status card
+        if owner_business:
+            owner_certificate = (
+                Certificate.query
+                .join(Assessment, Certificate.assessment_id == Assessment.id)
+                .filter(Assessment.business_id == owner_business.id,
+                        Certificate.is_active.is_(True))  # type: ignore[union-attr]
+                .order_by(Certificate.created_at.desc())
+                .first()
+            )
+            if owner_certificate:
+                cert_status = _certificate_status(owner_certificate)
+                if owner_certificate.expiry_date:
+                    cert_days_left = (
+                        owner_certificate.expiry_date - datetime.utcnow().date()
+                    ).days
     else:
         # Assessors see assessments they performed
         query = query.filter_by(assessor_id=current_user.id)
+        # Work queue: unclaimed requests anyone can pick up + my active jobs
+        work_queue = {
+            'unclaimed': AssessmentRequest.query.filter_by(status='pending').count(),
+            'mine': AssessmentRequest.query.filter(
+                AssessmentRequest.assigned_to == current_user.id,
+                AssessmentRequest.status.in_(('assigned', 'in_progress')),  # type: ignore[attr-defined]
+            ).count(),
+        }
     assessments = query.order_by(Assessment.created_at.desc()).all()
+
+    # Getting-started checklist — shown to business owners until complete
+    onboarding = None
+    if current_user.role == 'business_owner':
+        onboarding = [
+            {'label': 'Register your business profile',
+             'done': owner_business is not None, 'endpoint': 'my_business'},
+            {'label': 'Request a digital hygiene assessment',
+             'done': bool(pending_requests), 'endpoint': 'request_assessment'},
+            {'label': 'Get assessed against the 15 controls',
+             'done': len(assessments) > 0, 'endpoint': 'my_business'},
+            {'label': 'Earn your Bronze, Silver or Gold certificate',
+             'done': owner_certificate is not None, 'endpoint': 'my_business'},
+        ]
+        if all(step['done'] for step in onboarding):
+            onboarding = None  # fully onboarded — hide the checklist
 
     # Digital hygiene tips
     tips = [
@@ -1100,27 +1136,59 @@ def dashboard():
         'certification_counts': certification_counts
     }
 
+    # Open remediation items across the assessments this user can see
+    visible_ids = [a.id for a in assessments]
+    open_remediations = 0
+    if visible_ids:
+        open_remediations = Remediation.query.filter(
+            Remediation.assessment_id.in_(visible_ids),  # type: ignore[attr-defined]
+            Remediation.status != 'resolved',  # type: ignore[arg-type]
+        ).count()
+
     reminders = []
-    # Expiring certificates
+    # Expiring certificates — scoped to what this role is responsible for
     soon = datetime.utcnow() + timedelta(days=30)
-    expiring = (
+    expiring_q = (
         Certificate.query
+        .join(Assessment, Certificate.assessment_id == Assessment.id)
         .filter(
             Certificate.expiry_date <= soon,  # type: ignore[operator]
             Certificate.is_active.is_(True),  # type: ignore[union-attr]
         )
-        .all()
     )
+    if current_user.role == 'business_owner':
+        expiring_q = expiring_q.filter(
+            Assessment.business_id == (current_user.business_id or -1))  # type: ignore[arg-type]
+    elif current_user.role != 'admin':
+        expiring_q = expiring_q.filter(Assessment.assessor_id == current_user.id)
+    expiring = expiring_q.count()
     if expiring:
-        reminders.append(f"{len(expiring)} certificate(s) expiring within 30 days.")
+        reminders.append(f"{expiring} certificate(s) expiring within 30 days.")
     # Periodic reassessment (every 6 months)
     six_months_ago = datetime.utcnow() - timedelta(days=180)
-    old_assessments = Assessment.query.filter(
-        Assessment.assessment_date <= six_months_ago,
-        Assessment.assessor_id == current_user.id,
-    ).count()
+    old_q = Assessment.query.filter(Assessment.assessment_date <= six_months_ago)
+    if current_user.role == 'business_owner':
+        old_q = old_q.filter(
+            Assessment.business_id == (current_user.business_id or -1))  # type: ignore[arg-type]
+    elif current_user.role != 'admin':
+        old_q = old_q.filter(Assessment.assessor_id == current_user.id)
+    old_assessments = old_q.count()
     if old_assessments:
         reminders.append(f"{old_assessments} assessment(s) due for reassessment.")
+    if open_remediations:
+        reminders.append(
+            f"{open_remediations} open remediation item(s) awaiting action.")
+
+    # Security context for the header: previous sign-in + MFA nudge.
+    # offset(1) skips the login event just written for this session.
+    prev_login = (
+        AuditLog.query
+        .filter_by(user_id=current_user.id, action='login')
+        .order_by(AuditLog.timestamp.desc())
+        .offset(1)
+        .first()
+    )
+    mfa_nudge = _MFA_AVAILABLE and not current_user.mfa_enabled
 
     return render_template(
         'dashboard.html',
@@ -1130,6 +1198,15 @@ def dashboard():
         reminders=reminders,
         mobile_device_tips=MOBILE_DEVICE_TIPS,
         pending_requests=pending_requests,
+        owner_business=owner_business,
+        owner_certificate=owner_certificate,
+        cert_status=cert_status,
+        cert_days_left=cert_days_left,
+        onboarding=onboarding,
+        work_queue=work_queue,
+        open_remediations=open_remediations,
+        prev_login=prev_login,
+        mfa_nudge=mfa_nudge,
     )
 
 

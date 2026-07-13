@@ -60,10 +60,25 @@
       </h4>
       <p class="text-muted mb-0">
         Welcome back, <strong style="color:var(--text)">{{ current_user.username }}</strong>.
+        {% if current_user.role == 'business_owner' %}
+        Track your certification, request assessments and fix findings — all in one place.
+        {% elif current_user.role == 'admin' %}
+        Full visibility over users, businesses, assessments and certificates.
+        {% else %}
+        Claim assessment requests, run the 15-control evaluation and issue certificates.
+        {% endif %}
         {% if reminders %}
         <span class="ms-2 text-warning"><i class="fas fa-bell me-1"></i>{{ reminders | length }} reminder(s)</span>
         {% endif %}
       </p>
+      {% if prev_login %}
+      <p class="text-muted mb-0 mt-1" style="font-size:.75rem">
+        <i class="fas fa-clock-rotate-left me-1"></i>
+        Previous sign-in: {{ prev_login.timestamp.strftime('%d %b %Y %H:%M') }} UTC
+        {% if prev_login.ip_address %} from {{ prev_login.ip_address }}{% endif %}
+        — not you? <a href="{{ url_for('change_password') }}">Change your password</a>.
+      </p>
+      {% endif %}
     </div>
     <div class="d-flex flex-wrap gap-2">
       {% if current_user.role in ('assessor','admin') %}
@@ -85,6 +100,139 @@
       <i class="fas fa-triangle-exclamation"></i>{{ r }}
     </div>
     {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- ── MFA nudge ─────────────────────────────────────────────────── -->
+  {% if mfa_nudge %}
+  <div class="alert alert-info d-flex align-items-center justify-content-between gap-2 mb-4 flex-wrap">
+    <div>
+      <i class="fas fa-shield-halved me-2"></i>
+      <strong>Protect your account:</strong> two-factor authentication is not enabled yet.
+      It takes under a minute with any authenticator app.
+    </div>
+    <a href="{{ url_for('mfa_setup') }}" class="btn btn-sm btn-outline-brand">
+      <i class="fas fa-lock me-1"></i>Enable MFA
+    </a>
+  </div>
+  {% endif %}
+
+  <!-- ── Certification status (business owner) ────────────────────── -->
+  {% if current_user.role == 'business_owner' %}
+    {% if owner_certificate %}
+    <div class="card card-surface mb-4">
+      <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+        <div class="d-flex align-items-center gap-3">
+          {% set lvl = (owner_certificate.certificate_data or {}).get('level', '') %}
+          <div class="qa-icon" style="width:52px;height:52px;font-size:1.5rem;border-radius:.9rem;
+            {% if lvl == 'GOLD' %}background:rgba(245,197,24,.12);color:var(--gold)
+            {% elif lvl == 'SILVER' %}background:rgba(192,188,200,.12);color:var(--silver)
+            {% else %}background:rgba(196,123,56,.12);color:var(--bronze){% endif %}">
+            <i class="fas fa-certificate"></i>
+          </div>
+          <div>
+            <h6 class="fw-bold mb-1">
+              {{ lvl or 'Certified' }} Certificate
+              <span class="status-pill ms-2
+                {% if cert_status == 'VALID' %}status-pass
+                {% elif cert_status == 'EXPIRED' %}status-fail
+                {% else %}status-warning{% endif %}">{{ cert_status }}</span>
+            </h6>
+            <div class="text-muted" style="font-size:.8rem">
+              <code>{{ owner_certificate.certificate_number }}</code>
+              {% if cert_days_left is not none %}
+              · {% if cert_days_left > 0 %}
+                <span class="{% if cert_days_left <= 30 %}text-warning{% endif %}">
+                  expires in {{ cert_days_left }} day{{ 's' if cert_days_left != 1 }}
+                  ({{ owner_certificate.expiry_date.strftime('%d %b %Y') }})
+                </span>
+                {% else %}<span class="text-danger">expired {{ owner_certificate.expiry_date.strftime('%d %b %Y') }}</span>{% endif %}
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+          <a href="{{ url_for('certificate_view', certificate_number=owner_certificate.certificate_number) }}"
+             class="btn btn-sm btn-brand"><i class="fas fa-eye me-1"></i>View Certificate</a>
+          <a href="{{ url_for('verify', certificate_number=owner_certificate.certificate_number) }}"
+             class="btn btn-sm btn-outline-brand"><i class="fas fa-circle-check me-1"></i>Verify</a>
+          {% if cert_days_left is not none and cert_days_left <= 30 %}
+          <a href="{{ url_for('request_assessment') }}" class="btn btn-sm btn-outline-brand">
+            <i class="fas fa-rotate me-1"></i>Request Re-assessment</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% elif not onboarding %}
+    <div class="card card-surface mb-4">
+      <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+        <div>
+          <h6 class="fw-bold mb-1"><i class="fas fa-certificate me-2 text-muted"></i>No active certificate</h6>
+          <p class="text-muted mb-0" style="font-size:.82rem">
+            Pass an assessment at 50% or above to earn a Bronze, Silver or Gold certificate
+            you can show to customers and partners.
+          </p>
+        </div>
+        <a href="{{ url_for('request_assessment') }}" class="btn btn-sm btn-brand">
+          <i class="fas fa-plus-circle me-1"></i>Request Assessment
+        </a>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- ── Getting started checklist ──────────────────────────────── -->
+    {% if onboarding %}
+    <div class="card card-surface mb-4">
+      <div class="card-body">
+        <h6 class="fw-bold mb-1"><i class="fas fa-list-check me-2 text-brand"></i>Get certified in 4 steps</h6>
+        <p class="text-muted mb-3" style="font-size:.8rem">
+          Complete these steps to earn a government-style digital hygiene certificate for your business.
+        </p>
+        <div class="row g-2">
+          {% for step in onboarding %}
+          <div class="col-md-6 col-lg-3">
+            <a href="{{ url_for(step.endpoint) }}" class="quick-action h-100 {% if step.done %}opacity-75{% endif %}">
+              <div class="qa-icon"
+                   style="{% if step.done %}background:rgba(43,162,43,.14);color:#4DC34D{% else %}background:var(--brand-dim);color:var(--brand){% endif %}">
+                {% if step.done %}<i class="fas fa-check"></i>{% else %}{{ loop.index }}{% endif %}
+              </div>
+              <div class="qa-title" style="font-size:.8rem">{{ step.label }}</div>
+            </a>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  {% endif %}
+
+  <!-- ── Work queue (assessor) ─────────────────────────────────────── -->
+  {% if work_queue %}
+  <div class="card card-surface mb-4">
+    <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+      <div class="d-flex align-items-center gap-4 flex-wrap">
+        <div>
+          <div class="text-muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">Unclaimed requests</div>
+          <div class="fw-bold" style="font-size:1.5rem;color:{% if work_queue.unclaimed %}var(--warning){% else %}var(--text){% endif %}">
+            {{ work_queue.unclaimed }}
+          </div>
+        </div>
+        <div>
+          <div class="text-muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">Assigned to you</div>
+          <div class="fw-bold" style="font-size:1.5rem">{{ work_queue.mine }}</div>
+        </div>
+        <div class="text-muted" style="font-size:.8rem;max-width:340px">
+          {% if work_queue.unclaimed %}
+          Businesses are waiting for an assessor — claim a request to get started.
+          {% else %}
+          No businesses waiting right now. Run a direct assessment any time.
+          {% endif %}
+        </div>
+      </div>
+      <a href="{{ url_for('assessment_requests') }}" class="btn btn-sm btn-brand">
+        <i class="fas fa-inbox me-1"></i>Open Request Queue
+      </a>
+    </div>
   </div>
   {% endif %}
 

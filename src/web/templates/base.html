@@ -221,6 +221,7 @@
             <li><a class="dropdown-item" href="{{ url_for('schedule_scan') }}"><i class="fas fa-clock"></i>Schedule Scan</a></li>
           </ul>
         </li>
+        <li class="nav-item"><a class="nav-link {% if request.endpoint in ('verify_home', 'verify') %}active{% endif %}" href="{{ url_for('verify_home') }}">Verify</a></li>
         {% if current_user.role == 'admin' %}
         <li class="nav-item"><a class="nav-link" href="/admin"><i class="fas fa-crown me-1" style="color:#F5C518;font-size:.72rem"></i>Admin</a></li>
         {% endif %}
@@ -249,6 +250,7 @@
         <li class="nav-item"><a class="nav-link" href="{{ url_for('about') }}">About</a></li>
         <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}#how-it-works">How It Works</a></li>
         <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}#controls">Controls</a></li>
+        <li class="nav-item"><a class="nav-link {% if request.endpoint in ('verify_home', 'verify') %}active{% endif %}" href="{{ url_for('verify_home') }}">Verify</a></li>
         <li class="nav-item ms-2"><a href="{{ url_for('login') }}" class="btn-outline-brand btn">Sign In</a></li>
         <li class="nav-item ms-1"><a href="{{ url_for('register') }}" class="btn-brand btn">Get Started</a></li>
       </ul>
