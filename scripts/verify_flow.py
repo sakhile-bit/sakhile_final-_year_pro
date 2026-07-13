@@ -11,7 +11,8 @@ SHOTS.mkdir(exist_ok=True)
 pyautogui.FAILSAFE = False
 pyautogui.PAUSE = 0.25
 
-PROJ   = pathlib.Path(__file__).parent
+# The script lives in scripts/, so the project root is one level up.
+PROJ   = pathlib.Path(__file__).resolve().parent.parent
 PYTHON = str(PROJ / ".venv" / "Scripts" / "python.exe")
 user32 = ctypes.windll.user32
 

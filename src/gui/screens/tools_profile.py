@@ -4,6 +4,9 @@ The business selects which advanced tools / infrastructure apply to them.
 Each selection adds an optional scored control (C16-C20) to the assessment.
 """
 
+import ipaddress
+import re
+
 import customtkinter as ctk
 from src.gui.theme import (
     CLR_BG, CLR_SURFACE, CLR_SURFACE_ALT,
@@ -19,6 +22,42 @@ from src.gui.screens.business_info import _header, _nav
 # public domain or IP. We collect it inline on that card so the scan (and the
 # certificate/header/port checks) know what to look at.
 INFRA_TOOL_ID = "infra_scan"
+
+# RFC-1123 hostname with at least two labels (example.co.zm) — bare words
+# like "mywebsite" can't be scanned, so they're rejected with guidance.
+_HOST_RE = re.compile(
+    r"^(?=.{1,253}$)"
+    r"[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?"
+    r"(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$")
+
+
+def _normalise_target(raw: str) -> str:
+    """Reduce whatever the owner pastes to a bare hostname or IP.
+
+    Business owners paste full URLs ("https://example.co.zm/shop?x=1"),
+    host:port pairs, or add stray spaces/trailing dots — accept all of it
+    rather than bouncing them back with an error.
+    """
+    t = (raw or "").strip()
+    if "://" in t:
+        t = t.split("://", 1)[1]
+    t = t.split("/", 1)[0].split("?", 1)[0]
+    if "@" in t:                       # user:pass@host
+        t = t.rsplit("@", 1)[1]
+    host, sep, port = t.partition(":")
+    if sep and port.isdigit():         # host:port (IPv6 has more colons)
+        t = host
+    return t.strip().strip(".").lower()
+
+
+def _is_valid_target(target: str) -> bool:
+    """True when the normalised target is an IP address or a dotted hostname."""
+    try:
+        ipaddress.ip_address(target)
+        return True
+    except ValueError:
+        return bool(_HOST_RE.match(target))
+
 
 # Each tool: (id, name, icon, control_id, colour, description, impact).
 # Descriptions are written for a non-technical business owner — plain
@@ -119,7 +158,6 @@ class ToolsProfileScreen(ctk.CTkFrame):
         self._on_next = on_next
         self._on_back = on_back
         self._vars: dict[str, ctk.BooleanVar] = {}
-        self._infra_target = ctk.StringVar(value="")
         self._infra_target_row = None   # frame revealed when C18 is selected
         self._infra_error = None        # inline validation label
         self._build()
@@ -189,22 +227,25 @@ class ToolsProfileScreen(ctk.CTkFrame):
         top.grid(row=0, column=1, sticky="ew", padx=16, pady=(14, 4))
         top.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(
+        icon_lbl = ctk.CTkLabel(
             top, text=icon,
             font=("Segoe UI Emoji", 22), text_color=colour, width=34,
-        ).grid(row=0, column=0, sticky="w")
+        )
+        icon_lbl.grid(row=0, column=0, sticky="w")
 
-        ctk.CTkLabel(
+        name_lbl = ctk.CTkLabel(
             top, text=name,
             font=FONT_SUBHEAD, text_color=CLR_TEXT, anchor="w",
-        ).grid(row=0, column=1, padx=(8, 0), sticky="w")
+        )
+        name_lbl.grid(row=0, column=1, padx=(8, 0), sticky="w")
 
-        ctk.CTkLabel(
+        chip_lbl = ctk.CTkLabel(
             top, text=control_id,
             font=FONT_CAPTION, text_color=colour,
             fg_color=CLR_SURFACE_ALT, corner_radius=6,
             width=36, height=20,
-        ).grid(row=0, column=2, padx=(0, 0))
+        )
+        chip_lbl.grid(row=0, column=2, padx=(0, 0))
 
         # Toggle switch (right-aligned)
         switch = ctk.CTkSwitch(
@@ -217,27 +258,34 @@ class ToolsProfileScreen(ctk.CTkFrame):
         switch.grid(row=0, column=3, padx=(12, 0))
 
         # Description
-        ctk.CTkLabel(
+        desc_lbl = ctk.CTkLabel(
             card, text=desc,
             font=FONT_BODY, text_color=CLR_TEXT_SEC,
             anchor="w", wraplength=780, justify="left",
-        ).grid(row=1, column=1, sticky="w", padx=16, pady=(0, 4))
+        )
+        desc_lbl.grid(row=1, column=1, sticky="w", padx=16, pady=(0, 4))
 
         # Impact note
-        ctk.CTkLabel(
+        impact_lbl = ctk.CTkLabel(
             card, text=f"  {impact}",
             font=FONT_SMALL, text_color=CLR_MUTED,
             anchor="w", wraplength=780, justify="left",
-        ).grid(row=2, column=1, sticky="w", padx=16, pady=(0, 14))
+        )
+        impact_lbl.grid(row=2, column=1, sticky="w", padx=16, pady=(0, 14))
 
         # The website/infrastructure card carries a target input, hidden until
         # the tool is switched on. Built here so it lives inside the card.
         if tool_id == INFRA_TOOL_ID:
             self._build_infra_target(card)
 
-        # Whole-card click toggles the switch
-        for widget in (card, top):
-            widget.bind("<Button-1>", lambda e, v=var, r=_refresh: [v.set(not v.get()), r()])
+        # Whole-card click toggles the switch. The labels must be bound too:
+        # they cover almost all of the card's surface, so binding only the
+        # frames left clicks on the visible text doing nothing.
+        clickable = (card, top, icon_lbl, name_lbl, chip_lbl,
+                     desc_lbl, impact_lbl)
+        for widget in clickable:
+            widget.bind("<Button-1>",
+                        lambda e, v=var, r=_refresh: (v.set(not v.get()), r()))
 
     # ---------------------------------------------------------- infra target
     def _build_infra_target(self, card):
@@ -252,8 +300,11 @@ class ToolsProfileScreen(ctk.CTkFrame):
             font=FONT_SMALL, text_color=CLR_TEXT_SEC, anchor="w",
         ).grid(row=0, column=0, sticky="w", pady=(0, 4))
 
+        # No textvariable: CTkEntry suppresses its placeholder whenever a
+        # textvariable is attached (the "e.g. …" hint never rendered), so the
+        # value is read with entry.get() at submit time instead.
         entry = ctk.CTkEntry(
-            row, textvariable=self._infra_target,
+            row,
             placeholder_text="e.g. example.co.zm  or  41.72.10.5",
             height=34, border_color=CLR_BORDER,
         )
@@ -287,20 +338,35 @@ class ToolsProfileScreen(ctk.CTkFrame):
             if self._infra_error is not None:
                 self._infra_error.configure(text="")
 
+    def _show_infra_error(self, message: str):
+        if self._infra_error is not None:
+            self._infra_error.configure(text=message)
+        if getattr(self, "_infra_entry", None) is not None:
+            self._infra_entry.configure(border_color=CLR_DANGER)
+            self._infra_entry.focus_set()
+
     # ------------------------------------------------------------------ submit
     def _submit(self):
         selected = {tid for tid, v in self._vars.items() if v.get()}
-        target = self._infra_target.get().strip()
 
-        # If the website/infrastructure tool is on, a domain or IP is required —
-        # there's nothing to scan without one.
-        if INFRA_TOOL_ID in selected and not target:
-            if self._infra_error is not None:
-                self._infra_error.configure(
-                    text="Enter the domain or IP address you want checked.")
-            if getattr(self, "_infra_entry", None) is not None:
-                self._infra_entry.configure(border_color=CLR_DANGER)
-                self._infra_entry.focus_set()
-            return
+        # If the website/infrastructure tool is on, a scannable domain or IP
+        # is required — there's nothing to check without one.
+        target = ""
+        if INFRA_TOOL_ID in selected:
+            target = _normalise_target(self._infra_entry.get())
+            if not target:
+                self._show_infra_error(
+                    "Enter the domain or IP address you want checked.")
+                return
+            if not _is_valid_target(target):
+                self._show_infra_error(
+                    "That doesn't look like a domain or IP address — "
+                    "try something like example.co.zm or 41.72.10.5.")
+                return
+            # Reflect the cleaned-up value (scheme/path stripped) so the
+            # owner sees exactly what will be checked.
+            if target != self._infra_entry.get():
+                self._infra_entry.delete(0, "end")
+                self._infra_entry.insert(0, target)
 
-        self._on_next(selected, target if INFRA_TOOL_ID in selected else "")
+        self._on_next(selected, target)
