@@ -165,3 +165,7 @@ Output is a JSON object with `host`, `ports` and `tls` keys.
 - [Network Scanner](05-network-scanner.md) — scans local network devices
 - [Deployment Checker](07-deployment-checker.md) — PDC-06 DNS and PDC-07 TLS checks
 - [Windows Agent](09-windows-agent.md) — can include infra scan in reports
+
+## Controls Reference
+- [infrastructure-scanner.md](../controls/infrastructure-scanner.md) — every finding this scanner raises (TLS-*, HTTP-*, HDR-*, DNS-* and PORT) with severities and scoring.
+- [tool-specific-controls.md](../controls/tool-specific-controls.md) — the paired C18 governance controls.

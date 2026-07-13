@@ -139,3 +139,10 @@ Results are saved to a local SQLite database at `instance/digital_hygiene.db` vi
 - [Results & Certification](03-results-certification.md) — displays score and issues certificate
 - [Assessment History](04-assessment-history.md) — recalls past assessments
 - [Report Generation](13-report-generation.md) — exports PDF/HTML
+
+## Controls Reference
+Every control this framework scores is catalogued in
+[docs/controls/](../controls/README.md) — see
+[endpoint-core-controls.md](../controls/endpoint-core-controls.md) (C01–C05),
+[governance-controls.md](../controls/governance-controls.md) (C06–C15) and
+[tool-specific-controls.md](../controls/tool-specific-controls.md) (C16–C22).

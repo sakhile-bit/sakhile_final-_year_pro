@@ -99,3 +99,7 @@ machine-account quota, old krbtgt, risky flags, anonymous bind).
 ## Related Features
 - [Server Hardening Audit](19-server-hardening.md) — host-level companion with the same grade model
 - [Windows Agent](10-windows-agent.md)
+
+## Controls Reference
+- [active-directory.md](../controls/active-directory.md) — full definitions of AD-01…AD-07 with severity and remediation.
+- [tool-specific-controls.md](../controls/tool-specific-controls.md) — the paired C16 governance controls.

@@ -88,3 +88,8 @@ To add a new entry, append to the `REMEDIATIONS` dict in `guidance.py`:
 - [Deployment Checker](07-deployment-checker.md) — checks that produce PDC-XX findings
 - [Windows Agent](10-windows-agent.md) — agent reports include remediation hints
 - [Automated Scanning](02-automated-scanning.md) — one-click fix buttons in the desktop GUI
+
+## Controls Reference
+This module supplies the remediation text (`REMEDIATIONS`) for two catalogued families:
+- [pre-deployment-checks.md](../controls/pre-deployment-checks.md) — PDC-01…PDC-06 advice + PowerShell.
+- [windows-hardening.md](../controls/windows-hardening.md) — HRD-01…HRD-14 advice + PowerShell (and the auto-fix engine).

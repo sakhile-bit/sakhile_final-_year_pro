@@ -2,6 +2,11 @@
 
 This document summarizes the implemented features in the `sakhile_final-_year_pro` project, what each feature does, and the current working scope.
 
+> **Security controls catalogue:** every control implemented across these
+> features — `C01`–`C22`, `PDC-01`–`PDC-15`, `HRD-01`–`HRD-14`, `AD-01`–`AD-07`,
+> the infrastructure-scanner findings and the Zambia local-threat items — is
+> documented in [`docs/controls/`](controls/README.md).
+
 ## 1. Desktop Application
 
 ### `windows_app.py` and `src/gui/`

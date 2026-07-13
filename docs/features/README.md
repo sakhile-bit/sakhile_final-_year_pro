@@ -2,6 +2,12 @@
 
 All 20 features of the project are documented below. Each file covers the feature's purpose, implementation details, data structures, and API.
 
+> **Controls catalogue:** for the definitive list of every security control
+> the project implements (C01–C22, PDC-01…15, HRD-01…14, AD-01…07, the
+> infrastructure-scanner findings and the Zambia threat items), see
+> [docs/controls/](../controls/README.md). Each feature doc below links to its
+> matching controls file under its **Controls Reference** heading.
+
 ---
 
 ## Core Assessment

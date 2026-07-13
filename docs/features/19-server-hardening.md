@@ -154,3 +154,9 @@ auto-fix engine with in-memory registry/service fakes: safe/caution tiering,
 registry and service application, journal recording, idempotency, admin and
 non-Windows refusal, and full undo (including value-deletion and service-state
 restore). Runs on any OS.
+
+---
+
+## Controls Reference
+- [windows-hardening.md](../controls/windows-hardening.md) — full definitions of HRD-01…HRD-14 (severity, category, what each verifies) plus the safe/caution auto-fix tiers.
+- [tool-specific-controls.md](../controls/tool-specific-controls.md) — the paired C22 governance controls (secure-config baseline, legacy service disablement, patch currency).

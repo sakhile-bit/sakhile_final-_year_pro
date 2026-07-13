@@ -104,3 +104,6 @@ All background work runs in a `daemon=True` thread. UI updates use `widget.after
 - [Digital Hygiene Assessment](01-digital-hygiene-assessment.md) — controls definition
 - [Results & Certification](03-results-certification.md) — next screen after scanning
 - [Remediation Guidance](12-remediation-guidance.md) — PowerShell fix scripts
+
+## Controls Reference
+- [endpoint-core-controls.md](../controls/endpoint-core-controls.md) — full definitions of C01–C05 and the EX-01…EX-05 extended checks run on this screen.

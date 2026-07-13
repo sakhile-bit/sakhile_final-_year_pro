@@ -134,3 +134,6 @@ All canvas and widget updates use `self.after(0, callback)` to post updates to t
 ## Related Features
 - [Infrastructure Scanner](06-infra-scanner.md) — scans external hosts
 - [Deployment Checker](07-deployment-checker.md) — checks open ports on localhost
+
+## Controls Reference
+- [tool-specific-controls.md](../controls/tool-specific-controls.md) — the C17 governance controls (device inventory, segmentation, port/service exposure) that pair with this scanner.

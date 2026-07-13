@@ -156,3 +156,6 @@ Runs the full pre-deployment check and writes a JSON report to `instance/agent_r
 - [SIEM Forwarder](11-siem-forwarder.md) — forwards reports to external SIEM
 - [Monitoring Checks](10-monitoring-checks.md) — powers PDC-15
 - [Remediation Guidance](12-remediation-guidance.md) — fix scripts for PDC-01 to PDC-05
+
+## Controls Reference
+- [pre-deployment-checks.md](../controls/pre-deployment-checks.md) — full definitions of PDC-01…PDC-15 with severity, category and remediation.

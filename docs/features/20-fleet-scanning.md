@@ -152,3 +152,8 @@ scan requires valid token), inventory parsing (defaults, overrides, shorthand, e
 `scan_node` result parsing for online/unauthorized/offline/error with mocked HTTP,
 `FleetReport` weakest-link + INCOMPLETE/NO DATA logic, concurrent `scan_fleet` ordering
 and progress callback, and DB round-trip.
+
+---
+
+## Controls Reference
+- [tool-specific-controls.md](../controls/tool-specific-controls.md) — the C21 governance controls (fleet asset inventory, scan cadence, weakest-node remediation) that pair with fleet scanning.

@@ -136,3 +136,6 @@ result = assessor.assess(answers)
 ## Related Features
 - [Digital Hygiene Assessment](01-digital-hygiene-assessment.md) — C15 Regulatory Compliance maps to DPA/ZICTA
 - [Policy Templates](08-policy-templates.md) — includes a Data Protection Policy template
+
+## Controls Reference
+- [zambia-threat-assessment.md](../controls/zambia-threat-assessment.md) — all 16 assessment items across the 4 categories, and how they feed control C19.

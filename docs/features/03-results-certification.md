@@ -106,3 +106,10 @@ On completion, results are saved to `instance/digital_hygiene.db` (SQLite) via `
 - [Assessment History](04-assessment-history.md) — view this result later
 - [Report Generation](13-report-generation.md) — PDF/HTML export engine
 - [Welcome Screen](14-welcome-dashboard.md) — shows last assessment card
+
+## Controls Reference
+The certified score aggregates every control family — see the full
+[controls catalogue](../controls/README.md), in particular
+[endpoint-core-controls.md](../controls/endpoint-core-controls.md) (C01–C05),
+[governance-controls.md](../controls/governance-controls.md) (C06–C15) and
+[tool-specific-controls.md](../controls/tool-specific-controls.md) (C16–C22).
