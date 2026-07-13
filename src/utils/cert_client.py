@@ -135,6 +135,41 @@ def _stored_issue_payload(row: dict) -> Optional[dict]:
     return ip if isinstance(ip, dict) else None
 
 
+def _payload_from_assessment(row_id: int) -> Optional[dict]:
+    """Rebuild an issuance payload from a stored assessment.
+
+    Fallback for certificates that went provisional *before* the queued payload
+    was persisted (legacy rows): the assessment itself still holds every signed
+    fact (business, level, score, totals), so they can be registered without
+    re-running the scan. Returns ``None`` if the assessment is missing or does
+    not qualify for a certificate.
+    """
+    try:
+        from src.utils.local_db import get_assessment
+        a = get_assessment(row_id)
+    except Exception:
+        return None
+    if not a:
+        return None
+    level = a.get("certification_level")
+    if not level or level == "NOT CERTIFIED":
+        return None
+    biz = a.get("business") or {}
+    return {
+        "business_name": biz.get("name", ""),
+        "registration_number": biz.get("id", "") or "",
+        "contact_person": biz.get("contact_person"),
+        "industry": biz.get("industry"),
+        "province": biz.get("province"),
+        "level": level,
+        "score": a.get("score", 0),
+        "total_possible": a.get("total_possible", 0),
+        "critical_failures": a.get("critical_failures", 0),
+        "assessment_tier": "automated",
+        "assessor": "desktop",
+    }
+
+
 def sync_provisional_certificates(timeout: float = 6.0) -> int:
     """Register any certificates left provisional while the portal was offline.
 
@@ -162,9 +197,13 @@ def sync_provisional_certificates(timeout: float = 6.0) -> int:
     synced = 0
     for row in rows:
         aid = row.get("assessment_id")
-        payload = _stored_issue_payload(row)
-        if aid is None or not payload:
-            continue        # nothing queued (e.g. a pre-sync provisional row)
+        if aid is None:
+            continue
+        # Prefer the payload queued at assessment time; fall back to rebuilding
+        # it from the stored assessment for legacy rows that predate queuing.
+        payload = _stored_issue_payload(row) or _payload_from_assessment(aid)
+        if not payload:
+            continue        # not certifiable / assessment gone
         cert = _post_issue(payload, timeout)
         if not cert or not cert.get("certificate_number"):
             continue        # portal still offline / rejected — try again later

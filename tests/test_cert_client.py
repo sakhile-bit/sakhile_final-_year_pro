@@ -151,6 +151,46 @@ def test_sync_leaves_provisional_when_still_offline(monkeypatch):
     assert row is not None and row["status"] == "PROVISIONAL"
 
 
+def _assessment_result():
+    """A result complete enough for local_db.save_assessment()."""
+    import datetime
+    r = _result()
+    r.assessment_date = datetime.date(2026, 7, 13)
+    r.recommendations = ["Patch OS"]
+    r.controls = {
+        "C01_os_updates": types.SimpleNamespace(
+            control_id="C01", name="OS Updates", status="FAIL",
+            score=0, weight=10, details="out of date"),
+    }
+    return r
+
+
+def test_sync_rebuilds_payload_from_assessment_for_legacy_rows(monkeypatch):
+    """A provisional row with no queued payload is still registered by
+    reconstructing the issuance body from the stored assessment."""
+    from src.utils import cert_client, local_db
+    # Persist a real assessment, then a provisional cert with NO queued payload
+    # (mimicking a certificate issued before payload-queuing existed).
+    aid = local_db.save_assessment(_assessment_result())
+    local_db.save_certificate(aid, "PROVISIONAL", None)
+
+    captured = {}
+
+    def fake_post(payload, timeout):
+        captured.update(payload)
+        return {"certificate_number": "ZDH-2026-LEGACY-0001-0002",
+                "level": "SILVER", "verification_block": "blk"}
+
+    monkeypatch.setattr(cert_client, "_post_issue", fake_post)
+    assert cert_client.sync_provisional_certificates() == 1
+    # Reconstructed body carries the signed facts from the assessment.
+    assert captured["business_name"] == "Ndola Foods Ltd"
+    assert captured["registration_number"] == "PACRA-55010"
+    assert captured["level"] == "SILVER" and captured["score"] == 78
+    row = local_db.get_certificate(aid)
+    assert row is not None and row["status"] == "REGISTERED"
+
+
 def test_sync_skips_rows_without_queued_payload(monkeypatch):
     from src.utils import cert_client, local_db
     local_db.save_certificate(9, "PROVISIONAL", None)   # legacy row, nothing queued

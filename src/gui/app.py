@@ -365,8 +365,9 @@ class DigitalHygieneApp(ctk.CTk):
                 on_back=self.router.back,
             ))
 
-    def _on_tools_done(self, selected_tools=None):
+    def _on_tools_done(self, selected_tools=None, infra_target=""):
         self.app_state.selected_tools = selected_tools or set()
+        self.app_state.infra_target = (infra_target or "").strip()
         self._show_scanning()
 
     def _show_scanning(self):
@@ -399,6 +400,7 @@ class DigitalHygieneApp(ctk.CTk):
             lambda: ManualChecksScreen(
                 self,
                 selected_tools=self.app_state.selected_tools,
+                infra_target=self.app_state.infra_target,
                 on_next=self._on_manual_done,
                 on_back=self.router.back,
             ))
@@ -406,6 +408,14 @@ class DigitalHygieneApp(ctk.CTk):
     def _on_manual_done(self, manual_scores, evidence=None):
         self.app_state.manual_scores = manual_scores or {}
         self.app_state.evidence = evidence or {}
+        # Record the website/infrastructure target alongside the C18 evidence so
+        # it's persisted with the assessment and shown in the report.
+        target = self.app_state.infra_target
+        if target and "infra_scan" in self.app_state.selected_tools:
+            existing = self.app_state.evidence.get("C18_infra_scan", "")
+            note = f"Target checked: {target}"
+            self.app_state.evidence["C18_infra_scan"] = (
+                f"{note}\n{existing}".strip() if existing else note)
         self._show_results()
 
     def _show_results(self):

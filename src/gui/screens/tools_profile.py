@@ -6,14 +6,19 @@ Each selection adds an optional scored control (C16-C20) to the assessment.
 
 import customtkinter as ctk
 from src.gui.theme import (
-    CLR_BG, CLR_SURFACE, CLR_SURFACE_ALT, CLR_SURFACE_HVR,
-    CLR_ACCENT, CLR_ACCENT_HOV,
+    CLR_BG, CLR_SURFACE, CLR_SURFACE_ALT,
+    CLR_ACCENT,
     CLR_TEXT, CLR_TEXT_SEC, CLR_MUTED,
-    CLR_SUCCESS, CLR_BORDER,
+    CLR_SUCCESS, CLR_DANGER, CLR_BORDER,
     FONT_SUBHEAD, FONT_BODY, FONT_SMALL, FONT_CAPTION,
-    PAD, NAV_H, BTN_H, BTN_R,
+    PAD,
 )
 from src.gui.screens.business_info import _header, _nav
+
+# The website/infrastructure tool needs a target to check — the business's
+# public domain or IP. We collect it inline on that card so the scan (and the
+# certificate/header/port checks) know what to look at.
+INFRA_TOOL_ID = "infra_scan"
 
 # Each tool: (id, name, icon, control_id, colour, description, impact).
 # Descriptions are written for a non-technical business owner — plain
@@ -114,6 +119,9 @@ class ToolsProfileScreen(ctk.CTkFrame):
         self._on_next = on_next
         self._on_back = on_back
         self._vars: dict[str, ctk.BooleanVar] = {}
+        self._infra_target = ctk.StringVar(value="")
+        self._infra_target_row = None   # frame revealed when C18 is selected
+        self._infra_error = None        # inline validation label
         self._build()
 
     # ------------------------------------------------------------------ build
@@ -159,16 +167,21 @@ class ToolsProfileScreen(ctk.CTkFrame):
         card.grid(row=row, column=0, sticky="ew", pady=6)
         card.grid_columnconfigure(1, weight=1)
 
-        def _refresh(c=card, v=var, col=colour):
+        def _refresh(c=card, v=var, col=colour, tid=tool_id):
             c.configure(border_color=col if v.get() else CLR_BORDER)
+            if tid == INFRA_TOOL_ID:
+                self._toggle_infra_target(v.get())
 
         # Left accent bar. Height is pinned to 1px so the stripe never
         # inflates the card (an empty CTkFrame otherwise requests its 200px
         # default height, which was pushing later cards off-screen); the
         # sticky="ns" span still stretches it to the card's real height.
+        # The infra card has an extra row (the revealed domain/IP field), so
+        # the stripe must span it too or it stops short when expanded.
         accent = ctk.CTkFrame(card, fg_color=colour, width=5, height=1,
                               corner_radius=0)
-        accent.grid(row=0, column=0, rowspan=3, sticky="ns", pady=0)
+        accent_rows = 4 if tool_id == INFRA_TOOL_ID else 3
+        accent.grid(row=0, column=0, rowspan=accent_rows, sticky="ns", pady=0)
         accent.grid_propagate(False)
 
         # Icon + name row
@@ -217,11 +230,77 @@ class ToolsProfileScreen(ctk.CTkFrame):
             anchor="w", wraplength=780, justify="left",
         ).grid(row=2, column=1, sticky="w", padx=16, pady=(0, 14))
 
+        # The website/infrastructure card carries a target input, hidden until
+        # the tool is switched on. Built here so it lives inside the card.
+        if tool_id == INFRA_TOOL_ID:
+            self._build_infra_target(card)
+
         # Whole-card click toggles the switch
         for widget in (card, top):
             widget.bind("<Button-1>", lambda e, v=var, r=_refresh: [v.set(not v.get()), r()])
 
+    # ---------------------------------------------------------- infra target
+    def _build_infra_target(self, card):
+        """Domain / IP entry, revealed only when the website tool is on."""
+        row = ctk.CTkFrame(card, fg_color="transparent")
+        row.grid_columnconfigure(0, weight=1)
+        # Kept out of the grid until the toggle is turned on.
+        self._infra_target_row = row
+
+        ctk.CTkLabel(
+            row, text="Website domain or IP address to check",
+            font=FONT_SMALL, text_color=CLR_TEXT_SEC, anchor="w",
+        ).grid(row=0, column=0, sticky="w", pady=(0, 4))
+
+        entry = ctk.CTkEntry(
+            row, textvariable=self._infra_target,
+            placeholder_text="e.g. example.co.zm  or  41.72.10.5",
+            height=34, border_color=CLR_BORDER,
+        )
+        entry.grid(row=1, column=0, sticky="ew")
+        self._infra_entry = entry
+        # Typing clears any prior validation error.
+        entry.bind("<KeyRelease>", lambda e: self._clear_infra_error())
+
+        self._infra_error = ctk.CTkLabel(
+            row, text="", font=FONT_SMALL, text_color=CLR_DANGER, anchor="w",
+        )
+        self._infra_error.grid(row=2, column=0, sticky="w", pady=(4, 0))
+
+    def _clear_infra_error(self):
+        """Drop the validation message once the operator starts typing."""
+        if self._infra_error is not None:
+            self._infra_error.configure(text="")
+        if getattr(self, "_infra_entry", None) is not None:
+            self._infra_entry.configure(border_color=CLR_BORDER)
+
+    def _toggle_infra_target(self, show: bool):
+        """Show or hide the domain/IP entry as the C18 toggle flips."""
+        if self._infra_target_row is None:
+            return
+        if show:
+            self._infra_target_row.grid(row=3, column=1, sticky="ew",
+                                        padx=16, pady=(0, 14))
+            self._infra_entry.focus_set()
+        else:
+            self._infra_target_row.grid_remove()
+            if self._infra_error is not None:
+                self._infra_error.configure(text="")
+
     # ------------------------------------------------------------------ submit
     def _submit(self):
         selected = {tid for tid, v in self._vars.items() if v.get()}
-        self._on_next(selected)
+        target = self._infra_target.get().strip()
+
+        # If the website/infrastructure tool is on, a domain or IP is required —
+        # there's nothing to scan without one.
+        if INFRA_TOOL_ID in selected and not target:
+            if self._infra_error is not None:
+                self._infra_error.configure(
+                    text="Enter the domain or IP address you want checked.")
+            if getattr(self, "_infra_entry", None) is not None:
+                self._infra_entry.configure(border_color=CLR_DANGER)
+                self._infra_entry.focus_set()
+            return
+
+        self._on_next(selected, target if INFRA_TOOL_ID in selected else "")

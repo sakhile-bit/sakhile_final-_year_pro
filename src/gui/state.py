@@ -45,6 +45,7 @@ class AppState:
     # ── Assessment wizard ─────────────────────────────────────────────
     business_info: Optional[Any] = None
     selected_tools: Set[str] = field(default_factory=set)
+    infra_target: str = ""          # domain/IP to check when C18 is selected
     auto_results: Dict[str, Any] = field(default_factory=dict)
     manual_scores: Dict[str, int] = field(default_factory=dict)
     evidence: Dict[str, Any] = field(default_factory=dict)
@@ -85,6 +86,7 @@ class AppState:
         """Clear all wizard data so the next assessment starts clean."""
         self.business_info = None
         self.selected_tools = set()
+        self.infra_target = ""
         self.auto_results = {}
         self.manual_scores = {}
         self.evidence = {}

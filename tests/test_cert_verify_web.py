@@ -136,6 +136,30 @@ def test_verify_page_renders_valid(app, client):
     assert b'Acme Ltd' in resp.data
 
 
+def test_verify_home_shows_lookup_form(client):
+    """The bare /verify entry point renders a form, not a bogus 'not found'."""
+    resp = client.get('/verify')
+    assert resp.status_code == 200
+    assert b'Verify a Certificate' in resp.data
+    assert b'name="q"' in resp.data                 # the lookup input
+    assert b'Certificate Not Found' not in resp.data
+
+
+def test_verify_home_redirects_to_result(client):
+    """Submitting a number normalises it and hands off to the result page."""
+    resp = client.get('/verify', query_string={'q': '  zdh-2026-aaaa-bbbb-cccc '})
+    assert resp.status_code == 302
+    assert resp.headers['Location'].endswith('/verify/ZDH-2026-AAAA-BBBB-CCCC')
+
+
+def test_verify_home_valid_certificate_roundtrip(app, client):
+    """Looking up a real certificate through the form reaches a VALID page."""
+    num = _seed_cert(app)
+    resp = client.get('/verify', query_string={'q': num}, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b'Certificate Valid' in resp.data
+
+
 def test_pubkey_published(client):
     resp = client.get('/verify/pubkey')
     assert resp.status_code == 200

@@ -2558,6 +2558,21 @@ def verify_offline():
     )
 
 
+@app.route('/verify')
+def verify_home():
+    """Certificate lookup entry point.
+
+    Public visitors reach this from the homepage to check a certificate. When a
+    number is submitted we normalise it and hand off to the result page; with no
+    query we just show the lookup form (rather than a bogus "not found").
+    """
+    raw = request.args.get('q', '')
+    cert_number = ''.join(raw.split()).upper()   # tolerate spaces / lowercase
+    if cert_number:
+        return redirect(url_for('verify', certificate_number=cert_number))
+    return render_template('verify_lookup.html')
+
+
 @app.route('/verify/<certificate_number>')
 @public_rate_limit(limit=20, window_s=60.0, scope='verify')
 def verify(certificate_number):

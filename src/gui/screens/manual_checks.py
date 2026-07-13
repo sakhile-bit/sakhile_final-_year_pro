@@ -240,11 +240,13 @@ _ANS_STYLE = {
 
 class ManualChecksScreen(ctk.CTkFrame):
 
-    def __init__(self, master, on_next, on_back, selected_tools=None):
+    def __init__(self, master, on_next, on_back, selected_tools=None,
+                 infra_target=""):
         super().__init__(master, fg_color=CLR_BG, corner_radius=0)
         self._on_next = on_next
         self._on_back = on_back
         self._selected_tools: set = selected_tools or set()
+        self._infra_target: str = (infra_target or "").strip()
         self._answers: dict[str, ctk.StringVar] = {}
         self._notes: dict[str, ctk.CTkTextbox] = {}
         # Compute max points / question count AFTER methods are accessible
@@ -354,7 +356,10 @@ class ManualChecksScreen(ctk.CTkFrame):
                                                sticky="ns", pady=0)
             sec.grid_propagate(False)
             sec.configure(height=44)
-            ctk.CTkLabel(sec, text=f"{icon}  {label} — Additional Controls",
+            header = f"{icon}  {label} — Additional Controls"
+            if tid == "infra_scan" and self._infra_target:
+                header += f"    (checking: {self._infra_target})"
+            ctk.CTkLabel(sec, text=header,
                          font=("Segoe UI", 12, "bold"),
                          text_color=colour).grid(
                 row=0, column=1, padx=14, pady=12, sticky="w")
