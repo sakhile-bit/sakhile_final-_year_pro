@@ -619,6 +619,42 @@ class ResultsScreen(ctk.CTkFrame):
         p_html = "".join(
             f"<li>{c.control_id}: {c.name}</li>" for c in passed)
 
+        # ── Signed verification block (QR + offline signature) ───────────
+        # Embedded only when the portal has issued and signed the certificate;
+        # otherwise the certificate is marked provisional and unverifiable so
+        # a printed copy never overstates its authority.
+        cert_info = getattr(r, "certificate", None)
+        if cert_info and cert_info.get("certificate_number"):
+            from src.security.certs.render import (
+                verify_url as _vurl, qr_data_uri,
+            )
+            cnum = cert_info["certificate_number"]
+            vurl = cert_info.get("verify_url") or _vurl(cnum)
+            qr = qr_data_uri(vurl, box_size=6, border=2)
+            qr_img = (f'<img src="{qr}" alt="Verify QR" class="qr">'
+                      if qr else "")
+            block = cert_info.get("verification_block") or ""
+            block_html = (
+                f'<div class="vblock"><span class="vlbl">Offline signature'
+                f'</span><code>{block}</code></div>' if block else "")
+            verify_html = f"""<hr>
+ <div class="verify">
+  <div class="vqr">{qr_img}<div class="sl">Scan to verify</div></div>
+  <div class="vinfo">
+   <div class="vlbl">Certificate No.</div>
+   <div class="vnum">{cnum}</div>
+   <div class="vlbl" style="margin-top:8px">Verify online</div>
+   <div class="vurl"><a href="{vurl}">{vurl}</a></div>
+   {block_html}
+  </div>
+ </div>"""
+        else:
+            verify_html = ("""<hr>
+ <div class="unverified">&#9888; Provisional copy — not yet registered with """
+                "the verification portal, so it carries no digital signature "
+                "and cannot be verified online. Reconnect and re-export once "
+                "registration completes.</div>")
+
         html = f"""<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><title>Certificate — {r.business_info.name}</title>
 <style>
@@ -646,6 +682,21 @@ class ResultsScreen(ctk.CTkFrame):
  ul{{text-align:left;display:inline-block;color:#444;
   font-size:12px;line-height:2;padding-left:20px;margin:0}}
  .val{{margin-top:22px;font-size:11px;color:#aaa}}
+ .verify{{display:flex;align-items:center;justify-content:center;gap:26px;
+  text-align:left;margin:6px auto 2px}}
+ .vqr{{text-align:center}}
+ .qr{{width:118px;height:118px}}
+ .vinfo{{font-size:12px;color:#444}}
+ .vlbl{{font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#aaa}}
+ .vnum{{font-size:16px;font-weight:700;color:#1a2840;
+  font-family:'Consolas',monospace;margin-top:1px}}
+ .vurl a{{color:#2485E8;text-decoration:none;font-size:11px}}
+ .vblock{{margin-top:10px}}
+ .vblock code{{display:block;word-break:break-all;font-size:8px;color:#999;
+  max-width:330px;margin-top:2px;line-height:1.4}}
+ .unverified{{font-size:11px;color:#8A5A00;background:#FFF7E8;
+  border:1px solid #F0C674;border-radius:8px;padding:10px 16px;
+  margin:8px auto 2px;max-width:520px;line-height:1.5}}
  .foot{{margin-top:24px;font-size:10px;color:#ccc}}
 </style></head><body><div class="cert">
  <div class="prog">University of Zambia · Dept. of Computing & Informatics</div>
@@ -666,7 +717,7 @@ class ResultsScreen(ctk.CTkFrame):
  <ul>{p_html}</ul>
  <div class="val">Assessed: {r.assessment_date.strftime('%d %B %Y')} &nbsp;·&nbsp;
   Valid until: {valid}</div>
- <hr>
+ {verify_html}
  <div class="foot">NIST CSF v1.1 · CIS Controls v8 · ISO 27001:2022 ·
   Zambia Data Protection Act 2021<br>
   Self-assessment certificate — Zambia Digital Hygiene Certification Programme
