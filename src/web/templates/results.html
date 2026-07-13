@@ -93,14 +93,19 @@
           </span>
           {% endif %}
           {% if certificate %}
-          <span class="cert-pill" style="background:rgba(0,209,155,.12);color:var(--brand);border:1px solid rgba(0,209,155,.3)">
+          <a class="cert-pill" href="{{ url_for('certificate_view', certificate_number=certificate.certificate_number) }}"
+             style="background:rgba(0,209,155,.12);color:var(--brand);border:1px solid rgba(0,209,155,.3);text-decoration:none">
             <i class="fas fa-certificate"></i>{{ certificate.certificate_number }}
-          </span>
+          </a>
           {% endif %}
         </div>
       </div>
 
       <div class="col-md-auto d-flex flex-column gap-2">
+        {% if certificate %}
+        <a href="{{ url_for('certificate_view', certificate_number=certificate.certificate_number) }}"
+           class="btn btn-brand btn-sm"><i class="fas fa-certificate me-1"></i>View Certificate</a>
+        {% endif %}
         <a href="{{ url_for('download_report', assessment_id=assessment_id, format='pdf') }}"
            class="btn btn-brand btn-sm"><i class="fas fa-file-pdf me-1"></i>PDF Report</a>
         <a href="{{ url_for('download_report', assessment_id=assessment_id, format='html') }}"

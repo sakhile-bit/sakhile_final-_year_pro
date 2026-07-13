@@ -172,7 +172,8 @@ class TestBuildResultsRobustness:
         monkeypatch.setattr(assessor_mod, "CONTROL_CATALOGUE", {})
         s = AppState()
         s.business_info = types.SimpleNamespace(name="Acme")
-        s.manual_scores = {"C07_access_control": "not-a-number", "C08": None}
+        # Deliberately-invalid scores to prove build_results is robust.
+        s.manual_scores = {"C07_access_control": "not-a-number", "C08": None}  # type: ignore[dict-item]
         # Must not raise despite the junk manual scores
         out = s.build_results()
         assert out.score == 10

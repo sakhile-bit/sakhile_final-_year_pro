@@ -169,6 +169,83 @@ def assessment_count() -> int:
     return row[0] if row else 0
 
 
+# ── Issued certificates (desktop registry mirror) ────────────────────────────
+# Mirrors what the portal issued for a local assessment, so the desktop can show
+# the certificate number/status and re-render reports without calling out again.
+# A row is PROVISIONAL when the portal was unreachable at assessment time and the
+# certificate has not yet been registered.
+
+def _ensure_certificates_table() -> None:
+    with _connect() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS certificates (
+                assessment_id      INTEGER PRIMARY KEY,
+                cert_number        TEXT,
+                status             TEXT NOT NULL,
+                level              TEXT,
+                issued_date        TEXT,
+                expiry_date        TEXT,
+                verify_url         TEXT,
+                verification_block TEXT,
+                payload            TEXT,
+                saved_at           TEXT NOT NULL
+            )
+        """)
+        conn.commit()
+
+
+def save_certificate(assessment_id: int, status: str,
+                     cert: Optional[dict[str, Any]] = None) -> None:
+    """Record (or update) the certificate state for a local assessment row.
+
+    ``status`` is typically ``REGISTERED`` (signed by the portal) or
+    ``PROVISIONAL`` (portal unreachable — not yet registered).
+    """
+    _ensure_certificates_table()
+    cert = cert or {}
+    with _connect() as conn:
+        conn.execute(
+            """INSERT OR REPLACE INTO certificates
+               (assessment_id, cert_number, status, level, issued_date,
+                expiry_date, verify_url, verification_block, payload, saved_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            (
+                assessment_id,
+                cert.get("certificate_number"),
+                status,
+                cert.get("level"),
+                cert.get("issued_date"),
+                cert.get("expiry_date"),
+                cert.get("verify_url"),
+                cert.get("verification_block"),
+                json.dumps(cert) if cert else None,
+                datetime.now().isoformat(timespec="seconds"),
+            ),
+        )
+        conn.commit()
+
+
+def get_certificate(assessment_id: int) -> Optional[dict[str, Any]]:
+    """Return the stored certificate row for an assessment, or None."""
+    _ensure_certificates_table()
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM certificates WHERE assessment_id = ?",
+            (assessment_id,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def list_provisional_certificates() -> list[dict[str, Any]]:
+    """Return assessments whose certificates still need registering."""
+    _ensure_certificates_table()
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM certificates WHERE status = 'PROVISIONAL'"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 # ── Network scan history (for change / motion detection) ─────────────────────
 # One row per subnet holds the most recent scan snapshot, so the next scan of
 # that subnet can highlight what changed (new/offline devices, risk & port

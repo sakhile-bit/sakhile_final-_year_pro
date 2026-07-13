@@ -68,6 +68,7 @@ from src.security.deployment.checker import PreDeploymentChecker
 from src.reporting.generator import ReportGenerator
 from src.utils.logging_config import get_logger
 from src.utils.config import config, load_env_file
+from src.web.ratelimit import rate_limit as public_rate_limit
 
 # Load environment variables from .env file if it exists
 load_env_file('.env')
@@ -384,10 +385,192 @@ class AssessmentRequest(db.Model):
 
 
 def _generate_cert_number() -> str:
-    """Generate a unique certificate number: ZDH-YYYY-XXXXXX."""
+    """Generate a unique, hard-to-enumerate certificate number.
+
+    Format ``ZDH-YYYY-XXXX-XXXX-XXXX`` (48 bits of randomness). The large space
+    plus rate-limited verification makes scraping valid numbers by iterating
+    infeasible, unlike the old 24-bit id.
+    """
     year = datetime.utcnow().year
-    token = secrets.token_hex(3).upper()
-    return f"ZDH-{year}-{token}"
+    token = secrets.token_hex(6).upper()   # 12 hex chars = 48 bits
+    return f"ZDH-{year}-{token[0:4]}-{token[4:8]}-{token[8:12]}"
+
+
+def _issue_signed_certificate(*, assessment, business, level, score,
+                              total_possible, assessor_username) -> "Certificate":
+    """Create, sign and persist a certificate for a passing assessment.
+
+    The material facts are signed with the authority's Ed25519 key so the
+    printed certificate is tamper-evident. If signing is somehow unavailable we
+    still register the certificate (so it can be verified by existence), but log
+    loudly — the verification surfaces will show it as unsigned.
+    """
+    from datetime import date
+    months = 6 if level == 'BRONZE' else 12
+    issued = date.today()
+    expires = (datetime.utcnow() + timedelta(days=months * 30)).date()
+    cert_num = _generate_cert_number()
+
+    cert_data = {
+        'business_name': business.name,
+        'registration_number': business.registration_number or '',
+        'level': level,
+        'score': score,
+        'total_possible': total_possible,
+        'assessor': assessor_username,
+    }
+    try:
+        from src.security.certs import (
+            build_certificate_payload, sign_certificate,
+            encode_verification_block,
+        )
+        payload = build_certificate_payload(
+            cert_number=cert_num, business_name=business.name,
+            registration_number=business.registration_number or '',
+            level=level, score=score, total_possible=total_possible,
+            issued=issued.isoformat(), expires=expires.isoformat(),
+        )
+        signed = sign_certificate(payload)
+        cert_data['signature'] = signed
+        cert_data['verification_block'] = encode_verification_block(signed)
+    except Exception:
+        logger.error("Certificate signing failed — issuing an unsigned, "
+                     "registry-only certificate.", exc_info=True)
+
+    cert = Certificate(
+        assessment_id=assessment.id, certificate_number=cert_num,
+        issued_date=issued, expiry_date=expires,
+        certificate_data=cert_data, is_active=True,
+    )
+    db.session.add(cert)
+    db.session.commit()
+
+    _supersede_prior_certificates(business.id, cert, issued)
+    return cert
+
+
+def _supersede_prior_certificates(business_id, new_cert, issued_on) -> None:
+    """On re-assessment, retire a business's earlier active certificates.
+
+    Keeps a single valid certificate per business: the previous one is marked
+    SUPERSEDED (not hard-revoked) pointing at its replacement.
+    """
+    try:
+        prior = (
+            Certificate.query
+            .join(Assessment, Certificate.assessment_id == Assessment.id)
+            .filter(Assessment.business_id == business_id,
+                    Certificate.id != new_cert.id,
+                    Certificate.is_active.is_(True))  # type: ignore[union-attr]
+            .all()
+        )
+        if not prior:
+            return
+        for old in prior:
+            old.is_active = False
+            od = dict(old.certificate_data or {})
+            od['revocation'] = {
+                'type': 'superseded',
+                'reason': f'Superseded by {new_cert.certificate_number}',
+                'revoked_at': issued_on.isoformat(),
+                'superseded_by': new_cert.certificate_number,
+            }
+            old.certificate_data = od
+            db.session.add(AuditLog(
+                user_id=None, action='certificate_superseded',
+                resource_type='certificate', resource_id=old.id,
+                details={'cert_number': old.certificate_number,
+                         'superseded_by': new_cert.certificate_number},
+            ))
+        db.session.commit()
+    except Exception:
+        logger.warning("Failed to supersede prior certificates for business %s",
+                       business_id, exc_info=True)
+        db.session.rollback()
+
+
+def _certificate_status(cert) -> str:
+    """Return VALID / EXPIRED / REVOKED / SUPERSEDED for a certificate."""
+    from datetime import date
+    if not cert.is_active:
+        rev = (cert.certificate_data or {}).get('revocation') or {}
+        return 'SUPERSEDED' if rev.get('type') == 'superseded' else 'REVOKED'
+    if cert.expiry_date and cert.expiry_date < date.today():
+        return 'EXPIRED'
+    return 'VALID'
+
+
+def _verify_certificate_record(certificate_number: str) -> dict:
+    """Look up a certificate and assemble a full verification result.
+
+    Re-checks the Ed25519 signature over the stored payload, so a certificate
+    whose facts were altered reads as INVALID even if the number is on record.
+    """
+    cert = Certificate.query.filter_by(
+        certificate_number=certificate_number).first()
+    if cert is None:
+        return {'found': False, 'status': 'NOT_FOUND',
+                'certificate_number': certificate_number}
+
+    data = cert.certificate_data or {}
+    signed = data.get('signature')
+    signature_valid = None
+    if signed:
+        try:
+            from src.security.certs import verify_certificate
+            signature_valid = bool(verify_certificate(signed))
+        except Exception:
+            logger.debug("signature check failed to run", exc_info=True)
+            signature_valid = None
+
+    status = _certificate_status(cert)
+    # A broken/forged signature overrides an otherwise-valid DB record.
+    if signature_valid is False:
+        status = 'INVALID'
+
+    try:
+        business_name = (cert.assessment.business.name
+                         if cert.assessment and cert.assessment.business
+                         else data.get('business_name'))
+        level = (cert.assessment.certification_level
+                 if cert.assessment else data.get('level'))
+    except Exception:
+        business_name = data.get('business_name')
+        level = data.get('level')
+
+    return {
+        'found': True,
+        'status': status,
+        'certificate_number': certificate_number,
+        'business_name': business_name,
+        'registration_number': data.get('registration_number'),
+        'level': level,
+        'score': data.get('score'),
+        'total_possible': data.get('total_possible'),
+        'issued_date': cert.issued_date,
+        'expiry_date': cert.expiry_date,
+        'signature_present': bool(signed),
+        'signature_valid': signature_valid,
+        'key_id': (signed or {}).get('key_id') if signed else None,
+        'revocation': data.get('revocation'),
+    }
+
+
+def _audit_verification(certificate_number: str, result: dict) -> None:
+    """Record a verification attempt (unauthenticated) in the audit log."""
+    try:
+        log = AuditLog(
+            user_id=None, action='certificate_verify',
+            resource_type='certificate',
+            details={'cert_number': certificate_number,
+                     'status': result.get('status'),
+                     'ip': request.remote_addr},
+        )
+        db.session.add(log)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        logger.debug("could not write verification audit log", exc_info=True)
 
 
 def check_password_strength(password):
@@ -1035,36 +1218,25 @@ def assess():
             db.session.add(assessment)
             db.session.commit()
 
-            # Auto-issue certificate for passing assessments
+            # Auto-issue a signed certificate for passing assessments
             if results.certification_level != 'NOT CERTIFIED':
-                cert_num = _generate_cert_number()
-                months = 6 if results.certification_level == 'BRONZE' else 12
-                from datetime import date
-                cert = Certificate(
-                    assessment_id=assessment.id,
-                    certificate_number=cert_num,
-                    issued_date=date.today(),
-                    expiry_date=(datetime.utcnow() + timedelta(days=months * 30)).date(),
-                    certificate_data={
-                        'business_name': business.name,
-                        'level': results.certification_level,
-                        'score': results.score,
-                        'total_possible': results.total_possible,
-                        'assessor': current_user.username,
-                    },
-                    is_active=True,
+                cert = _issue_signed_certificate(
+                    assessment=assessment, business=business,
+                    level=results.certification_level,
+                    score=results.score, total_possible=results.total_possible,
+                    assessor_username=current_user.username,
                 )
-                db.session.add(cert)
-                db.session.commit()
                 log = AuditLog(
                     user_id=current_user.id, action='certificate_issued',
                     resource_type='certificate', resource_id=cert.id,
-                    details={'cert_number': cert_num, 'level': results.certification_level,
+                    details={'cert_number': cert.certificate_number,
+                             'level': results.certification_level,
                              'business': business.name, 'ip': request.remote_addr},
                 )
                 db.session.add(log)
                 db.session.commit()
-                flash(f'Certificate {cert_num} issued ({results.certification_level})!', 'success')
+                flash(f'Certificate {cert.certificate_number} issued '
+                      f'({results.certification_level})!', 'success')
 
             flash('Assessment completed successfully!', 'success')
             return redirect(url_for('results', assessment_id=assessment.id))
@@ -2341,36 +2513,245 @@ echo "You can safely delete this directory after copying the files elsewhere."
     return Response(script_content, mimetype='text/plain')
 
 
+@app.route('/verify/pubkey')
+def verify_pubkey():
+    """Publish the authority public key(s) so certificates can be verified
+    offline and by third parties, without exposing the signing secret."""
+    try:
+        from src.security.certs import get_signer
+        signer = get_signer()
+        return jsonify({
+            'active_key_id': signer.key_id,
+            'algorithm': 'Ed25519',
+            'keys': signer.public_keys_pem,   # active + retired, for rotation
+        })
+    except Exception:
+        logger.error("public key unavailable", exc_info=True)
+        return jsonify({'error': 'unavailable'}), 503
+
+
+@app.route('/verify-offline')
+def verify_offline():
+    """Self-contained page that verifies a certificate's signed block entirely
+    client-side, against the published public key — usable with no connectivity
+    once loaded. The verifier JS is inlined so a saved copy keeps working."""
+    keys = {}
+    try:
+        from src.security.certs import get_signer
+        signer = get_signer()
+        keys = signer.public_keys_pem   # active + retired, so rotated certs verify
+    except Exception:
+        logger.error("offline verifier: public key unavailable", exc_info=True)
+
+    verifier_js = ''
+    try:
+        js_path = Path(app.root_path) / 'static' / 'js' / 'offline_verify.js'
+        verifier_js = js_path.read_text(encoding='utf-8')
+    except Exception:
+        logger.error("offline verifier: could not load verifier script", exc_info=True)
+
+    return render_template(
+        'verify_offline.html',
+        verifier_js=verifier_js,
+        public_keys=keys,
+        prefill=request.args.get('block', ''),
+    )
+
+
 @app.route('/verify/<certificate_number>')
+@public_rate_limit(limit=20, window_s=60.0, scope='verify')
 def verify(certificate_number):
-    """Public certificate verification — queries the Certificate table."""
-    cert = Certificate.query.filter_by(
-        certificate_number=certificate_number, is_active=True
-    ).first()
-    verified = cert is not None
-    business_name = None
-    issued_date = None
-    expiry_date = None
-    level = None
-    if cert:
-        try:
-            business_name = cert.assessment.business.name if cert.assessment and cert.assessment.business else None
-        except Exception:
-            import logging
-            logging.getLogger(__name__).debug(
-                "certificate has no business record", exc_info=True)
-        issued_date = cert.issued_date
-        expiry_date = cert.expiry_date
-        level = cert.assessment.certification_level if cert.assessment else None
+    """Public certificate verification page.
+
+    Shows a clear VALID / EXPIRED / REVOKED / INVALID / NOT FOUND status and the
+    authoritative recorded facts, so an inspector can compare them against the
+    document in hand. The signature is re-checked, so a tampered certificate
+    reads as INVALID even if the number is genuine.
+    """
+    result = _verify_certificate_record(certificate_number)
+    _audit_verification(certificate_number, result)
     return render_template(
         'verify.html',
+        result=result,
         cert_id=certificate_number,
-        verified=verified,
-        business_name=business_name,
-        issued_date=issued_date,
-        expiry_date=expiry_date,
-        certification_level=level,
+        verified=(result['status'] == 'VALID'),
     )
+
+
+def _valid_issue_key(provided: str) -> bool:
+    """Constant-time check of the desktop issuance API key.
+
+    The signing key lives only on the server; desktop clients authenticate to
+    this issuance endpoint with a shared API key so only trusted installs can
+    mint certificates. Set ``ZDH_ISSUE_API_KEY`` in production.
+    """
+    import hmac
+    expected = os.environ.get('ZDH_ISSUE_API_KEY')
+    if not expected:
+        # No key configured. Fall back to the well-known dev key ONLY in
+        # debug/test mode. In production this fails closed, so a missing
+        # ZDH_ISSUE_API_KEY can never leave issuance open to a key that is
+        # published in the source tree.
+        if app.debug or app.config.get('TESTING'):
+            expected = 'dev-issue-key-change-me'
+        else:
+            logger.error("ZDH_ISSUE_API_KEY is not configured — refusing "
+                         "certificate issuance (fail closed).")
+            return False
+    return bool(provided) and hmac.compare_digest(provided, expected)
+
+
+@app.route('/api/certificates/issue', methods=['POST'])
+@csrf.exempt   # machine-to-machine JSON API, authenticated by X-API-Key
+@public_rate_limit(limit=20, window_s=60.0, scope='issue')
+def api_issue_certificate():
+    """Machine-to-machine certificate issuance for the desktop app.
+
+    The desktop completes an assessment offline, then calls this endpoint to
+    register it and receive an authority-signed certificate. Signing happens
+    here (server-side) so the private key never ships in the distributed .exe.
+    """
+    if not _valid_issue_key(request.headers.get('X-API-Key', '')):
+        return jsonify({'error': 'unauthorized'}), 401
+
+    data = request.get_json(silent=True) or {}
+    biz_name = (data.get('business_name') or '').strip()
+    level = (data.get('level') or '').strip().upper()
+    try:
+        score = int(data.get('score', 0))
+        total = int(data.get('total_possible', 0))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'bad_request', 'message': 'score/total must be numbers'}), 400
+
+    if not biz_name or not level:
+        return jsonify({'error': 'missing_fields',
+                        'message': 'business_name and level are required'}), 400
+    if level not in ('GOLD', 'SILVER', 'BRONZE'):
+        return jsonify({'error': 'not_certifiable',
+                        'message': f'Level {level!r} does not qualify for a certificate'}), 400
+
+    reg = (data.get('registration_number') or '').strip() or None
+    business = None
+    if reg:
+        business = Business.query.filter_by(registration_number=reg).first()
+    if business is None:
+        business = Business(
+            name=biz_name, registration_number=reg,
+            contact_person=data.get('contact_person'),
+            contact_email=data.get('contact_email'),
+            contact_phone=data.get('contact_phone'),
+            industry=data.get('industry'),
+            address=data.get('address'),
+        )
+        db.session.add(business)
+        db.session.commit()
+
+    assessment = Assessment(
+        business_id=business.id, assessor_id=None,
+        controls_results={
+            'controls': data.get('controls', {}),
+            'total_possible': total,
+            'critical_failures': data.get('critical_failures', 0),
+            'assessment_tier': data.get('assessment_tier', 'automated'),
+            'source': 'desktop',
+        },
+        total_score=score, certification_level=level,
+        recommendations=data.get('recommendations', []), status='completed',
+    )
+    db.session.add(assessment)
+    db.session.commit()
+
+    cert = _issue_signed_certificate(
+        assessment=assessment, business=business, level=level,
+        score=score, total_possible=total,
+        assessor_username=data.get('assessor', 'desktop'),
+    )
+    db.session.add(AuditLog(
+        user_id=None, action='certificate_issued_api',
+        resource_type='certificate', resource_id=cert.id,
+        details={'cert_number': cert.certificate_number, 'level': level,
+                 'business': biz_name, 'ip': request.remote_addr,
+                 'source': 'desktop'},
+    ))
+    db.session.commit()
+
+    cdata = cert.certificate_data or {}
+    from src.security.certs.render import verify_url as _vurl
+    return jsonify({
+        'certificate_number': cert.certificate_number,
+        'status': 'VALID',
+        'level': level,
+        'business_name': biz_name,
+        'issued_date': cert.issued_date.isoformat() if cert.issued_date else None,
+        'expiry_date': cert.expiry_date.isoformat() if cert.expiry_date else None,
+        'verification_block': cdata.get('verification_block'),
+        'signature': cdata.get('signature'),
+        'verify_url': _vurl(cert.certificate_number,
+                            base=request.host_url.rstrip('/')),
+    }), 201
+
+
+@app.route('/certificate/<certificate_number>')
+@public_rate_limit(limit=30, window_s=60.0, scope='certificate')
+def certificate_view(certificate_number):
+    """Printable official certificate with a verification QR code and the
+    offline verification block. The QR points at this server's own host, so it
+    is scannable when run locally and against the real portal once hosted."""
+    result = _verify_certificate_record(certificate_number)
+    if not result['found']:
+        abort(404)
+
+    from src.security.certs.render import verify_url as _vurl, qr_data_uri
+    base = request.host_url.rstrip('/')
+    vurl = _vurl(certificate_number, base=base)
+
+    cert = Certificate.query.filter_by(
+        certificate_number=certificate_number).first()
+    if cert is None:            # race: revoked/deleted between lookup and now
+        abort(404)
+    verification_block = (cert.certificate_data or {}).get('verification_block')
+
+    return render_template(
+        'certificate.html',
+        result=result,
+        verify_url=vurl,
+        qr_data_uri=qr_data_uri(vurl),
+        verification_block=verification_block,
+    )
+
+
+@app.route('/api/verify/<certificate_number>')
+@public_rate_limit(limit=30, window_s=60.0, scope='api_verify')
+def api_verify(certificate_number):
+    """Machine-readable certificate verification for third-party integrations."""
+    result = _verify_certificate_record(certificate_number)
+    _audit_verification(certificate_number, result)
+
+    payload = {
+        'certificate_number': certificate_number,
+        'status': result['status'],
+        'valid': result['status'] == 'VALID',
+        'found': result['found'],
+    }
+    if result['found']:
+        payload.update({
+            'business_name': result.get('business_name'),
+            'registration_number': result.get('registration_number'),
+            'level': result.get('level'),
+            'score': result.get('score'),
+            'total_possible': result.get('total_possible'),
+            'issued_date': (result['issued_date'].isoformat()
+                            if result.get('issued_date') else None),
+            'expiry_date': (result['expiry_date'].isoformat()
+                            if result.get('expiry_date') else None),
+            'signature_present': result.get('signature_present'),
+            'signature_valid': result.get('signature_valid'),
+            'key_id': result.get('key_id'),
+        })
+        rev = result.get('revocation')
+        if rev:
+            payload['revocation_reason'] = rev.get('reason')
+    return jsonify(payload), (200 if result['found'] else 404)
 
 
 @app.route('/about')

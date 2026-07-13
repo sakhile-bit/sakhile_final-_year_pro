@@ -364,14 +364,24 @@ def certificates():
 @login_required
 @admin_required
 def certificate_revoke(cert_id):
-    """Revoke a certificate."""
+    """Revoke a certificate, recording a reason."""
     db, _, _, _, Certificate, AuditLog = _models()
     cert = Certificate.query.get_or_404(cert_id)
+    reason = (request.form.get('reason') or '').strip() or 'No reason provided'
     cert.is_active = False
+    data = dict(cert.certificate_data or {})
+    data['revocation'] = {
+        'type': 'revoked',
+        'reason': reason,
+        'revoked_at': datetime.utcnow().date().isoformat(),
+        'revoked_by': current_user.username,
+    }
+    cert.certificate_data = data
     log = AuditLog(
         user_id=current_user.id, action='admin_revoke_certificate',
         resource_type='certificate', resource_id=cert.id,
-        details={'cert_number': cert.certificate_number, 'ip': request.remote_addr},
+        details={'cert_number': cert.certificate_number,
+                 'reason': reason, 'ip': request.remote_addr},
     )
     db.session.add(log)
     db.session.commit()

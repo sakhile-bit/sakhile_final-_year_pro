@@ -30,6 +30,9 @@ Jinja2==3.1.6
 pyotp==2.9.0
 qrcode[pil]==8.2
 
+# Certificate signing / verification (Ed25519 anti-forgery)
+cryptography==49.0.0
+
 # Production WSGI server
 gunicorn==26.0.0
 

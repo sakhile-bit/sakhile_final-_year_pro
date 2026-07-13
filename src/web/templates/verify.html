@@ -1,28 +1,84 @@
 {% extends 'base.html' %}
 {% block title %}Verify Certificate — Zambia Digital Hygiene{% endblock %}
 {% block content %}
-<div class="container py-5" style="max-width:600px;text-align:center">
-  <i class="fas fa-certificate mb-4" style="font-size:4rem;color:var(--brand)"></i>
-  <h2 class="fw-bold mb-2">Certificate Verification</h2>
-  <p style="color:var(--muted)" class="mb-4">Certificate ID: <code>{{ cert_id }}</code></p>
+{% set status = result.status if result else ('VALID' if verified else 'NOT_FOUND') %}
+{% set style = {
+  'VALID':      ('#00C896', 'fa-check-circle',  'Certificate Valid',      'This certificate is authentic and on record.'),
+  'EXPIRED':    ('#E0A422', 'fa-clock',         'Certificate Expired',    'This certificate was genuine but has passed its expiry date.'),
+  'REVOKED':    ('#FF4C4C', 'fa-ban',           'Certificate Revoked',    'This certificate has been revoked by the certifying authority.'),
+  'SUPERSEDED': ('#E0A422', 'fa-rotate',        'Certificate Superseded', 'A newer certificate has replaced this one after re-assessment.'),
+  'INVALID':    ('#FF4C4C', 'fa-triangle-exclamation', 'Tampering Detected', 'The details on this certificate do not match our signed records. It may have been altered.'),
+  'NOT_FOUND':  ('#FF4C4C', 'fa-circle-xmark',  'Certificate Not Found',  'This certificate number was not found in our records.'),
+} %}
+{% set color, icon, heading, message = style.get(status, style['NOT_FOUND']) %}
 
-  {% if verified %}
-  <div style="background:rgba(0,200,150,.1);border:1px solid rgba(0,200,150,.3);border-radius:16px;padding:32px">
-    <i class="fas fa-check-circle mb-3" style="font-size:3rem;color:var(--brand)"></i>
-    <h4 style="color:var(--brand)">Certificate Valid</h4>
-    <p style="color:var(--muted)">This certificate is authentic and on record.</p>
+<div class="container py-5" style="max-width:640px">
+  <div style="text-align:center">
+    <i class="fas fa-certificate mb-4" style="font-size:4rem;color:var(--brand)"></i>
+    <h2 class="fw-bold mb-2">Certificate Verification</h2>
+    <p style="color:var(--muted)" class="mb-4">Certificate ID: <code>{{ cert_id }}</code></p>
   </div>
-  {% else %}
-  <div style="background:rgba(255,76,76,.08);border:1px solid rgba(255,76,76,.25);border-radius:16px;padding:32px">
-    <i class="fas fa-circle-xmark mb-3" style="font-size:3rem;color:#FF4C4C"></i>
-    <h4 style="color:#FF4C4C">Certificate Not Found</h4>
-    <p style="color:var(--muted)">
-      This ID was not found in our records. It may not exist, or certificate 
-      verification will be available in Phase 2 of this program.
+
+  <div style="background:rgba(0,0,0,.02);border:1px solid {{ color }}55;border-left:5px solid {{ color }};border-radius:16px;padding:28px 32px">
+    <div style="text-align:center">
+      <i class="fas {{ icon }} mb-3" style="font-size:3rem;color:{{ color }}"></i>
+      <h4 style="color:{{ color }};margin-bottom:6px">{{ heading }}</h4>
+      <p style="color:var(--muted)">{{ message }}</p>
+      {% if result and result.revocation and result.revocation.reason %}
+      <p style="color:{{ color }};font-size:.9rem;margin-top:6px">
+        <strong>Reason:</strong> {{ result.revocation.reason }}
+      </p>
+      {% endif %}
+    </div>
+
+    {% if result and result.found %}
+    <hr style="border-color:rgba(128,128,128,.2);margin:22px 0">
+    <p style="color:var(--muted);font-size:.85rem;text-align:center;margin-bottom:16px">
+      Officially recorded details — compare these against the certificate document.
     </p>
+    <table class="table" style="margin-bottom:0">
+      <tbody>
+        <tr><td style="color:var(--muted);width:45%">Business</td>
+            <td class="fw-bold">{{ result.business_name or '—' }}</td></tr>
+        {% if result.registration_number %}
+        <tr><td style="color:var(--muted)">Registration</td>
+            <td>{{ result.registration_number }}</td></tr>
+        {% endif %}
+        <tr><td style="color:var(--muted)">Certification Level</td>
+            <td class="fw-bold">{{ result.level or '—' }}</td></tr>
+        {% if result.score is not none %}
+        <tr><td style="color:var(--muted)">Score</td>
+            <td>{{ result.score }}{% if result.total_possible %}/{{ result.total_possible }}{% endif %}</td></tr>
+        {% endif %}
+        <tr><td style="color:var(--muted)">Issued</td>
+            <td>{{ result.issued_date or '—' }}</td></tr>
+        <tr><td style="color:var(--muted)">Expires</td>
+            <td>{{ result.expiry_date or '—' }}</td></tr>
+        <tr><td style="color:var(--muted)">Digital signature</td>
+            <td>
+              {% if result.signature_valid %}
+                <span style="color:#00C896"><i class="fas fa-shield-halved"></i> Verified{% if result.key_id %} ({{ result.key_id }}){% endif %}</span>
+              {% elif result.signature_valid is sameas false %}
+                <span style="color:#FF4C4C"><i class="fas fa-shield-halved"></i> Invalid — does not match records</span>
+              {% elif result.signature_present %}
+                <span style="color:var(--muted)">Present (not checkable)</span>
+              {% else %}
+                <span style="color:var(--muted)">Registry record only (unsigned)</span>
+              {% endif %}
+            </td></tr>
+      </tbody>
+    </table>
+    {% endif %}
   </div>
-  {% endif %}
 
-  <a href="{{ url_for('index') }}" class="btn btn-outline-brand mt-4">← Back to Home</a>
+  <p style="color:var(--muted);font-size:.8rem;text-align:center;margin-top:18px">
+    <a href="{{ url_for('verify_offline') }}">Offline verifier</a> ·
+    Programmatic check: <code>GET /api/verify/{{ cert_id }}</code> ·
+    Public key: <a href="{{ url_for('verify_pubkey') }}">/verify/pubkey</a>
+  </p>
+
+  <div style="text-align:center">
+    <a href="{{ url_for('index') }}" class="btn btn-outline-brand mt-2">← Back to Home</a>
+  </div>
 </div>
 {% endblock %}

@@ -240,7 +240,8 @@ class TestScanNode:
 # ---------------------------------------------------------------------------
 
 
-def _nr(name, status="online", grade="HARDENED", score=90, crit=0):
+def _nr(name, status="online", grade: str | None = "HARDENED",
+        score: int | None = 90, crit=0):
     return NodeResult(name=name, url=f"http://{name}:8765", status=status,
                       hostname=name.upper(), hardening_grade=grade,
                       hardening_score=score, critical_failures=crit)
@@ -306,6 +307,7 @@ class TestScanFleet:
         rep = scan_fleet(nodes, timeout=5, max_workers=3)
         assert [r.name for r in rep.results] == ["a", "b", "c"]
         assert rep.fleet_grade == "AT RISK"
+        assert rep.weakest_node is not None
         assert rep.weakest_node.name == "b"
 
     def test_progress_callback_invoked(self, monkeypatch):
@@ -339,13 +341,16 @@ class TestDiscovery:
         class FakeResp:
             def read(self):
                 return b'{"status":"ok","hostname":"HOST1","agent_version":"1.0"}'
+
             def __enter__(self):
                 return self
+
             def __exit__(self, *a):
                 return False
         monkeypatch.setattr(mc.urllib.request, "urlopen",
                             lambda *a, **k: FakeResp())
         info = mc.probe_node("10.0.0.5", 8765)
+        assert info is not None
         assert info["hostname"] == "HOST1"
         assert info["port"] == 8765
         assert info["url"] == "http://10.0.0.5:8765"
@@ -383,6 +388,7 @@ class TestFleetPersistence:
         fid = local_db.save_fleet_report(rep.to_dict())
         assert fid > 0
         loaded = local_db.load_fleet_report(fid)
+        assert loaded is not None
         assert loaded["fleet_grade"] == "AT RISK"
         listing = local_db.list_fleet_reports(limit=5)
         assert any(row["id"] == fid for row in listing)

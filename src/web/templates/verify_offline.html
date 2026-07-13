@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Offline Certificate Verifier — Zambia Digital Hygiene</title>
+<style>
+  :root { --brand:#6C5FC7; --bg:#1A1923; --surface:#211F2B; --surface2:#1C1A25;
+    --border:#2E2B3B; --text:#EAE7F3; --muted:#7C7691; --ok:#00C896; --bad:#FF4C4C; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+    font-family:'Segoe UI',system-ui,Arial,sans-serif; line-height:1.5; }
+  .wrap { max-width:680px; margin:0 auto; padding:40px 20px; }
+  h1 { font-size:1.5rem; margin:0 0 6px; }
+  .sub { color:var(--muted); font-size:.92rem; }
+  .shield { font-size:2.6rem; }
+  label { color:var(--muted); font-size:.85rem; display:block; margin:22px 0 6px; }
+  textarea { width:100%; min-height:120px; font-family:Consolas,monospace; font-size:.8rem;
+    word-break:break-all; background:var(--surface2); color:var(--text);
+    border:1px solid var(--border); border-radius:10px; padding:12px; }
+  .btns { text-align:center; margin-top:16px; }
+  button, a.btn { display:inline-block; border:none; cursor:pointer; font-size:.95rem;
+    padding:10px 20px; border-radius:8px; text-decoration:none; margin:0 4px; }
+  button { background:var(--brand); color:#fff; }
+  button:disabled { opacity:.6; cursor:default; }
+  a.btn { background:transparent; color:var(--brand); border:1px solid var(--border); }
+  .card { border-radius:12px; padding:20px; margin-top:22px; }
+  table { width:100%; border-collapse:collapse; margin-top:12px; }
+  td { padding:5px 0; vertical-align:top; }
+  td.k { color:var(--muted); width:42%; }
+  .foot { color:var(--muted); font-size:.75rem; text-align:center; margin-top:26px; }
+  code { background:var(--surface); padding:1px 5px; border-radius:4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div style="text-align:center">
+    <div class="shield">🛡️</div>
+    <h1>Offline Certificate Verifier</h1>
+    <p class="sub">Paste the <strong>verification code</strong> from a certificate to check its
+      digital signature — entirely on this device, no internet needed.
+      Save this page (Ctrl+S) to keep a verifier you can use anywhere, offline.</p>
+  </div>
+
+  <label for="block">Verification code</label>
+  <textarea id="block" placeholder="Paste the certificate's offline verification code here…">{{ prefill }}</textarea>
+
+  <div class="btns">
+    <button id="verifyBtn">🛡️ Verify offline</button>
+    <a class="btn" href="{{ url_for('index') }}">← Home</a>
+  </div>
+
+  <div id="result"></div>
+
+  <p class="foot">
+    Verifies against the authority public key
+    (<code>{{ public_keys.keys()|list|join(', ') if public_keys else 'unavailable' }}</code>).
+    You can also verify online at <code>/verify/&lt;certificate-number&gt;</code>.
+  </p>
+</div>
+
+<script>{{ verifier_js | safe }}</script>
+<script>
+  const PUBLIC_KEYS = {{ public_keys | tojson }};
+  function esc(s){ return String(s==null?"":s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+  function row(k,v){ return '<tr><td class="k">'+esc(k)+'</td><td><b>'+esc(v||"—")+'</b></td></tr>'; }
+  function renderResult(res){
+    const el=document.getElementById("result");
+    if(res.error){ el.innerHTML='<div class="card" style="border:1px solid var(--bad);color:var(--bad)">'+esc(res.error)+'</div>'; return; }
+    const p=res.payload||{};
+    if(res.valid){
+      el.innerHTML='<div class="card" style="border:1px solid var(--ok);border-left:5px solid var(--ok)">'
+        +'<div style="color:var(--ok);font-weight:800;font-size:1.15rem">✔ Signature Valid — authentic certificate</div>'
+        +'<table>'+row("Certificate No.",p.cert)+row("Business",p.biz)
+        +(p.reg?row("Registration",p.reg):"")+row("Level",p.level)
+        +row("Score",(p.score!=null?p.score+(p.total?"/"+p.total:""):""))
+        +row("Issued",p.issued)+row("Expires",p.expires)+'</table>'
+        +'<p class="sub" style="margin-top:10px">These are the values the authority signed. Compare them against the certificate document.</p></div>';
+    } else {
+      el.innerHTML='<div class="card" style="border:1px solid var(--bad);border-left:5px solid var(--bad)">'
+        +'<div style="color:var(--bad);font-weight:800;font-size:1.15rem">✖ Signature Invalid</div>'
+        +'<p class="sub" style="margin-top:8px">This code does not carry a valid authority signature. '
+        +'The certificate may be forged or altered — do not accept it.</p></div>';
+    }
+  }
+  async function doVerify(){
+    const block=document.getElementById("block").value.trim();
+    if(!block) return;
+    const btn=document.getElementById("verifyBtn"); btn.disabled=true;
+    try { renderResult(await OfflineVerify.verifyBlock(block, PUBLIC_KEYS)); }
+    catch(e){ renderResult({error:"Verification failed to run: "+(e&&e.message)}); }
+    finally { btn.disabled=false; }
+  }
+  document.getElementById("verifyBtn").addEventListener("click", doVerify);
+  if(document.getElementById("block").value.trim()) doVerify();
+</script>
+</body>
+</html>

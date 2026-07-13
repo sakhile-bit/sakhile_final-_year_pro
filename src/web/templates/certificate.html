@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% block title %}Certificate {{ result.certificate_number }} — Zambia Digital Hygiene{% endblock %}
+{% block content %}
+{% set tier = (result.level or '') | upper %}
+{% set tier_color = {
+  'GOLD': '#D4AF37', 'SILVER': '#9AA0AA', 'BRONZE': '#C87B3A'
+}.get(tier, 'var(--brand)') %}
+
+<style>
+  .cert-sheet { max-width: 820px; margin: 24px auto; background: #fff; color: #1a1a1a;
+    border: 1px solid #e3e3e3; border-radius: 16px; padding: 40px 48px;
+    box-shadow: 0 10px 40px rgba(0,0,0,.25); position: relative; }
+  .cert-sheet .muted { color: #6b6b6b; }
+  .cert-band { height: 6px; border-radius: 6px; background: {{ tier_color }}; margin-bottom: 24px; }
+  .cert-title { letter-spacing: .12em; font-weight: 800; color: #1a5276; margin: 0; }
+  .cert-biz { font-size: 2rem; font-weight: 800; margin: 6px 0 2px; }
+  .cert-tier { display:inline-block; padding: 6px 18px; border-radius: 999px; font-weight: 800;
+    color: #fff; background: {{ tier_color }}; letter-spacing: .05em; }
+  .cert-grid { display: grid; grid-template-columns: 1fr auto; gap: 28px; align-items: start; }
+  .cert-facts td { padding: 5px 0; vertical-align: top; }
+  .cert-facts td.k { color: #6b6b6b; padding-right: 18px; white-space: nowrap; }
+  .cert-qr { text-align: center; }
+  .cert-qr img { width: 150px; height: 150px; border: 1px solid #e3e3e3; border-radius: 10px; }
+  .cert-block { margin-top: 22px; }
+  .cert-block code { display: block; word-break: break-all; background: #f5f6f8; color: #333;
+    border: 1px solid #e3e3e3; border-radius: 8px; padding: 10px 12px; font-size: .68rem; line-height: 1.5; }
+  .cert-status { border-radius: 10px; padding: 10px 14px; font-weight: 700; margin-bottom: 18px; text-align:center; }
+  .no-print { }
+  @media print {
+    body { background: #fff !important; }
+    .no-print, nav, footer { display: none !important; }
+    .cert-sheet { box-shadow: none; border: none; margin: 0; }
+  }
+</style>
+
+<div class="container py-4">
+
+  {% if result.status != 'VALID' %}
+  {% set sc = {'EXPIRED':'#E0A422','REVOKED':'#FF4C4C','INVALID':'#FF4C4C'}.get(result.status, '#FF4C4C') %}
+  <div class="cert-status" style="max-width:820px;margin:0 auto 4px;background:{{ sc }}1a;color:{{ sc }};border:1px solid {{ sc }}55">
+    This certificate is currently <strong>{{ result.status }}</strong> — it is not valid for presentation.
+  </div>
+  {% endif %}
+
+  <div class="cert-sheet">
+    <div class="cert-band"></div>
+
+    <div style="text-align:center;margin-bottom:8px">
+      <div class="muted" style="font-size:.8rem;letter-spacing:.2em">🛡 ZAMBIA DIGITAL HYGIENE CERTIFICATION PROGRAM</div>
+      <h3 class="cert-title">CERTIFICATE OF DIGITAL HYGIENE</h3>
+    </div>
+
+    <div class="cert-grid">
+      <div>
+        <div class="muted" style="font-size:.8rem;margin-top:10px">This certifies that</div>
+        <div class="cert-biz">{{ result.business_name or '—' }}</div>
+        {% if result.registration_number %}
+        <div class="muted" style="font-size:.85rem">Registration: {{ result.registration_number }}</div>
+        {% endif %}
+        <div style="margin:14px 0"><span class="cert-tier">{{ tier or 'CERTIFIED' }}</span></div>
+
+        <table class="cert-facts" style="margin-top:8px">
+          {% if result.score is not none %}
+          <tr><td class="k">Score</td><td><strong>{{ result.score }}{% if result.total_possible %}/{{ result.total_possible }}{% endif %}</strong></td></tr>
+          {% endif %}
+          <tr><td class="k">Certificate No.</td><td><strong>{{ result.certificate_number }}</strong></td></tr>
+          <tr><td class="k">Issued</td><td>{{ result.issued_date or '—' }}</td></tr>
+          <tr><td class="k">Expires</td><td>{{ result.expiry_date or '—' }}</td></tr>
+          <tr><td class="k">Signature</td><td>
+            {% if result.signature_valid %}
+              <span style="color:#1a8a52">✔ Digitally signed &amp; verified</span>
+            {% elif result.signature_valid is sameas false %}
+              <span style="color:#c0392b">✖ Signature invalid</span>
+            {% else %}
+              <span class="muted">Registry record</span>
+            {% endif %}
+          </td></tr>
+        </table>
+      </div>
+
+      <div class="cert-qr">
+        {% if qr_data_uri %}
+        <img src="{{ qr_data_uri }}" alt="Verification QR code">
+        {% endif %}
+        <div class="muted" style="font-size:.72rem;margin-top:8px">Scan to verify</div>
+        <div style="font-size:.68rem;word-break:break-all;max-width:160px">{{ verify_url }}</div>
+      </div>
+    </div>
+
+    {% if verification_block %}
+    <div class="cert-block">
+      <div class="muted" style="font-size:.72rem;margin-bottom:4px">
+        Offline verification code —
+        <a href="{{ url_for('verify_offline', block=verification_block) }}" class="no-print">verify offline</a>
+        (checks the signature against the published public key, no internet needed):
+      </div>
+      <code>{{ verification_block }}</code>
+    </div>
+    {% endif %}
+
+    <div class="muted" style="font-size:.72rem;text-align:center;margin-top:22px;border-top:1px solid #eee;padding-top:12px">
+      Aligned with NIST CSF · CIS Controls v8 · ISO/IEC 27001:2022 · Verify at {{ verify_url }}
+    </div>
+  </div>
+
+  <div class="no-print" style="text-align:center;margin-top:18px">
+    <button onclick="window.print()" class="btn btn-brand"><i class="fas fa-print me-1"></i>Print / Save as PDF</button>
+    <a href="{{ url_for('verify', certificate_number=result.certificate_number) }}" class="btn btn-outline-brand">Verification page</a>
+  </div>
+</div>
+{% endblock %}

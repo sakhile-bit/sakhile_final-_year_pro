@@ -90,8 +90,9 @@ def _auditor(monkeypatch, data, anon_open=None):
     monkeypatch.setattr(a, "_connect", lambda: conn)
     # Default: anonymous bind refused (secure).
     if anon_open is None:
-        def anon_open():
+        def _refuse_anon():
             raise ConnectionError("anonymous bind refused")
+        anon_open = _refuse_anon
     monkeypatch.setattr(a, "_open_anonymous", anon_open)
     return a
 

@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Certificate Signing & Verification (anti-forgery)
+- **Ed25519-signed certificates** — every certificate is signed over its material
+  facts; altering any field invalidates the signature (tamper detection).
+- **Central registry + issuance API** — passing assessments are registered and
+  signed server-side; the desktop app registers via `POST /api/certificates/issue`
+  (the signing key never ships in the `.exe`), staying *provisional* when offline.
+- **Online verification** — hardened `/verify/<number>` and `/api/verify/<number>`
+  with VALID / EXPIRED / REVOKED / SUPERSEDED / INVALID / NOT FOUND status,
+  48-bit unguessable numbers, per-IP rate limiting, and audit logging.
+- **QR codes & printable certificate** — `/certificate/<number>` plus QR + signed
+  block embedded in desktop PDF/HTML reports.
+- **Offline verifier** — self-contained `/verify-offline` page verifies a
+  certificate's signed block client-side against the published public key, no
+  connectivity required (browser JS cross-validated against the Python signer).
+- **Key rotation** — `key_id`-tagged signatures, retired keys retained for
+  verification (`ZDH_PUBLIC_KEYS`), `/verify/pubkey` publishes all keys, plus a
+  `scripts/rotate_signing_key.py` helper.
+- **Revocation reasons & re-issue supersede** — admin revocation records a reason;
+  re-assessment marks the prior certificate SUPERSEDED. Reasons surfaced on all
+  verification surfaces.
+- Docs: [`docs/features/22-certificate-verification.md`](docs/features/22-certificate-verification.md).
+
+### Security
+- **Issuance auth fails closed** — the certificate issuance API no longer falls
+  back to the source-published dev key in production; if `ZDH_ISSUE_API_KEY` is
+  unset (and not in debug/test), issuance is refused rather than left open.
+- **Rate-limit spoofing fixed** — `X-Forwarded-For` is trusted only when
+  `TRUST_PROXY=1`; otherwise the socket peer is used, so the header can't be
+  rotated to bypass the per-IP enumeration cap.
+- **Rate-limiter memory bounded** — stale per-IP buckets are pruned (cap 20k),
+  preventing unbounded growth under a spoofed-IP flood.
+
 ### Planned for Phase 2
 - Web dashboard with user authentication
 - Assessment history and management

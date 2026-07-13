@@ -7,6 +7,7 @@ framework references (NIST, CIS, ISO 27001), certification tiers,
 and Zambia-specific compliance guidance.
 """
 
+import io
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any
@@ -333,6 +334,47 @@ class ReportGenerator:
                 ))
                 story.append(Spacer(1, 2))
 
+            # ── Certificate verification (QR + signed block) ───────────
+            cert_info = getattr(results, 'certificate', None)
+            if cert_info and cert_info.get('certificate_number'):
+                from reportlab.platypus import Image as RLImage
+                from src.security.certs.render import (
+                    verify_url as _vurl, qr_png_bytes,
+                )
+                cnum = cert_info['certificate_number']
+                vurl = cert_info.get('verify_url') or _vurl(cnum)
+                story.append(Spacer(1, 8))
+                story.append(Paragraph("Certificate Verification", heading2))
+                left_cell = [
+                    Paragraph(f"<b>Certificate No.</b>&nbsp; {cnum}", normal),
+                    Spacer(1, 3),
+                    Paragraph(f"Verify online:<br/>"
+                              f"<font color='#1a5276'>{vurl}</font>", small),
+                ]
+                if cert_info.get('verification_block'):
+                    left_cell.append(Spacer(1, 4))
+                    left_cell.append(Paragraph(
+                        "<b>Offline verification code</b> "
+                        "(check against the published public key):", small))
+                    left_cell.append(Paragraph(
+                        f"<font size=6>{cert_info['verification_block']}</font>",
+                        small))
+                png = qr_png_bytes(vurl, box_size=6, border=2)
+                if png:
+                    qr_img = RLImage(io.BytesIO(png),
+                                     width=3 * cm, height=3 * cm)
+                    ver_table = Table([[left_cell, qr_img]],
+                                      colWidths=[12 * cm, 3.5 * cm])
+                    ver_table.setStyle(TableStyle([
+                        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                        ('ALIGN', (1, 0), (1, 0), 'CENTER'),
+                    ]))
+                    story.append(ver_table)
+                else:
+                    for fl in left_cell:
+                        story.append(fl)
+                story.append(Spacer(1, 6))
+
             # ── Certification thresholds ───────────────────────────────
             story.append(Spacer(1, 8))
             story.append(Paragraph("Certification Thresholds", heading2))
@@ -424,6 +466,37 @@ class ReportGenerator:
             for rec in results.recommendations
         )
 
+        # Certificate verification block (QR + offline code) — only when the
+        # report carries an issued certificate.
+        verification_html = ''
+        cert_info = getattr(results, 'certificate', None)
+        if cert_info and cert_info.get('certificate_number'):
+            from src.security.certs.render import (
+                verify_url as _vurl, qr_data_uri,
+            )
+            cnum = cert_info['certificate_number']
+            vurl = cert_info.get('verify_url') or _vurl(cnum)
+            qr = qr_data_uri(vurl, box_size=6, border=2)
+            qr_img = (f'<img src="{qr}" alt="Verify QR" '
+                      f'style="width:130px;height:130px">' if qr else '')
+            block = cert_info.get('verification_block')
+            block_html = (
+                f'<div style="margin-top:10px"><strong>Offline verification '
+                f'code:</strong><br><code style="word-break:break-all;'
+                f'font-size:.7em">{block}</code></div>' if block else '')
+            verification_html = f"""
+    <h2>Certificate Verification</h2>
+    <div class="summary" style="display:flex;justify-content:space-between;align-items:center;gap:20px">
+        <div>
+            <div><strong>Certificate No.:</strong> {cnum}</div>
+            <div style="margin-top:6px"><strong>Verify online:</strong>
+                <a href="{vurl}">{vurl}</a></div>
+            {block_html}
+        </div>
+        <div style="text-align:center">{qr_img}
+            <div style="font-size:.8em;color:#666">Scan to verify</div></div>
+    </div>"""
+
         return f"""
 <!DOCTYPE html>
 <html lang="en">
@@ -507,6 +580,8 @@ class ReportGenerator:
         <thead><tr><th>ID</th><th>Control</th><th>Score</th><th>Status</th><th>Details</th></tr></thead>
         <tbody>{manual_html if manual_html else _no_manual}</tbody>
     </table>
+
+    {verification_html}
 
     <h2>Recommendations</h2>
     <ul>{recommendations_html}</ul>

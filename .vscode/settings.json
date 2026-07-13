@@ -111,5 +111,42 @@
   "telemetry.telemetryLevel": "off",
 
   // Autosave settings
-  "files.autoSave": "onFocusChange"
+  "files.autoSave": "onFocusChange",
+
+  // Spell checker — project & domain vocabulary
+  "cSpell.words": [
+    "autouse",
+    "behaviour",
+    "Buteko",
+    "canonicalisation",
+    "canonicalization",
+    "Chipata",
+    "Copperbelt",
+    "customtkinter",
+    "delenv",
+    "forgeable",
+    "integ",
+    "Kabwe",
+    "keypair",
+    "levelname",
+    "Livingstone",
+    "minimised",
+    "Mwansa",
+    "Ndola",
+    "Neutralise",
+    "Normalise",
+    "PACRA",
+    "Phiri",
+    "pubkey",
+    "pyflakes",
+    "pyotp",
+    "pyright",
+    "qrcode",
+    "reportlab",
+    "setenv",
+    "touchpads",
+    "travelled",
+    "upserts",
+    "winmm"
+  ]
 }

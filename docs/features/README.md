@@ -43,6 +43,7 @@ All 20 features of the project are documented below. Each file covers the featur
 | 16 | [16-active-directory-checks.md](16-active-directory-checks.md) | **Active Directory Checks** — LDAP connectivity, stale accounts, admin groups |
 | 17 | [17-report-generation.md](17-report-generation.md) | **Report Generation** — JSON/HTML/PDF/CSV export + HTML certificate |
 | 18 | [18-web-application.md](18-web-application.md) | **Flask Web Application** — multi-user portal, roles, MFA, audit logs |
+| 22 | [22-certificate-verification.md](22-certificate-verification.md) | **Certificate Signing & Verification** — Ed25519 anti-forgery, QR + online/offline verification, key rotation, revocation |
 
 ---
 

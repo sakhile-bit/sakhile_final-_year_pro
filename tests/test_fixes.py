@@ -96,13 +96,17 @@ class TestFixRegistry:
             assert cid in ids
 
     def test_smb1_and_others_are_safe(self):
-        assert fx.fix_for("HRD-01").safe
-        assert fx.fix_for("HRD-05").safe
+        f01 = fx.fix_for("HRD-01")
+        f05 = fx.fix_for("HRD-05")
+        assert f01 is not None and f01.safe
+        assert f05 is not None and f05.safe
 
     def test_spooler_and_tls_are_caution(self):
-        assert not fx.fix_for("HRD-09").safe
-        assert not fx.fix_for("HRD-07").safe
-        assert fx.fix_for("HRD-09").caution
+        f09 = fx.fix_for("HRD-09")
+        f07 = fx.fix_for("HRD-07")
+        assert f09 is not None and not f09.safe
+        assert f07 is not None and not f07.safe
+        assert f09.caution
 
 
 # ---------------------------------------------------------------------------

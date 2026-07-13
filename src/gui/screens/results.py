@@ -109,9 +109,13 @@ class ResultsScreen(ctk.CTkFrame):
         from src.utils.logging_config import get_logger
         log = get_logger(__name__)
         self._saved = False
+        self._assessment_row_id = None
+        self._cert = None
+        self._cert_status = None          # None | REGISTERING | REGISTERED | PROVISIONAL
+        self._cert_status_label = None
         try:
             from src.utils.local_db import save_assessment
-            save_assessment(self._results)
+            self._assessment_row_id = save_assessment(self._results)
             self._saved = True
         except Exception:
             log.exception("Failed to save assessment to local history")
@@ -124,6 +128,71 @@ class ResultsScreen(ctk.CTkFrame):
             set_reassessment_date(due)
         except Exception:
             log.exception("Failed to set reassessment reminder date")
+
+        # Register a portal-signed certificate for a real, verified tier.
+        # Done in the background so a slow/absent portal never blocks the
+        # results screen; it falls back to a provisional (unregistered) state.
+        r = self._results
+        provisional = bool(getattr(r, "provisional", False))
+        certified = r.certification_level != "NOT CERTIFIED" and not provisional
+        if certified and self._assessment_row_id:
+            self._cert_status = "REGISTERING"
+            import threading
+            threading.Thread(
+                target=self._register_certificate,
+                args=(self._assessment_row_id,), daemon=True).start()
+
+    def _register_certificate(self, row_id):
+        """Background: register with the portal and persist the outcome."""
+        from src.utils.logging_config import get_logger
+        log = get_logger(__name__)
+        cert = None
+        try:
+            from src.utils.cert_client import issue_certificate
+            cert = issue_certificate(self._results)
+        except Exception:
+            log.exception("certificate issuance raised")
+        try:
+            from src.utils.local_db import save_certificate
+            if cert and cert.get("certificate_number"):
+                self._cert = cert
+                self._cert_status = "REGISTERED"
+                # Attach so exported reports embed the QR + signed block
+                # (ReportGenerator reads ``results.certificate``).
+                self._results.certificate = {
+                    "certificate_number": cert["certificate_number"],
+                    "verify_url": cert.get("verify_url"),
+                    "verification_block": cert.get("verification_block"),
+                    "signature_valid": True,
+                }
+                save_certificate(row_id, "REGISTERED", cert)
+            else:
+                self._cert_status = "PROVISIONAL"
+                save_certificate(row_id, "PROVISIONAL", None)
+        except Exception:
+            log.exception("failed to persist certificate state")
+        try:
+            self.after(0, self._update_cert_ui)
+        except Exception:
+            pass
+
+    def _update_cert_ui(self):
+        """Reflect the registration outcome on the results screen (main thread)."""
+        lbl = getattr(self, "_cert_status_label", None)
+        try:
+            if not lbl or not lbl.winfo_exists():
+                return
+        except Exception:
+            return
+        if self._cert_status == "REGISTERED" and self._cert:
+            lbl.configure(
+                text=f"✔  Registered certificate · {self._cert['certificate_number']}",
+                text_color=CLR_SUCCESS)
+        elif self._cert_status == "PROVISIONAL":
+            lbl.configure(
+                text="⚠  Provisional — certificate not yet registered "
+                     "(verification portal offline)",
+                text_color=CLR_WARNING)
 
     # ------------------------------------------------------------------ build
     def _build(self):
@@ -224,6 +293,15 @@ class ResultsScreen(ctk.CTkFrame):
                           f"·  Assessed {r.assessment_date.strftime('%d %b %Y')}",
                      font=FONT_CAPTION, text_color=CLR_MUTED,
                      ).pack(anchor="w", pady=(2, 0))
+
+        # Certificate registration status (background portal issuance).
+        if certified:
+            self._cert_status_label = ctk.CTkLabel(
+                left, text="Registering certificate…",
+                font=FONT_CAPTION, text_color=CLR_MUTED)
+            self._cert_status_label.pack(anchor="w", pady=(6, 0))
+            # Reflect immediately if the background thread already finished.
+            self.after(0, self._update_cert_ui)
 
         # Right: ring chart
         ring_frame = ctk.CTkFrame(hero, fg_color=CLR_SURFACE_ALT,
