@@ -134,6 +134,12 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
+# Project-local artifacts (never publish)
+PROJECT PROPOSAL.docx
+test_screenshots/
+verify_screenshots/
+*.pem
+
 # Environments
 .env
 .envrc

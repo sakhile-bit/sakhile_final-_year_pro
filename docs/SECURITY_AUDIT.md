@@ -85,15 +85,16 @@ A full-codebase security audit was performed across all Python source files. **5
 ## Open Items — Manual Action Required
 
 ### CRITICAL — Committed Credentials in Git History
-**File:** `.env`  
-**Issue:** The `.env` file was committed to git containing `DB_PASSWORD=@root2026` and `ADMIN_DEFAULT_PASSWORD=admin123`. These credentials exist in the repository's full git history even if the file is deleted today.
+**File:** `.env.example`  
+**Issue:** `.env.example` was committed to git containing a real `DB_PASSWORD` value (now redacted) alongside `ADMIN_DEFAULT_PASSWORD=admin123`. These credentials exist in the repository's full git history even though the file has since been sanitized.
 
 **Required actions:**
 1. **Rotate `DB_PASSWORD` immediately** — change the MySQL user password on the database server.
-2. **Scrub git history:**
+2. **Scrub git history** (replaces the old password everywhere it appears):
    ```bash
    pip install git-filter-repo
-   git filter-repo --path .env --invert-paths
+   echo "OLD_PASSWORD_HERE==>REDACTED" > replacements.txt
+   git filter-repo --replace-text replacements.txt
    git push --force
    ```
 3. **Add `.env` to `.gitignore`** if not already present.

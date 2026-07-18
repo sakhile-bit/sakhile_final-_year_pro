@@ -275,8 +275,8 @@
 ## 👥 Credits
 
 **Project Team:**
-- Stanford Zulu (Student ID: 2020025752)
-- Misheck Trinity Chama (Student ID: 2022049713)
+- Stanford Zulu
+- Misheck Trinity Chama
 - **Supervisor:** Martin Phiri
 - **Institution:** University of Zambia, Dept. of Computing & Informatics
 

@@ -7,7 +7,8 @@
 1. **Clone & navigate**
 
    ```bash
-   cd c:\Users\sakil\Desktop\sakhile_final-_year_pro
+   git clone https://github.com/sakhile-bit/sakhile_final-_year_pro.git
+   cd sakhile_final-_year_pro
    ```
 
 2. **Activate virtual environment**

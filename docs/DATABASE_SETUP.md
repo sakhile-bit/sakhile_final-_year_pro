@@ -34,7 +34,7 @@ Works on Windows, macOS, and Linux.
 
 ```bash
 # Windows (CMD)
-cd c:\Users\sakil\Desktop\sakhile_final-_year_pro
+cd sakhile_final-_year_pro
 python database\setup_mysql.py
 
 # macOS/Linux

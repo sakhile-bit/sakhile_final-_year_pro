@@ -159,7 +159,8 @@ Then open **http://127.0.0.1:5000** in your browser.
 1. **Clone and enter directory**
 
    ```bash
-   cd c:\Users\sakil\Desktop\sakhile_final-_year_pro
+   git clone https://github.com/sakhile-bit/sakhile_final-_year_pro.git
+   cd sakhile_final-_year_pro
    ```
 
 2. **Create virtual environment** (if needed)
@@ -552,10 +553,8 @@ Key documentation files for your project:
 
 ## �📞 Support
 
-- **Documentation**: [Read the Docs](https://zambia-digital-hygiene.readthedocs.io/)
-- **Issues**: [GitHub Issues](https://github.com/yourusername/zambia-digital-hygiene/issues)
-- **Email**: Stanford.sakhile@cs.unza.zm/misheck.trinity.chama@cs.unza.zm
-- **Phone**: +260 969274765
+- **Issues**: [GitHub Issues](https://github.com/sakhile-bit/sakhile_final-_year_pro/issues)
+- **Email**: Stanford.sakhile@cs.unza.zm / misheck.trinity.chama@cs.unza.zm
 
 ## � Production Deployment
 
