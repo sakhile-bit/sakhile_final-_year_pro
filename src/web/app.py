@@ -670,11 +670,16 @@ def create_app(db_uri: str | None = None) -> Flask:
             db.session.commit()
             logger.info('Default admin user created')
         else:
-            # Normalize hash if legacy bcrypt hash present.
-            if not admin.password_hash.startswith('pbkdf2:'):
+            # Normalize hash only if a legacy bcrypt hash is present (bcrypt
+            # hashes start with $2a$/$2b$/$2y$). werkzeug's own hashes
+            # (pbkdf2: or scrypt:, depending on version) are left alone —
+            # otherwise this would reset the admin password to the default
+            # on every single startup, silently discarding any password
+            # change made through the UI.
+            if admin.password_hash.startswith('$2'):
                 admin.set_password(_DEFAULT_ADMIN_PW)
                 db.session.commit()
-                logger.info('Default admin password reset to pbkdf2 hash')
+                logger.info('Legacy bcrypt admin password hash migrated')
 
     # Register admin dashboard blueprint (only once)
     from src.web.admin import admin_bp
