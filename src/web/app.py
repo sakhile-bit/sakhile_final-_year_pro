@@ -692,15 +692,19 @@ def rate_limit(max_attempts=5, window=300):  # 5 attempts per 5 minutes
     def decorator(f):
         @wraps(f)
         def wrapper(*args, **kwargs):
-            ip = request.remote_addr or '0.0.0.0'
-            now = time.time()
-            if ip not in login_attempts:
-                login_attempts[ip] = []
-            login_attempts[ip] = [t for t in login_attempts[ip] if now - t < window]
-            if len(login_attempts[ip]) >= max_attempts:
-                flash('Too many login attempts. Try again later.', 'error')
-                return render_template('login.html')
-            login_attempts[ip].append(now)
+            # Only count submissions (POST), not page views (GET) — otherwise
+            # simply reloading the login page a few times exhausts the quota
+            # and locks everyone on the same IP out for the full window.
+            if request.method == 'POST':
+                ip = request.remote_addr or '0.0.0.0'
+                now = time.time()
+                if ip not in login_attempts:
+                    login_attempts[ip] = []
+                login_attempts[ip] = [t for t in login_attempts[ip] if now - t < window]
+                if len(login_attempts[ip]) >= max_attempts:
+                    flash('Too many login attempts. Try again later.', 'error')
+                    return render_template('login.html')
+                login_attempts[ip].append(now)
             return f(*args, **kwargs)
         return wrapper
     return decorator
